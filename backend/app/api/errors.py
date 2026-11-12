@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.domain.notes import InvalidNote, NoteNotFound
+from app.ports import PortUnavailable
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -19,3 +20,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(InvalidNote)
     async def _invalid(_: Request, exc: InvalidNote) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(PortUnavailable)
+    async def _port_unavailable(_: Request, exc: PortUnavailable) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})

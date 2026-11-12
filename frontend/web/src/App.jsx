@@ -60,7 +60,7 @@ function TopNav() {
   return (
     <header className="topnav">
       <div className="topnav-left">
-        <span className="logo" aria-label="Home">s</span>
+        <img className="logo" src="/logo.svg" alt="Home" />
         <input className="search" placeholder="Search" aria-label="Search" />
       </div>
       <nav className="topnav-center" aria-label="Primary">

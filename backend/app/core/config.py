@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     # SQLite file, or ":memory:" for a throwaway in-process database.
     DB_PATH: str = str(BACKEND_DIR / "data" / "app.db")
+    # Where uploaded Moment media is stored (served by GET /media/{file}).
+    MEDIA_DIR: str = str(BACKEND_DIR / "data" / "uploads")
     # Unset: no /demo routes, system time. "on": Demo Control and a shiftable
     # clock. "offline": same, and Muse is replaced by its fake client.
     DEMO_MODE: Literal["on", "offline"] | None = None

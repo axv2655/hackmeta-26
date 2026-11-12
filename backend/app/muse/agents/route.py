@@ -116,7 +116,13 @@ class RouteService:
             chips=[f"both from {area}"],
         )
         out = await self.lane.runner.run_agent(
-            AGENT, a, prompt, RouteOut, lambda: fallback, max_tokens=MAX_TOKENS
+            AGENT,
+            a,
+            prompt,
+            RouteOut,
+            lambda: fallback,
+            max_tokens=MAX_TOKENS,
+            slow=True,
         )
         message = book.restore(out.message, places)
         chips = [book.restore(c, places) for c in out.chips[:2]]

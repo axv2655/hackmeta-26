@@ -238,6 +238,7 @@ class FlareScanner:
             FlareOut,
             fallback,
             max_tokens=MAX_TOKENS,
+            slow=True,
             check=check,
         )
         if not out.act:

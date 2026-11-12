@@ -157,6 +157,7 @@ async def pick(runner: MuseRunner, req: NotifyRequest) -> NotifyResult:
         PickerOut,
         fallback,
         max_tokens=MAX_TOKENS,
+        slow=True,
         check=check,
     )
     return finalize(out)

@@ -121,6 +121,7 @@ async def update_profile(
         TasteOut,
         lambda: fallback_profile(prev, ratings),
         max_tokens=MAX_TOKENS,
+        slow=True,
         check=_check,
     )
 
@@ -205,6 +206,7 @@ async def suggest_spots(
         SpotsOut,
         fallback,
         max_tokens=SPOTS_MAX_TOKENS,
+        slow=True,
         check=check,
     )
     picked: list[tuple[MarkSnapshot, str]] = []

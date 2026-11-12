@@ -30,9 +30,12 @@ import httpx
 from app.core.config import Settings, settings
 
 ANTHROPIC_VERSION = "2023-06-01"
-# Verified 2026-11-12: thinking cannot be disabled and uses its share of
-# max_tokens; a 50-token cap returned no text at all.
-THINKING_HEADROOM = 1024
+# Verified 2026-11-12: thinking cannot be disabled, `budget_tokens` does not
+# cap it, and it counts against max_tokens. Small prompts think ~100-300
+# tokens; the notify picker thinks ~1,600-2,100 and returned no text at all
+# under a 1,524 cap. Only tokens actually used are billed, so this is a
+# ceiling, not a cost.
+THINKING_HEADROOM = 4096
 JSON_INSTRUCTION = (
     "\n\nRespond with ONLY one JSON object that matches the requested shape. "
     "No prose, no markdown fences."

@@ -49,7 +49,7 @@ MOVES = [
 def ranker(engine, answer=None) -> tuple[MoveRanker, FakeMuseClient]:
     client = FakeMuseClient({"move_ranker": answer} if answer is not None else {})
     lane = f.lane(engine, Container(clock=FixedClock(T0)), client)
-    return MoveRanker(lane), client
+    return MoveRanker(lane, wait=True), client
 
 
 def alias_of(prompt: str) -> dict[str, str]:
@@ -126,5 +126,25 @@ async def test_cache_45s_per_user(engine, world) -> None:
 
 async def test_gateway_rank_moves_is_bound(engine, world) -> None:
     container, *_ = f.wire(engine, FixedClock(T0))
-    ranked = await container.muse.rank_moves("anish", MOVES)
+    ranked = await container.muse.rank_moves("anish", MOVES)  # heuristic first
     assert [x.move_id for x in ranked] == ["kumo", "lunch", "pickle"]
+
+
+async def test_app_mode_answers_heuristic_now_and_muse_later(engine, world) -> None:
+    def answer(system, prompt):
+        a = alias_of(prompt)
+        return {
+            "ranked": [
+                {"move": a[n], "reason": "muse"} for n in ("Pickle", "Lunch", "Kumo")
+            ]
+        }
+
+    client = FakeMuseClient({"move_ranker": answer})
+    r = MoveRanker(f.lane(engine, Container(clock=FixedClock(T0)), client))
+    first = await r.rank_moves("anish", MOVES)
+    assert [x.move_id for x in first] == ["kumo", "lunch", "pickle"]  # heuristic
+    assert await r.rank_moves("anish", MOVES) == first  # still ranking
+    await r.settle()
+    later = await r.rank_moves("anish", MOVES)
+    assert [x.move_id for x in later] == ["pickle", "lunch", "kumo"]
+    assert len(client.calls) == 1  # one background call, not one per request

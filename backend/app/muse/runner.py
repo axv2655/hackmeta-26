@@ -6,7 +6,8 @@
     )
 
 1. Serve a cached result for the same prompt hash within 60 s.
-2. Call `MuseClient.complete` with a 6 s timeout.
+2. Call `MuseClient.complete` with a 6 s timeout (`slow=True`: 20 s, for
+   background agents whose prompts make Muse think for 6 to 9 s).
 3. Extract the first JSON object, validate it against `schema`, then run the
    agent's own `check` (raise `ValueError` to reject an answer).
 4. On timeout, transport error, garbage or a failed check: retry once, then
@@ -43,7 +44,8 @@ from app.tables import MuseRun
 logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
-TIMEOUT_S = 6.0
+TIMEOUT_S = 6.0  # user-facing agents (10.2)
+SLOW_TIMEOUT_S = 20.0  # background agents: Muse thinks ~2k tokens, 6-9 s
 ATTEMPTS = 2  # the call plus one retry
 CACHE_TTL_S = 60.0
 LAST_OUTPUTS = 20
@@ -119,6 +121,7 @@ class MuseRunner:
     engine: Engine | None = None
     """Where `muse_runs` rows go; None skips the log (pure unit tests)."""
     timeout_s: float = TIMEOUT_S
+    slow_timeout_s: float = SLOW_TIMEOUT_S
     cache_ttl_s: float = CACHE_TTL_S
     _cache: dict[str, tuple[float, BaseModel]] = field(default_factory=dict)
     _total: AgentStats = field(default_factory=AgentStats)
@@ -143,6 +146,7 @@ class MuseRunner:
         max_tokens: int = 400,
         check: Callable[[T], T] | None = None,
         system: str | None = None,
+        slow: bool = False,
     ) -> T:
         system = system or load_prompt(agent)
         images = list(images or ()) if self.client.supports_vision else []
@@ -168,7 +172,7 @@ class MuseRunner:
                     self.client.complete(
                         system, prompt, images=images, json=True, max_tokens=max_tokens
                     ),
-                    timeout=self.timeout_s,
+                    timeout=self.slow_timeout_s if slow else self.timeout_s,
                 )
                 tokens_in += completion.input_tokens
                 tokens_out += completion.output_tokens

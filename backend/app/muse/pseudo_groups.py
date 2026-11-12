@@ -105,6 +105,7 @@ class PseudoGroupService:
             LabelOut,
             lambda: LabelOut(label=row.label),
             max_tokens=LABEL_MAX_TOKENS,
+            slow=True,
         )
         return " ".join(out.label.split()).lower()
 

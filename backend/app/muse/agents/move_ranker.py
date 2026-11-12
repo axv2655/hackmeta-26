@@ -5,11 +5,13 @@ one-line reason for the "For you" strip.
 - Every input Move appears exactly once: Muse's unknown or duplicate aliases
   are dropped and missing Moves are appended in fallback order.
 - Fallback: by the highest affinity of anyone on the Move, newest first.
-- Results are cached per viewer for 45 s (same set of Moves).
+- Results are cached per viewer for 45 s (same set of Moves); the app gets
+  the heuristic order at once while Muse ranks in the background.
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -70,9 +72,19 @@ def fallback_reason(
 
 @dataclass
 class MoveRanker:
+    """`wait=False` (the app): answer at once with the heuristic order and
+    rank with Muse in the background; the Muse order serves the next call
+    within 45 s (10.12: heuristic now, Muse when it lands). Core's
+    `/moves/nearby` gives up after 2 s, which would cancel a blocking call.
+    `wait=True` awaits Muse (tests, Demo Control)."""
+
     lane: MuseLane
     ttl_s: float = CACHE_TTL_S
+    wait: bool = False
     _cache: dict[tuple[str, tuple[str, ...]], tuple[float, list[RankedMove]]] = field(
+        default_factory=dict
+    )
+    _inflight: dict[tuple[str, tuple[str, ...]], asyncio.Task[None]] = field(
         default_factory=dict
     )
 
@@ -85,10 +97,42 @@ class MoveRanker:
         hit = self._cache.get(key)
         if hit and hit[0] > time.monotonic():
             return list(hit[1])
+        if self.wait:
+            await self._refresh(key, viewer_id, list(moves))
+            return list(self._cache[key][1])
+        if key not in self._inflight:
+            task = asyncio.create_task(self._refresh(key, viewer_id, list(moves)))
+            self._inflight[key] = task
+            task.add_done_callback(lambda _: self._inflight.pop(key, None))
         with self.lane.session() as session:
-            result = await self._rank(session, viewer_id, list(moves))
+            return self.heuristic(session, viewer_id, list(moves))
+
+    async def settle(self) -> None:
+        """Wait for background rankings (tests)."""
+        while self._inflight:
+            await asyncio.gather(*self._inflight.values(), return_exceptions=True)
+
+    async def _refresh(
+        self,
+        key: tuple[str, tuple[str, ...]],
+        viewer_id: str,
+        moves: list[MoveSnapshot],
+    ) -> None:
+        with self.lane.session() as session:
+            result = await self._rank(session, viewer_id, moves)
         self._cache[key] = (time.monotonic() + self.ttl_s, result)
-        return list(result)
+
+    def heuristic(
+        self, session: Session, viewer_id: str, moves: list[MoveSnapshot]
+    ) -> list[RankedMove]:
+        everyone = {u for m in moves for u in _people(m, viewer_id)}
+        cands = load_candidates(session, viewer_id, everyone, self.lane.now())
+        scores = {c.user_id: c.affinity for c in cands}
+        names = {c.user_id: c.first_name for c in cands}
+        return [
+            RankedMove(m.id, fallback_reason(m, viewer_id, scores, names))
+            for m in fallback_order(moves, viewer_id, scores)
+        ]
 
     async def _rank(
         self, session: Session, viewer_id: str, moves: list[MoveSnapshot]
@@ -137,7 +181,13 @@ class MoveRanker:
             )
 
         out = await self.lane.runner.run_agent(
-            AGENT, viewer_id, prompt, RankerOut, fallback, max_tokens=MAX_TOKENS
+            AGENT,
+            viewer_id,
+            prompt,
+            RankerOut,
+            fallback,
+            max_tokens=MAX_TOKENS,
+            slow=True,
         )
         return self._repair(out, head, tail, movebook, people, viewer_id, scores, names)
 

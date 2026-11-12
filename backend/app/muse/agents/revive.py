@@ -135,6 +135,7 @@ class ReviveService:
             ReviveOut,
             lambda: ReviveOut(message=fallback_msg, text=writer_text, chips=chips),
             max_tokens=MAX_TOKENS,
+            slow=True,
         )
         text = move_writer.normalize(out.text)
         if not text or len(text) >= move_writer.MAX_LEN:

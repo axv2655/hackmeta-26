@@ -13,12 +13,14 @@ from sqlalchemy import Engine
 from app.container import Container
 from app.core import db
 from app.hooks import Hooks
+from app.muse.agents.flare import FlareScanner
 from app.muse.agents.move_ranker import MoveRanker
 from app.muse.client import MuseClient, client_from_settings
 from app.muse.compose import ComposeService
 from app.muse.lane import MuseLane
 from app.scheduler.loop import Scheduler
 from app.services.notify import MuseNotifier, NotifyService
+from app.services.suggestions import SuggestionService
 
 
 def register(
@@ -78,5 +80,16 @@ def register(
 
     # M6: Move ranker (45 s per-user cache)
     gateway.bind("rank_moves", MoveRanker(lane).rank_moves)
+
+    # M7: flare / free-time agent, suggestion expiry
+    flares = FlareScanner(lane)
+    gateway.bind("run_flare_scan", flares.run_flare_scan)
+    gateway.bind("run_free_time_scan", flares.run_free_time_scan)
+    scheduler.register("muse_flare_scan", flares.scan_all, interval_s=60)
+
+    async def expire_suggestions() -> int:
+        return await lane.call(SuggestionService, "expire")
+
+    scheduler.register("muse_expire_suggestions", expire_suggestions, interval_s=60)
 
     return lane

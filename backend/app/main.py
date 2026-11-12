@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
+from app.api import invite_page
 from app.api.errors import register_exception_handlers
 from app.api.main import api_router
 from app.container import Container
@@ -53,6 +54,8 @@ def create_app(lanes: Sequence[Registrar] = LANES) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(api_router, prefix=settings.API_V1_STR)
+    # Public invite links (/m/{token}) sit at the root so shared URLs stay short.
+    app.include_router(invite_page.router)
     register_exception_handlers(app)
     return app
 

@@ -19,6 +19,8 @@ EXPECTED = {
     # surfaces
     "proximity_tokens", "proximity_sightings", "copresence", "hangouts", "ratings",
     "mark_rankings", "calendar_events", "reels", "saved_reels",
+    # messages
+    "move_invites",
 }  # fmt: skip
 
 

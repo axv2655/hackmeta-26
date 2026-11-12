@@ -17,9 +17,6 @@ const Menu = pick('menu', L.Menu)
 const MessageCircle = pick('messages', L.MessageCircle)
 const Bell = pick('notifications', L.Bell)
 const Globe = pick('globe', L.Globe)
-const ThumbsUp = pick('like', L.ThumbsUp)
-const MessageSquare = pick('comment', L.MessageSquare)
-const Share2 = pick('share', L.Share2)
 const Plus = pick('plus', L.Plus)
 
 const ME = 'Alex Rivera'
@@ -239,17 +236,12 @@ function Post({ post, onLike, onComment }) {
       </div>
       <p className="post-text">{post.text}</p>
       {post.image != null && <div className="post-img" style={{ backgroundImage: art(post.image) }} role="img" aria-label="Post photo" />}
-      <div className="row counts muted">
-        <span className="row"><span className="like-badge"><ThumbsUp size={10} fill="#fff" /></span>{post.likes + (post.liked ? 1 : 0)}</span>
-        <span>{post.comments.length} comment{post.comments.length === 1 ? '' : 's'} · {post.shares} share{post.shares === 1 ? '' : 's'}</span>
-      </div>
       <div className="divider" />
-      <div className="actions">
-        <button className={post.liked ? 'liked' : ''} onClick={onLike} aria-pressed={!!post.liked}><ThumbsUp fill={post.liked ? 'currentColor' : 'none'} /> Like</button>
-        <button onClick={() => document.getElementById(`c${post.id}`).focus()}><MessageSquare /> Comment</button>
-        <button><Share2 /> Share</button>
+      <div className="react-bar">
+        <button className={post.liked ? 'liked' : ''} onClick={onLike} aria-pressed={!!post.liked} aria-label="Like"><i className={`ui ${post.liked ? 'like-on' : 'like'}`} />{post.likes + (post.liked ? 1 : 0)}</button>
+        <button onClick={() => document.getElementById(`c${post.id}`).focus()} aria-label="Comment"><i className="ui comment" />{post.comments.length}</button>
+        <span className="react-stack grow-left" aria-label="Reactions"><img src="/fb/like.svg" alt="" /><img src="/fb/love.svg" alt="" /></span>
       </div>
-      <div className="divider" />
       {post.comments.map((c, i) => (
         <div key={i} className="row comment"><Avatar name={c.author} size={32} /><div className="bubble"><strong>{c.author}</strong><div>{c.text}</div></div></div>
       ))}

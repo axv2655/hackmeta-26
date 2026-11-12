@@ -4,7 +4,7 @@ Drop SVGs here to replace the default icons. File name = slot:
 - video.svg (MonitorPlay)
 - marketplace.svg (Store)
 - groups.svg (Users)
-- gaming.svg (Gamepad2)
+- friends.svg (Users)
 - menu.svg (Menu)
 - messages.svg (MessageCircle)
 - notifications.svg (Bell)

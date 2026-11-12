@@ -12,7 +12,7 @@ const Home = pick('home', L.Home)
 const MonitorPlay = pick('video', L.MonitorPlay)
 const Store = pick('marketplace', L.Store)
 const Users = pick('groups', L.Users)
-const Gamepad2 = pick('gaming', L.Gamepad2)
+const Friends = pick('friends', L.Users)
 const Menu = pick('menu', L.Menu)
 const MessageCircle = pick('messages', L.MessageCircle)
 const Bell = pick('notifications', L.Bell)
@@ -63,8 +63,8 @@ function TopNav() {
         <input className="search" placeholder="Search" aria-label="Search" />
       </div>
       <nav className="topnav-center" aria-label="Primary">
-        {[['Home', Home], ['Video', MonitorPlay], ['Marketplace', Store], ['Groups', Users], ['Gaming', Gamepad2]].map(([t, I], i) => (
-          <button key={t} className={`tab ${i === 0 ? 'active' : ''}`} aria-label={t} title={t}><I size={26} /></button>
+        {[['Home', Home], ['Friends', Friends], ['Video', MonitorPlay], ['Marketplace', Store], ['Groups', Users]].map(([t, I], i) => (
+          <button key={t} className={`tab ${i === 0 ? 'active' : ''}`} aria-label={t} title={t}><I size={24} /></button>
         ))}
       </nav>
       <div className="topnav-right">

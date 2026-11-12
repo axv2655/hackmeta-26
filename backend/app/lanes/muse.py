@@ -13,6 +13,7 @@ from sqlalchemy import Engine
 from app.container import Container
 from app.core import db
 from app.hooks import Hooks
+from app.muse.agents.move_ranker import MoveRanker
 from app.muse.client import MuseClient, client_from_settings
 from app.muse.compose import ComposeService
 from app.muse.lane import MuseLane
@@ -74,5 +75,8 @@ def register(
 
     gateway.bind("compose_move", compose_move)
     gateway.bind("resolve_place", resolve_place)
+
+    # M6: Move ranker (45 s per-user cache)
+    gateway.bind("rank_moves", MoveRanker(lane).rank_moves)
 
     return lane

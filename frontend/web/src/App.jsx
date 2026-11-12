@@ -139,7 +139,90 @@ function useDismiss(open, setOpen) {
   return ref
 }
 
+// Menu dropdown: [section, [[label, desc, icon]]]; icon is a sidebar sprite y-offset or a Lucide stand-in
+const MENU_SECTIONS = [
+  ['Social', [['Events', 'Organize or find events and other things to do online and nearby.', L.CalendarDays], ['Friends', 'Search for friends or people you may know.', -851], ['Groups', 'Connect with people who share your interests.', -185], ['News Feed', 'See relevant posts from people and Pages you follow.', L.Newspaper], ['Feeds', 'See the most recent posts from your friends, groups, Pages and more.', L.Rss], ['Pages', 'Discover and connect with businesses on Facebook.', -333]]],
+  ['Entertainment', [['Reels', 'A Reels destination personalized to your interests and connections.', -111], ['Video', 'A video destination personalized to your interests and connections.', L.MonitorPlay]]],
+  ['Shopping', [['Marketplace', 'Buy and sell in your community.', -999], ['Orders and payments', 'A seamless, secure way to pay on the apps you already use.', L.CreditCard]]],
+  ['Personal', [['Memories', 'Browse your old photos, videos and posts on Facebook.', -1221], ['Saved', 'Find posts, photos and videos that you saved for later.', -518]]],
+]
+const CREATE = [['Post', L.SquarePen], ['Story', L.BookOpen], ['Reel', L.Clapperboard], ['Life update', L.Star], ['Note', L.MessageSquare], null, ['Page', L.Flag], ['Ad', L.Megaphone], ['Group', L.Users], ['Event', L.CalendarPlus], ['Marketplace listing', L.ShoppingBag]]
+
+function AppMenu() {
+  const [q, setQ] = useState('')
+  const match = (label) => label.toLowerCase().includes(q.trim().toLowerCase())
+  return (
+    <div className="dropdown app-menu" role="dialog" aria-label="Menu">
+      <h2>Menu</h2>
+      <div className="app-menu-cols">
+        <div className="menu-card">
+          <label className="side-search"><L.Search size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search menu" aria-label="Search menu" /></label>
+          {MENU_SECTIONS.map(([sec, items]) => {
+            const shown = items.filter(([label]) => match(label))
+            return shown.length > 0 && (
+              <section key={sec} className="menu-sec">
+                <h3>{sec}</h3>
+                {shown.map(([label, desc, I]) => (
+                  <a key={label} className="menu-row tall">
+                    {typeof I === 'number' ? <i className="sprite" style={{ backgroundImage: 'url(/fb/sidebar.webp)', backgroundPosition: `0 ${I}px` }} /> : <span className="menu-glyph"><I size={24} /></span>}
+                    <span className="grow"><b>{label}</b><span className="small">{desc}</span></span>
+                  </a>
+                ))}
+              </section>
+            )
+          })}
+        </div>
+        <div className="menu-card create">
+          <h3>Create</h3>
+          {CREATE.map((c, k) => (c ? <CreateRow key={c[0]} label={c[0]} I={c[1]} /> : <div key={k} className="divider" />))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CreateRow({ label, I }) {
+  return <a className="menu-row"><span className="menu-icon"><I size={20} /></span>{label}</a>
+}
+
+// demo Messenger chats
+const CHATS = [
+  { who: 'Priya Shah', last: 'Priya: sending the trail map now', time: '5m', unread: true },
+  { who: 'Marcus Lee', last: 'You: see you at 7', time: '1h', unread: false },
+  { who: 'Sofia Gomez', last: 'Sofia: brownies were a hit', time: '3h', unread: true },
+  { who: 'Jordan Kim', last: 'Jordan sent a photo.', time: '1d', unread: false },
+  { who: 'Ava Chen', last: 'You: thanks!', time: '2d', unread: false },
+  { who: 'Noah Patel', last: 'Noah: are we still on for Saturday?', time: '4d', unread: false },
+]
+
+function ChatsPanel({ chats, setChats }) {
+  const [tab, setTab] = useState('All')
+  const [q, setQ] = useState('')
+  // demo chats are all 1:1, so Groups/Communities stay empty
+  const shown = tab === 'Groups' || tab === 'Communities' ? [] : chats.filter((c) => (tab !== 'Unread' || c.unread) && c.who.toLowerCase().includes(q.trim().toLowerCase()))
+  const read = (who) => setChats((cs) => cs.map((c) => (c.who === who ? { ...c, unread: false } : c)))
+  return (
+    <div className="dropdown notifs chats" role="dialog" aria-label="Chats">
+      <div className="row between"><h2>Chats</h2><span className="row"><button className="icon-btn" aria-label="Options"><L.Ellipsis size={20} /></button><button className="icon-btn" aria-label="See all in Messenger"><L.Maximize2 size={18} /></button><button className="icon-btn" aria-label="New message"><L.SquarePen size={18} /></button></span></div>
+      <label className="side-search"><L.Search size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Messenger" aria-label="Search Messenger" /></label>
+      <div className="row">{['All', 'Unread', 'Groups', 'Communities'].map((t) => <button key={t} className={`pill ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t}</button>)}</div>
+      {shown.map((c) => (
+        <a key={c.who} className="notif" onClick={() => read(c.who)}>
+          <Avatar name={c.who} size={56} />
+          <span className="grow"><span className={c.unread ? 'b' : ''}>{c.who}</span><span className={`chat-last ${c.unread ? 'b' : 'muted'}`}>{c.last} · {c.time}</span></span>
+          {c.unread && <span className="dot" aria-label="Unread" />}
+        </a>
+      ))}
+      {shown.length === 0 && <p className="muted center">No chats</p>}
+      <div className="divider" />
+      <a className="blue center chat-all">See all in Messenger</a>
+    </div>
+  )
+}
+
 function TopNav({ view, setView }) {
+  const [chats, setChats] = useState(CHATS)
+  const unreadChats = chats.filter((c) => c.unread).length
   const [open, setOpen] = useState(null)
   const [notifs, setNotifs] = useState(NOTIFS)
   const ref = useDismiss(open, setOpen)
@@ -157,14 +240,16 @@ function TopNav({ view, setView }) {
         ))}
       </nav>
       <div className="topnav-right" ref={ref}>
-        <button className="circle-btn" aria-label="Menu" data-tip="Menu"><Menu size={20} /></button>
-        <button className="circle-btn" aria-label="Messenger" data-tip="Messenger"><MessageCircle size={20} /></button>
+        <button className={`circle-btn ${open === 'menu' ? 'on' : ''}`} aria-label="Menu" data-tip="Menu" aria-expanded={open === 'menu'} onClick={() => toggle('menu')}><Menu size={20} /></button>
+        <button className={`circle-btn ${open === 'chats' ? 'on' : ''}`} aria-label="Messenger" data-tip="Messenger" aria-expanded={open === 'chats'} onClick={() => toggle('chats')}><MessageCircle size={20} />{unreadChats > 0 && <span className="badge">{unreadChats}</span>}</button>
         <button className={`circle-btn ${open === 'notifs' ? 'on' : ''}`} aria-label="Notifications" data-tip="Notifications" aria-expanded={open === 'notifs'} onClick={() => toggle('notifs')}>
           <Bell size={20} />{unread > 0 && <span className="badge">{unread}</span>}
         </button>
         <button className="me-btn" aria-label="Your profile" data-tip="Account" aria-expanded={open === 'profile'} onClick={() => toggle('profile')}>
           <Avatar name={ME} size={40} /><span className="me-chev"><L.ChevronDown size={12} strokeWidth={3} /></span>
         </button>
+        {open === 'menu' && <AppMenu />}
+        {open === 'chats' && <ChatsPanel chats={chats} setChats={setChats} />}
         {open === 'profile' && <ProfileMenu />}
         {open === 'notifs' && <NotifPanel notifs={notifs} setNotifs={setNotifs} />}
       </div>

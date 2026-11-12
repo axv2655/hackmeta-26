@@ -964,7 +964,12 @@ Implement these as code, not as copy.
   coordinates only. There is no `lat/lng` field on any user schema. A test asserts this.
 - **Coarse location**: the client rounds to 3 decimals before sending `lat/lng` to
   `/moves/nearby` or `/muse/compose-move`. The server does not persist them; it stores
-  only a coarse `last_area` label (nearest seeded area) for users with `location_opt_in`.
+  only a coarse `last_area` label for users with `location_opt_in`, and clears it when
+  they opt out. `/moves/nearby` and `/marks/nearby` both rewrite it through
+  `UserService.record_near_area`. The demo interprets "area" as the single region
+  `UT Dallas`, the bounding envelope of the seeded Marks (`backend/app/core/areas.py`);
+  a point outside it stores no label, never a false one. Search and manual arrival
+  need no location. Access logs redact the query string of the two nearby paths.
 - **Calendar**: only busy blocks (start, end) reach the server. No titles from a real calendar.
 - **Muse prompts** use aliases and first names only, and include only the fields listed
   in section 10.1. No raw coordinates, no addresses of users, no calendar titles.
@@ -1117,7 +1122,7 @@ type Notification = { id: string; type: string; title: string; body: string;
 | POST | `/muse/compose-move` | `{lat?, lng?, mark_id?, seed_text?}` → `MoveDraft` |
 | POST | `/muse/notify-preview` | `{mark_id, text, circle_ids, user_ids}` → `NotifyPick[]` |
 | POST | `/muse/suggest-spots` | `{user_ids, category?}` → Marks with reasons |
-| POST | `/moves` | create (body: `MoveDraft` fields + `open`, `origin`, `notify_user_ids`) |
+| POST | `/moves` | create (body: `mark_id`, text/category/audience fields from `MoveDraft`, plus `open`, `origin`, `notify_user_ids`; do not send a nested Mark) |
 | GET | `/moves/nearby?lat&lng&radius_km` | visible live Moves, Muse-ranked |
 | GET | `/moves/feed` | Move cards for the Home feed |
 | GET | `/moves/{id}` | detail |
@@ -1125,7 +1130,7 @@ type Notification = { id: string; type: string; title: string; body: string;
 | POST | `/moves/{id}/arrive` | status → there |
 | POST | `/moves/{id}/leave` | status → left |
 | POST | `/moves/{id}/end` | creator ends |
-| GET/POST | `/moves/{id}/moments` | list / upload (multipart: file, caption, tagged ids) |
+| GET/POST | `/moves/{id}/moments` | list / upload (multipart: file, caption, repeated `tagged_user_ids`) |
 | POST | `/moments/{id}/approve` | `{approve: bool}` |
 | POST | `/moves/{id}/rating` | submit rating + pairwise answers |
 | GET | `/moves/{id}/rating/questions` | pairwise questions for this user |
@@ -1151,7 +1156,7 @@ type Notification = { id: string; type: string; title: string; body: string;
 | WS | `/ws?user_id` | events (section 9.1) |
 | * | `/demo/*` | section 15.2 |
 
-Uploaded media is served from `/media/*` (FastAPI `StaticFiles` over `backend/data/uploads`).
+Uploaded and seeded Moment media is served through authenticated `/media/{filename}` handlers over `backend/data/uploads`, with `X-User-Id` and the same visibility checks as Moments. The legacy `/api/v1/media/{filename}` URL remains supported. Never publicly mount the private uploads directory. Mark seed images use a separate public allowlisted `/media/seed/marks/{asset_name}` route.
 
 ---
 

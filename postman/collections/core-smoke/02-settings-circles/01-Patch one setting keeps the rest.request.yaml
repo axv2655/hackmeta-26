@@ -1,0 +1,24 @@
+$kind: http-request
+name: 'Patch one setting keeps the rest'
+method: PATCH
+url: '{{base_url}}/api/v1/me/settings'
+order: 1000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"ghost_visible": true}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('only the sent field changed', () => {
+        const s = pm.response.json();
+        pm.expect(s.ghost_visible).to.eql(true);
+        pm.expect(s.muse_proactive).to.eql(true);
+      });

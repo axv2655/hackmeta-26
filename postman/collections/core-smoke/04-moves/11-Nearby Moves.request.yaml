@@ -1,0 +1,19 @@
+$kind: http-request
+name: 'Nearby Moves'
+method: GET
+url: '{{base_url}}/api/v1/moves/nearby?lat=32.9857&lng=-96.7502'
+order: 11000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+queryParams:
+  - key: lat
+    value: '32.9857'
+  - key: lng
+    value: '-96.7502'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('includes the Move near Kumo', () => pm.expect(pm.response.json().map(m => m.id)).to.include(pm.collectionVariables.get('move_id')));

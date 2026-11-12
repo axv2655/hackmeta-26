@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Anish unblocks Priya'
+method: DELETE
+url: '{{base_url}}/api/v1/me/blocks/{{priya}}'
+order: 19000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 204', () => pm.response.to.have.status(204));

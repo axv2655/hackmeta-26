@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Priya sees it again'
+method: GET
+url: '{{base_url}}/media/{{media_file}}'
+order: 20000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));

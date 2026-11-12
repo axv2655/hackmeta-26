@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Only the creator ends'
+method: POST
+url: '{{base_url}}/api/v1/moves/{{move_id}}/end'
+order: 3000
+headers:
+  - key: X-User-Id
+    value: '{{tony}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 403', () => pm.response.to.have.status(403));

@@ -1,0 +1,20 @@
+$kind: http-request
+name: 'Scheduler probe: Move kept alive by a joiner'
+method: POST
+url: '{{base_url}}/api/v1/moves'
+order: 12000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"mark_id": "{{kumo_mark}}", "text": "probe: active", "category": "coffee", "circle_ids": ["{{circle_id}}"]}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 201', () => pm.response.to.have.status(201));
+      pm.collectionVariables.set('active_move_id', pm.response.json().id);

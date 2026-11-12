@@ -1,0 +1,19 @@
+$kind: http-request
+name: 'Anish blocks Priya after she loaded it'
+method: POST
+url: '{{base_url}}/api/v1/me/blocks'
+order: 16000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"user_id": "{{priya}}"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 201', () => pm.response.to.have.status(201));

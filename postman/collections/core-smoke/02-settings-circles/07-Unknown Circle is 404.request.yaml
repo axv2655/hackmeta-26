@@ -1,0 +1,19 @@
+$kind: http-request
+name: 'Unknown Circle is 404'
+method: PATCH
+url: '{{base_url}}/api/v1/circles/no_such_circle'
+order: 7000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"name": "x"}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));

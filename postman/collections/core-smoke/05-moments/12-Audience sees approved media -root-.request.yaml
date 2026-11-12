@@ -1,0 +1,14 @@
+$kind: http-request
+name: 'Audience sees approved media (root)'
+method: GET
+url: '{{base_url}}/media/{{media_file}}'
+order: 12000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('PNG bytes', () => pm.expect(pm.response.stream.slice(0, 4).toString('hex')).to.eql('89504e47'));

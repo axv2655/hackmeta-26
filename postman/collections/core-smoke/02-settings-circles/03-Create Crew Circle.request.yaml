@@ -1,0 +1,25 @@
+$kind: http-request
+name: 'Create Crew Circle'
+method: POST
+url: '{{base_url}}/api/v1/circles'
+order: 3000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"name": "Crew", "emoji": "x", "member_ids": ["{{tony}}", "{{dev}}", "{{priya}}"]}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 201', () => pm.response.to.have.status(201));
+      pm.test('owner list shows three members', () => {
+        const c = pm.response.json();
+        pm.expect(c.members.map(m => m.id).sort()).to.eql(
+          [pm.environment.get('dev'), pm.environment.get('priya'), pm.environment.get('tony')].sort());
+        pm.collectionVariables.set('circle_id', c.id);
+      });

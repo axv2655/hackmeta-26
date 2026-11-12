@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Seeded pending Moment: not for non-participants'
+method: GET
+url: '{{base_url}}/media/mo_last_night_candid.png'
+order: 5000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));

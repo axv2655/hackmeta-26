@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Tagged participant sees pending (legacy URL)'
+method: GET
+url: '{{base_url}}/api/v1/media/{{media_file}}'
+order: 7000
+headers:
+  - key: X-User-Id
+    value: '{{tony}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));

@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Unsave the Mark'
+method: DELETE
+url: '{{base_url}}/api/v1/marks/{{kumo_mark}}/save'
+order: 4000
+headers:
+  - key: X-User-Id
+    value: '{{maya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 204', () => pm.response.to.have.status(204));

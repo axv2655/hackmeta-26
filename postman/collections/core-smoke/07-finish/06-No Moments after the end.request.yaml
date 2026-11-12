@@ -1,0 +1,29 @@
+$kind: http-request
+name: 'No Moments after the end'
+method: POST
+url: '{{base_url}}/api/v1/moves/{{move_id}}/moments'
+order: 6000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+body:
+  type: formdata
+  content:
+    - key: file
+      type: file
+      src: '{{fixture_png}}'
+      contentType: image/png
+    - key: caption
+      type: text
+      value: 'probe moment'
+    - key: tagged_user_ids
+      type: text
+      value: '{{tony}}'
+    - key: tagged_user_ids
+      type: text
+      value: '{{dev}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('rejected', () => pm.expect(pm.response.code).to.be.within(400, 409));

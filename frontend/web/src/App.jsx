@@ -19,6 +19,8 @@ const Bell = pick('notifications', L.Bell)
 const Globe = pick('globe', L.Globe)
 const Plus = pick('plus', L.Plus)
 const mp = (n) => pick(`mp-${n}`, L.Circle)
+const rl = (n) => pick(`rl-${n}`, L.Circle)
+const [RlLike, RlComment, RlShare, RlMore] = ['like', 'comment', 'share', 'more'].map(rl)
 // 20px icon cropped from a Facebook sprite sheet in public/fb
 const spr = (sheet, y) => function Sprite() { return <i className="sprite20" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `0 ${y}px` }} /> }
 
@@ -374,7 +376,7 @@ function Reels() {
     <div className="page reels">
       <aside className="side-nav dark">
         <h1>Reels</h1>
-        {[['For you', L.Star], ['Following', L.CalendarPlus], ['Profile', L.CircleUser]].map(([label, I], k) => (
+        {[['For you', rl('for-you')], ['Following', rl('following')], ['Profile', rl('profile')]].map(([label, I], k) => (
           <button key={label} className={`side-item ${k === 0 ? 'on' : ''}`}><I size={22} /> {label}</button>
         ))}
       </aside>
@@ -388,10 +390,10 @@ function Reels() {
           </div>
         </div>
         <div className="reel-actions">
-          <button className={liked[i] ? 'liked' : ''} onClick={() => setLiked({ ...liked, [i]: !liked[i] })} aria-pressed={!!liked[i]}><L.ThumbsUp size={26} fill={liked[i] ? 'currentColor' : 'none'} />{likes}</button>
-          <button><L.MessageCircle size={26} />{comments}</button>
-          <button><L.Forward size={26} />{shares}</button>
-          <button aria-label="More"><L.Ellipsis size={26} /></button>
+          <button className={liked[i] ? 'liked' : ''} onClick={() => setLiked({ ...liked, [i]: !liked[i] })} aria-pressed={!!liked[i]}><RlLike size={24} />{likes}</button>
+          <button><RlComment size={24} />{comments}</button>
+          <button><RlShare size={24} />{shares}</button>
+          <button aria-label="More"><RlMore size={24} /></button>
         </div>
         <div className="reel-nav">
           <button aria-label="Previous reel" onClick={() => setI((i + REELS.length - 1) % REELS.length)}><L.ChevronUp size={28} /></button>

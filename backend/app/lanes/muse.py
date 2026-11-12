@@ -15,9 +15,11 @@ from app.container import Container
 from app.core import db
 from app.hooks import Hooks
 from app.muse.agents.flare import FlareScanner
+from app.muse.agents.intent import parse_intent
 from app.muse.agents.move_ranker import MoveRanker
 from app.muse.agents.nobody_bit import NobodyBitService
 from app.muse.agents.revive import ReviveService
+from app.muse.agents.route import RouteService
 from app.muse.client import MuseClient, client_from_settings
 from app.muse.compose import ComposeService
 from app.muse.lane import MuseLane
@@ -129,5 +131,19 @@ def register(
 
     gateway.bind("run_nobody_bit", run_nobody_bit)
     scheduler.register("muse_nobody_bit", nobody_bit_scan, interval_s=60)
+
+    # M11: intent parser (glasses) and route suggestions
+    async def intent(utterance: str):
+        return await parse_intent(lane.runner, utterance)
+
+    async def run_route(move_id: str, user_ids=()):
+        return await lane.call(RouteService, "run_route", move_id, user_ids)
+
+    async def route_on_join(move_id: str, user_id: str) -> None:
+        await run_route(move_id, ())
+
+    gateway.bind("parse_intent", intent)
+    gateway.bind("run_route", run_route)
+    hooks.on_move_joined.register(route_on_join)
 
     return lane

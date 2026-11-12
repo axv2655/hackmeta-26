@@ -5,11 +5,30 @@
     "scheme": "hackmeta26",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "ios": {
       "bundleIdentifier": "com.anishalle.hackmeta26"
     },
-    "android": {
-      "package": "com.anishalle.hackmeta26"
+    "plugins": [
+      "expo-router",
+      "expo-image",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#ffffff",
+          "imageWidth": 120
+        }
+      ]
+    ],
+    "userInterfaceStyle": "light",
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "experiments": {
+      "typedRoutes": false
     }
   }
 }

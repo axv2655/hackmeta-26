@@ -17,22 +17,18 @@ pattern called dependency injection. Production wiring happens once, in
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from app.domain.notes import Note, NoteNotFound, validate_title
 from app.repositories.notes import NoteRepository
 
 
-def utc_now() -> datetime:
-    return datetime.now(UTC)
-
-
 class NoteService:
     def __init__(
         self,
         repository: NoteRepository,
-        clock: Callable[[], datetime] = utc_now,
+        clock: Callable[[], datetime],
     ) -> None:
         self._repository = repository
         self._clock = clock

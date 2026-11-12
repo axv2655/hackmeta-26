@@ -9,9 +9,10 @@ nothing, and a command that must return something it cannot invent raises
 from __future__ import annotations
 
 from collections.abc import Collection, Iterable, Sequence
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
+from app.core.clock import SystemClock
 from app.ports import (
     EndReason,
     EventType,
@@ -33,9 +34,8 @@ from app.ports import (
 )
 
 
-class NullClock:
-    def now(self) -> datetime:
-        return datetime.now(UTC)
+class NullClock(SystemClock):
+    """Without the core lane, time is plain system time."""
 
 
 class NullTimeControl:

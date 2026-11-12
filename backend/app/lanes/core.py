@@ -5,9 +5,18 @@ MarkGateway (C6) and UserGateway (C7); the stale-Move job (C4).
 """
 
 from app.container import Container
+from app.core import db
+from app.core.clock import DemoClock, SystemClock
+from app.core.config import settings
 from app.hooks import Hooks
 from app.scheduler.loop import Scheduler
 
 
 def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:
-    """Nothing registered yet: every port the core lane owns stays null."""
+    db.create_all(db.engine)
+    if settings.DEMO_MODE:
+        clock = DemoClock()
+        container.clock = clock
+        container.time_control = clock
+    else:
+        container.clock = SystemClock()

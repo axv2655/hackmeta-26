@@ -2,9 +2,11 @@
 
 `StaticPool` keeps the single in-memory connection alive for the engine's
 life, so every session in a test sees the same database, and nothing leaks
-into the next test.
+into the next test. `DB_PATH` is forced to memory before any test module
+imports the app, so tests that boot the whole app never touch `data/app.db`.
 """
 
+import os
 from collections.abc import Iterator
 
 import pytest
@@ -13,6 +15,10 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, create_engine
 
 from app.tables import metadata
+
+
+def pytest_configure() -> None:
+    os.environ["DB_PATH"] = ":memory:"
 
 
 @pytest.fixture

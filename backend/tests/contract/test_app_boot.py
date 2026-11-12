@@ -2,6 +2,7 @@
 
 import ast
 import inspect
+from collections.abc import Callable
 from dataclasses import fields
 from pathlib import Path
 
@@ -65,6 +66,11 @@ def test_every_container_slot_has_a_null_default() -> None:
     assert len(fields(Container)) == len(PORT_IMPLS)
 
 
+def _signature(fn: Callable[..., object]) -> inspect.Signature:
+    # eval_str: compare real types whether or not a module defers annotations.
+    return inspect.signature(fn, eval_str=True)
+
+
 @pytest.mark.parametrize("port", PORT_IMPLS, ids=lambda port: port.__name__)
 def test_null_port_matches_protocol_signatures(port: type) -> None:
     impl = PORT_IMPLS[port]
@@ -73,7 +79,7 @@ def test_null_port_matches_protocol_signatures(port: type) -> None:
         if name.startswith("_"):
             continue
         actual = getattr(impl, name)
-        assert inspect.signature(actual) == inspect.signature(member), name
+        assert _signature(actual) == _signature(member), name
         assert inspect.iscoroutinefunction(actual) == inspect.iscoroutinefunction(
             member
         ), name

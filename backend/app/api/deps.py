@@ -48,8 +48,9 @@ def get_note_repository() -> NoteRepository:
 
 def get_note_service(
     repository: Annotated[NoteRepository, Depends(get_note_repository)],
+    container: ContainerDep,
 ) -> NoteService:
-    return NoteService(repository)
+    return NoteService(repository, clock=container.clock.now)
 
 
 NoteServiceDep = Annotated[NoteService, Depends(get_note_service)]

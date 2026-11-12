@@ -181,3 +181,52 @@ def lane(
 
 def days(n: float) -> timedelta:
     return timedelta(days=n)
+
+
+def wire(engine, clock, client: FakeMuseClient | None = None, **ports):
+    """Register the real muse lane on a fresh Container with fake foreign ports.
+
+    Returns `(container, hooks, scheduler, lane)`.
+    """
+    from app.hooks import Hooks
+    from app.lanes import muse as muse_lane
+    from app.scheduler.loop import Scheduler
+
+    container = Container(clock=clock, **ports)
+    hooks, scheduler = Hooks(), Scheduler()
+    lane = muse_lane.register(
+        container, hooks, scheduler, engine=engine, client=client or FakeMuseClient()
+    )
+    return container, hooks, scheduler, lane
+
+
+def make_app(engine, clock, client: FakeMuseClient | None = None, **ports):
+    """A FastAPI app with only the muse lane registered, on the test engine.
+
+    Returns `(app, state)`; `state["lane"]` is set once the app starts.
+    """
+    from app.core import db
+    from app.lanes import muse as muse_lane
+    from app.main import create_app
+
+    state: dict = {}
+
+    def registrar(container, hooks, scheduler):
+        container.clock = clock
+        for name, port in ports.items():
+            setattr(container, name, port)
+        state["lane"] = muse_lane.register(
+            container,
+            hooks,
+            scheduler,
+            engine=engine,
+            client=client or FakeMuseClient(),
+        )
+
+    def session_override():
+        with Session(engine) as session:
+            yield session
+
+    app = create_app(lanes=(registrar,))
+    app.dependency_overrides[db.get_session] = session_override
+    return app, state

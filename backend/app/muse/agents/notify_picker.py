@@ -7,7 +7,9 @@ Muse answered or the fallback ran:
 
 - cap `min(8, ceil(audience / 2))` picks, forced picks on top;
 - never someone busy, never an unknown alias, never a dropped id;
-- at most one stretch pick (no hangouts in 90 days), and only if verified;
+- at most one stretch pick, and only if verified. A stretch pick has no
+  hangouts in 90 days while others in the pool do (with no history at all,
+  nobody is a stretch);
 - every copy starts with "Hey {first_name}"; a bad line gets the template.
 """
 
@@ -139,7 +141,8 @@ async def pick(runner: MuseRunner, req: NotifyRequest) -> NotifyResult:
 
     def fallback() -> PickerOut:
         top = [c for c in eligible if not c.busy and c.user_id not in force]
-        top = [c for c in top if c.verified or not c.stretch][:cap]
+        has_history = any(not c.stretch for c in eligible)
+        top = [c for c in top if c.verified or not (c.stretch and has_history)][:cap]
         return PickerOut(
             picks=[
                 Pick(user=book.alias(c.user_id), reason=template_reason(c)) for c in top
@@ -170,6 +173,7 @@ def _finalize(
     chosen: list[NotifyPickOut] = []
     seen: set[str] = set()
     stretch_used = False
+    has_history = any(not c.stretch for c in by_id.values())
     copies: dict[str, Pick] = {}
     for p in out.picks:
         uid = book.id_of(p.user)
@@ -182,7 +186,7 @@ def _finalize(
             continue  # added below, after the cap
         if c.busy or uid in req.drop_ids:
             continue
-        if c.stretch:
+        if c.stretch and has_history:
             if not c.verified or stretch_used:
                 continue
             stretch_used = True

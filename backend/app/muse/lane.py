@@ -8,10 +8,12 @@ session with `lane.session()`.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import inspect
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Engine
 from sqlmodel import Session
@@ -46,6 +48,22 @@ class MuseLane:
     def session(self) -> Iterator[Session]:
         with Session(self.engine) as session:
             yield session
+
+    async def call(
+        self,
+        service: Callable[[Session, MuseLane], Any],
+        method: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Run `service(session, lane).method(...)` on a fresh session (for
+        gateway methods, hook handlers and scheduler jobs)."""
+        with self.session() as session:
+            result = getattr(service(session, self), method)(*args, **kwargs)
+            if inspect.isawaitable(result):
+                result = await result
+            session.commit()
+            return result
 
 
 def lane_for(container: Container, session: Session) -> MuseLane:

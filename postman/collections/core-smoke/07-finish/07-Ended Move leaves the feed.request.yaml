@@ -1,0 +1,14 @@
+$kind: http-request
+name: 'Ended Move leaves the feed'
+method: GET
+url: '{{base_url}}/api/v1/moves/feed'
+order: 7000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('gone from the feed', () => pm.expect(pm.response.json().map(m => m.id)).to.not.include(pm.collectionVariables.get('move_id')));

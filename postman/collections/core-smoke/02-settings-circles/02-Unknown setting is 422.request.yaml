@@ -1,0 +1,19 @@
+$kind: http-request
+name: 'Unknown setting is 422'
+method: PATCH
+url: '{{base_url}}/api/v1/me/settings'
+order: 2000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"not_a_setting": 1}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 422', () => pm.response.to.have.status(422));

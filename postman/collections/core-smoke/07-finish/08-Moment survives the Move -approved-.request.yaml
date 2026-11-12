@@ -1,0 +1,14 @@
+$kind: http-request
+name: 'Moment survives the Move (approved)'
+method: GET
+url: '{{base_url}}/api/v1/moves/{{move_id}}/moments'
+order: 8000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('approved Moment listed', () => pm.expect(pm.response.json().map(m => m.id)).to.include(pm.collectionVariables.get('moment_id')));

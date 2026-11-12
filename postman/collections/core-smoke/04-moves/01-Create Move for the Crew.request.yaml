@@ -1,0 +1,26 @@
+$kind: http-request
+name: 'Create Move for the Crew'
+method: POST
+url: '{{base_url}}/api/v1/moves'
+order: 1000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"mark_id": "{{kumo_mark}}", "text": "probe: matcha run", "category": "coffee", "circle_ids": ["{{circle_id}}"], "user_ids": ["{{mom}}"]}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 201', () => pm.response.to.have.status(201));
+      pm.test('creator is the only participant; audience hides the blocked user', () => {
+        const m = pm.response.json();
+        pm.expect(m.status).to.eql('live');
+        pm.expect(m.participants.map(p => p.user.id)).to.eql([pm.environment.get('anish')]);
+        pm.expect(m.audience.people.map(p => p.id)).to.not.include(pm.environment.get('mom'));
+        pm.collectionVariables.set('move_id', m.id);
+      });

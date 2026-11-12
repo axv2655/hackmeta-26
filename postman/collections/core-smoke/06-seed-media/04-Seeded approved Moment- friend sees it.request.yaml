@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Seeded approved Moment: friend sees it'
+method: GET
+url: '{{base_url}}/media/mo_last_night_sunset.png'
+order: 4000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));

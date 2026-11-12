@@ -1,0 +1,18 @@
+$kind: http-request
+name: 'Search works without location'
+method: GET
+url: '{{base_url}}/api/v1/marks/search?q=kumo'
+order: 1000
+headers:
+  - key: X-User-Id
+    value: '{{maya}}'
+queryParams:
+  - key: q
+    value: 'kumo'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('finds Kumo Matcha', () => pm.expect(pm.response.json().map(m => m.id)).to.include(pm.environment.get('kumo_mark')));
+      pm.test('mark photo is a local path', () => pm.expect(pm.response.json()[0].photo_url).to.match(/^\/media\/seed\/marks\//));

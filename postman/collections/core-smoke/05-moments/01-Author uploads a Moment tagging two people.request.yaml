@@ -1,0 +1,37 @@
+$kind: http-request
+name: 'Author uploads a Moment tagging two people'
+method: POST
+url: '{{base_url}}/api/v1/moves/{{move_id}}/moments'
+order: 1000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+body:
+  type: formdata
+  content:
+    - key: file
+      type: file
+      src: '{{fixture_png}}'
+      contentType: image/png
+    - key: caption
+      type: text
+      value: 'probe moment'
+    - key: tagged_user_ids
+      type: text
+      value: '{{tony}}'
+    - key: tagged_user_ids
+      type: text
+      value: '{{dev}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 201', () => pm.response.to.have.status(201));
+      pm.test('pending, two tags, root media URL', () => {
+        const m = pm.response.json();
+        pm.expect(m.status).to.eql('pending');
+        pm.expect(m.tags.length).to.eql(2);
+        pm.expect(m.media_url).to.match(/^\/media\/[0-9a-f]+\.png$/);
+        pm.collectionVariables.set('moment_id', m.id);
+        pm.collectionVariables.set('media_file', m.media_url.split('/').pop());
+      });

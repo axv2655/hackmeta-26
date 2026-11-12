@@ -147,3 +147,13 @@ core task/API/schema contract; it was not invented or implemented here.
 ## CLI follow-up
 
 Postman was subsequently updated from 1.76.0 to 1.88.0. Five real-server requests passed ten assertions (health, create/join/end and hidden-user rejection). The expected 404 assertion passed although the CLI returned exit 1 for that response. `postman status` works outside the macOS sandbox; local requests need no login.
+
+
+## Final status (core alignment plan, tasks 1-9)
+
+All findings above are resolved or have an explicit dependency: creation ordering,
+async port documentation, canonical authenticated media, bundled seed media,
+repository/transaction boundaries, the models package, and the consent-gated
+`last_area` label. Live evidence: `docs/CORE_RUNTIME_VERIFICATION.md`
+(`backend/scripts/check_core_live.py`, Postman CLI 1.88.0, local, no login needed).
+Remaining dependencies are the other lanes (Muse, Surfaces, frontend) and Z1 integration.

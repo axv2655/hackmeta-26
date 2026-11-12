@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Seeded pending Moment: no identity is 401'
+method: GET
+url: '{{base_url}}/media/mo_last_night_candid.png'
+order: 7000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 401', () => pm.response.to.have.status(401));

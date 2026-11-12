@@ -13,6 +13,7 @@
       "expo-router",
       "expo-image",
       "expo-font",
+      "./plugins/withSceneLifecycle",
       [
         "expo-splash-screen",
         {

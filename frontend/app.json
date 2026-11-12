@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "hackmeta-26",
+    "slug": "hackmeta-26",
+    "scheme": "hackmeta26",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "com.anishalle.hackmeta26"
+    },
+    "android": {
+      "package": "com.anishalle.hackmeta26"
+    }
+  }
+}

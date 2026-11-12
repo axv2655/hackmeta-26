@@ -29,4 +29,9 @@ def contract():
 
 
 def test_core_api_contract_preserves_shapes():
-    assert contract() == json.loads(FIXTURE.read_text())
+    # Every core path keeps its exact shape. Other lanes (muse, surfaces,
+    # messages) may add paths of their own; those are not part of this snapshot.
+    expected = json.loads(FIXTURE.read_text())
+    actual = contract()
+    assert sorted(set(expected) - set(actual)) == []
+    assert {path: actual[path] for path in expected} == expected

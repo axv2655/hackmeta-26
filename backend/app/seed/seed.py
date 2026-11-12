@@ -1,7 +1,8 @@
 """Builds the demo world (ARCHITECTURE.md 15.1).
 
 Runs each lane's seed step in a fixed order on one session: core first (people,
-places, live Moves), then history (ended Moves and hangouts), then surfaces.
+places, live Moves), then history (ended Moves and hangouts), then surfaces,
+then muse (pseudo-groups and taste over that history).
 Each step writes only its own lane's tables, using ids from `app.seed.ids`.
 
 `uv run python -m app.seed.seed` drops and rebuilds the database.
@@ -12,9 +13,9 @@ from sqlmodel import Session
 from app.core import db
 from app.core.clock import SystemClock
 from app.ports import Clock
-from app.seed import core, history, surfaces
+from app.seed import core, history, muse, surfaces
 
-STEPS = (core.seed, history.seed, surfaces.seed)
+STEPS = (core.seed, history.seed, surfaces.seed, muse.seed)
 
 
 def run(session: Session, clock: Clock) -> None:

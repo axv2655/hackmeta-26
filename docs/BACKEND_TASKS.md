@@ -130,7 +130,13 @@ Dependencies inside a lane are listed per task. There are **no dependencies betw
 
 ## 7. Open items
 
-- **Muse API shape** is unknown (base URL, auth, JSON mode, vision). M1 verifies it first and records the answer here.
+- **Muse API shape**: verified by M1 on 2026-11-12 with live calls.
+  - Anthropic Messages-compatible: `POST https://api.meta.ai/v1/messages`, header `Authorization: Bearer <MUSE_API_KEY>`, `anthropic-version: 2023-06-01`. Model id `muse-wonder-1.0` (the only one offered).
+  - No JSON mode; asking for "only a JSON object" in the system prompt returns clean JSON. The runner still extracts and validates.
+  - **Thinking is always on and cannot be disabled** (`thinking.type=disabled` is a 400; `budget_tokens` must be at least 1024). The response starts with a `redacted_thinking` block, and thinking tokens (about 100 to 300) count against `max_tokens`. A 50-token cap returned no text. `HttpMuseClient` adds `THINKING_HEADROOM = 1024` on top of each agent's cap (the 10.12 caps describe the answer only).
+  - Vision works: an inline base64 image is read correctly; a URL image works only if Muse can download it (Wikimedia refused). `MUSE_VISION_MODEL` unset keeps the text-only paths.
+  - Latency about 1.3 to 2.5 s per call, well inside the 6 s runner timeout.
+  - Config lives in `backend/.env` (`MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL`); without a key, or with `DEMO_MODE=offline`, the lane uses `FakeMuseClient` and every agent falls back.
 - **Pairwise ranking algorithm:** the team supplies it; S6 ships a placeholder behind `domain/ranking.py`.
 - Section 12.5 privacy pass and M6 demo hardening are scheduled after M4 and are not tasks yet.
 

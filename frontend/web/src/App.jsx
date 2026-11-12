@@ -22,7 +22,9 @@ const mp = (n) => pick(`mp-${n}`, L.Circle)
 const rl = (n) => pick(`rl-${n}`, L.Circle)
 const [RlLike, RlComment, RlShare, RlMore] = ['like', 'comment', 'share', 'more'].map(rl)
 // 20px icon cropped from a Facebook sprite sheet in public/fb
-const spr = (sheet, y) => function Sprite() { return <i className="sprite20" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `0 ${y}px` }} /> }
+const spr = (sheet, y, x = 0) => function Sprite() { return <i className="sprite20" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `${x}px ${y}px` }} /> }
+const fr = (n) => pick(`fr-${n}`, L.Circle)
+const Chevron = pick('fr-chevron', L.ChevronRight)
 
 const ME = 'Alex Rivera'
 const FRIENDS = ['Priya Shah', 'Marcus Lee', 'Sofia Gomez', 'Jordan Kim', 'Ava Chen', 'Noah Patel', 'Lena Novak', 'Omar Haddad']
@@ -380,7 +382,7 @@ function SideNav({ title, items, gear = true, search, children }) {
       {search && <label className="side-search"><L.Search size={16} /><input placeholder={search} aria-label={search} /></label>}
       {items.map(([label, I, more]) => (
         <button key={label} className={`side-item ${active === label ? 'on' : ''}`} onClick={() => setActive(label)}>
-          <span className="side-icon"><I size={20} /></span><span className="grow">{label}</span>{more && <L.ChevronRight size={22} className="muted" />}
+          <span className="side-icon"><I size={20} /></span><span className="grow">{label}</span>{more && <span className="muted"><Chevron size={20} /></span>}
         </button>
       ))}
       {children}
@@ -497,7 +499,7 @@ function FriendsPage() {
   const [done, setDone] = useState({})
   return (
     <div className="page">
-      <SideNav title="Friends" items={[['Home', L.Users], ['Friend requests', L.UserPlus, true], ['Suggestions', L.UserPlus, true], ['All friends', L.UserCheck, true], ['Birthdays', L.Gift], ['Custom lists', L.List, true]]} />
+      <SideNav title="Friends" items={[['Home', fr('home')], ['Friend requests', fr('requests'), true], ['Suggestions', fr('suggestions'), true], ['All friends', fr('all'), true], ['Birthdays', spr('friends', -127, -158)], ['Custom lists', fr('lists'), true]]} />
       <main className="page-main">
         <div className="row between"><h2>Friend Requests</h2><a className="blue">See all</a></div>
         <div className="grid requests">

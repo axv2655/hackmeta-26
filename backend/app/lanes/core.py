@@ -8,12 +8,10 @@ from app.container import Container
 from app.core import db
 from app.core.clock import DemoClock, SystemClock
 from app.core.config import settings
+from app.core.gateways import SqlMarkGateway, SqlMoveGateway, SqlUserGateway
 from app.hooks import Hooks
 from app.realtime import ConnectionHub
 from app.scheduler.loop import Scheduler
-from app.services.marks import SqlMarkGateway
-from app.services.moves import SqlMoveGateway
-from app.services.users import SqlUserGateway
 
 
 def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:

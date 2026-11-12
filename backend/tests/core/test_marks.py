@@ -10,6 +10,7 @@ from sqlmodel import Session
 
 from app.container import Container
 from app.core import db
+from app.core.gateways import SqlMarkGateway
 from app.domain.errors import MarkNotFound
 from app.hooks import Hooks
 from app.lanes import core as core_lane
@@ -22,7 +23,6 @@ from app.services.marks import (
     InvalidMark,
     MarkInput,
     MarkService,
-    SqlMarkGateway,
     bounding_box,
     distance_km,
 )

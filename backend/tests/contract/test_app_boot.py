@@ -46,7 +46,8 @@ def test_default_app_boots_with_all_lanes_registered() -> None:
 
 
 def test_every_route_module_is_included_in_api_router() -> None:
-    modules = {path.stem for path in ROUTES_DIR.glob("*.py")} - {"__init__"}
+    # `media` is mounted at the root (/media) by `create_app`, not under /api/v1.
+    modules = {path.stem for path in ROUTES_DIR.glob("*.py")} - {"__init__", "media"}
     tree = ast.parse(API_MAIN.read_text())
     included = {
         node.args[0].value.id

@@ -7,6 +7,7 @@ imports the app, so tests that boot the whole app never touch `data/app.db`.
 """
 
 import os
+import tempfile
 from collections.abc import Iterator
 
 import pytest
@@ -19,6 +20,7 @@ from app.tables import metadata
 
 def pytest_configure() -> None:
     os.environ["DB_PATH"] = ":memory:"
+    os.environ["MEDIA_DIR"] = tempfile.mkdtemp(prefix="hackmeta-test-media-")
 
 
 @pytest.fixture

@@ -20,28 +20,31 @@ Moves keep their start-time order (newest first) with no reason.
 import asyncio
 import logging
 from collections.abc import Mapping, Sequence
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel
 
 from app.api.deps import ContainerDep, HooksDep
-from app.api.deps_core import CurrentUserDep
-from app.api.routes.audience import AudienceSummary
-from app.api.routes.marks import MarkRead, MarkServiceDep
-from app.api.routes.users import UserLite
+from app.api.deps_core import CurrentUserDep, UserServiceDep
+from app.api.routes.marks import MarkServiceDep
+from app.core.areas import coarse
+from app.core.composition import build_move_service
 from app.core.db import SessionDep
+from app.models.audience import AudienceSummary
+from app.models.marks import MarkRead
+from app.models.moves import (
+    MoveCreateBody as MoveCreateBody,
+)
+from app.models.moves import (
+    MoveRead as MoveRead,
+)
+from app.models.moves import (
+    ParticipantRead as ParticipantRead,
+)
+from app.models.users import UserLite
 from app.ports import (
-    Category,
-    JoinedVia,
-    MoveCreate,
-    MoveKind,
-    MoveOrigin,
     MoveSnapshot,
-    MoveStatus,
     MuseGateway,
-    ParticipantStatus,
 )
 from app.services.marks import MarkService, distance_km
 from app.services.moves import MoveService
@@ -49,7 +52,6 @@ from app.services.moves import MoveService
 logger = logging.getLogger(__name__)
 
 RANK_TIMEOUT_S = 2.0
-COARSE_DECIMALS = 3
 
 router = APIRouter(tags=["moves"])
 
@@ -57,7 +59,7 @@ router = APIRouter(tags=["moves"])
 def get_move_service(
     session: SessionDep, container: ContainerDep, hooks: HooksDep
 ) -> MoveService:
-    return MoveService(session, container.clock, container.events, hooks)
+    return build_move_service(session, container.clock, container.events, hooks)
 
 
 MoveServiceDep = Annotated[MoveService, Depends(get_move_service)]
@@ -66,69 +68,10 @@ MoveServiceDep = Annotated[MoveService, Depends(get_move_service)]
 # --- Schemas -----------------------------------------------------------------
 
 
-class MoveCreateBody(BaseModel):
-    """`MoveDraft` fields plus `open`, `origin` and `notify_user_ids` (14.2).
-
-    `notify_user_ids` is the creator's edited notify list; leave it out to let
-    Muse pick. `creator_there` says the device is inside the Mark's geofence.
-    """
-
-    mark_id: str
-    text: str
-    category: Category
-    circle_ids: list[str] = []
-    user_ids: list[str] = []
-    kind: MoveKind = "move"
-    open: bool = False
-    fill_minutes: int | None = None
-    origin: MoveOrigin = "manual"
-    origin_ref: str | None = None
-    creator_there: bool = False
-    notify_user_ids: list[str] | None = None
-
-    def to_domain(self) -> MoveCreate:
-        notify = self.notify_user_ids
-        return MoveCreate(
-            mark_id=self.mark_id,
-            text=self.text,
-            category=self.category,
-            circle_ids=tuple(self.circle_ids),
-            user_ids=tuple(self.user_ids),
-            kind=self.kind,
-            open=self.open,
-            fill_minutes=self.fill_minutes,
-            origin=self.origin,
-            origin_ref=self.origin_ref,
-            creator_there=self.creator_there,
-            notify_user_ids=None if notify is None else tuple(notify),
-        )
 
 
-class ParticipantRead(BaseModel):
-    user: UserLite
-    status: ParticipantStatus
-    joined_via: JoinedVia
 
 
-class MoveRead(BaseModel):
-    """API `Move` (14.1)."""
-
-    id: str
-    creator: UserLite
-    mark: MarkRead
-    text: str
-    category: Category
-    status: MoveStatus
-    kind: MoveKind
-    open: bool
-    starts_at: datetime
-    fill_deadline: datetime | None
-    ends_at: datetime | None
-    participants: list[ParticipantRead]
-    my_status: ParticipantStatus | None
-    moments_count: int
-    muse_reason: str | None
-    audience: AudienceSummary | None
 
 
 # --- Presenting --------------------------------------------------------------
@@ -260,12 +203,14 @@ async def moves_nearby(
     moves: MoveServiceDep,
     show: PresenterDep,
     c: ContainerDep,
+    users: UserServiceDep,
     lat: Annotated[float, Query(ge=-90, le=90)],
     lng: Annotated[float, Query(ge=-180, le=180)],
     radius_km: Annotated[float, Query(gt=0, le=50)] = 5.0,
 ) -> list[MoveRead]:
     """Live Moves the viewer may see at Marks within `radius_km`, Muse-ranked."""
-    here = round(lat, COARSE_DECIMALS), round(lng, COARSE_DECIMALS)
+    here = coarse(lat), coarse(lng)
+    users.record_near_area(me.id, *here)  # consent-gated label, never coordinates
     near = [
         m
         for m in moves.list_live_visible(me.id)

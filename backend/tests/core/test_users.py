@@ -10,14 +10,16 @@ from sqlmodel import Session, select
 
 from app.container import Container
 from app.core import db
+from app.core.areas import coarse_area
+from app.core.gateways import SqlUserGateway
 from app.domain.errors import Invalid
 from app.hooks import Hooks
 from app.lanes import core as core_lane
 from app.main import create_app
+from app.repositories.unit_of_work import SqlCoreUnitOfWork
 from app.scheduler.loop import Scheduler
 from app.services.circles import CircleNotFound, CircleService, NotCircleOwner
 from app.services.users import (
-    SqlUserGateway,
     UserNotFound,
     UserService,
     close_friend_ids,
@@ -89,12 +91,12 @@ def world(session: Session) -> Session:
 
 @pytest.fixture
 def users(world: Session) -> UserService:
-    return UserService(world, FixedClock())
+    return UserService(SqlCoreUnitOfWork(world), FixedClock())
 
 
 @pytest.fixture
 def circles(world: Session) -> CircleService:
-    return CircleService(world)
+    return CircleService(SqlCoreUnitOfWork(world))
 
 
 @pytest.fixture
@@ -424,3 +426,137 @@ def test_deleting_a_circle_drops_members_and_default(
     assert world.exec(select(CircleMember)).all() == []
     world.expire_all()
     assert world.get(UserSettings, "anish").default_circle_ids == [keep]
+
+
+
+def test_circle_replace_failure_preserves_members(circles, monkeypatch):
+    circle = circles.create('anish', 'Crew', ['tony']).circle
+    original = circles.repo.replace_members
+
+    def fail(cid, ids):
+        original(cid, ids)
+        raise RuntimeError('write interrupted')
+
+    monkeypatch.setattr(circles.repo, 'replace_members', fail)
+    with pytest.raises(RuntimeError):
+        circles.update('anish', circle.id, {'member_ids': ['maya']})
+    assert [u.id for u in circles.repo.members(circle.id)] == ['tony']
+
+
+def test_autojoin_replace_failure_preserves_preferences(users, monkeypatch):
+    users.set_autojoin('anish', ['tony'])
+    original = users.repo.replace_autojoin
+
+    def fail(uid, others):
+        original(uid, others)
+        raise RuntimeError('write interrupted')
+
+    monkeypatch.setattr(users.repo, 'replace_autojoin', fail)
+    with pytest.raises(RuntimeError):
+        users.set_autojoin('anish', ['maya'])
+    assert [u.id for u in users.autojoin('anish')] == ['tony']
+
+
+# --- coarse area label (12.1) ---------------------------------------------------
+
+DALLAS = (32.9857123, -96.7502456)  # inside the demo region
+ELSEWHERE = (30.2849371, -97.7341288)  # Austin: not a supported area
+
+
+def last_area(world: Session, user: str = "anish") -> str | None:
+    world.expire_all()
+    return world.get_one(User, user).last_area
+
+
+def opt_in(users: UserService, value: bool = True) -> None:
+    users.update_settings("anish", {"location_opt_in": value})
+
+
+def test_coarse_area_labels_only_the_supported_region() -> None:
+    assert coarse_area(*DALLAS) == "UT Dallas"
+    assert coarse_area(*ELSEWHERE) is None
+    assert coarse_area(0.0, 0.0) is None
+    # rounding happens first: 32.8134 -> 32.813 is outside, 32.8139 -> 32.814 in
+    assert coarse_area(32.8134, -96.75) is None
+    assert coarse_area(32.8139, -96.75) == "UT Dallas"
+    assert coarse_area(32.8141, -96.75) == "UT Dallas"
+
+
+def test_near_area_requires_consent(users: UserService, world: Session) -> None:
+    users.record_near_area("anish", *DALLAS)
+    assert last_area(world) is None
+
+    opt_in(users)
+    users.record_near_area("anish", *DALLAS)
+    assert last_area(world) == "UT Dallas"
+
+
+def test_near_area_stores_only_label(
+    users: UserService, world: Session, engine: Engine
+) -> None:
+    opt_in(users)
+    users.record_near_area("anish", *DALLAS)
+
+    with Session(engine) as fresh:
+        stored = repr([tuple(r) for r in fresh.exec(select(User))])
+        stored += repr([tuple(r) for r in fresh.exec(select(UserSettings))])
+    assert "UT Dallas" in stored
+    assert "32.985" not in stored and "96.750" not in stored
+
+
+def test_unknown_region_does_not_store_false_area(
+    users: UserService, world: Session
+) -> None:
+    opt_in(users)
+    users.record_near_area("anish", *ELSEWHERE)
+    assert last_area(world) is None
+    users.record_near_area("anish", *DALLAS)
+    users.record_near_area("anish", *ELSEWHERE)  # a stale label is not kept
+    assert last_area(world) is None
+
+
+def test_opt_out_clears_last_area(users: UserService, world: Session) -> None:
+    opt_in(users)
+    users.record_near_area("anish", *DALLAS)
+    assert last_area(world) == "UT Dallas"
+
+    opt_in(users, False)
+    assert last_area(world) is None
+    users.record_near_area("anish", *DALLAS)  # no consent, no record
+    assert last_area(world) is None
+
+
+@pytest.mark.parametrize("path", ["/api/v1/moves/nearby", "/api/v1/marks/nearby"])
+def test_nearby_endpoints_record_label_with_consent(
+    client: TestClient, world: Session, path: str
+) -> None:
+    params = {"lat": DALLAS[0], "lng": DALLAS[1]}
+    assert client.get(path, params=params).status_code == 200
+    assert last_area(world) is None  # opted out: nothing recorded
+
+    client.patch("/api/v1/me/settings", json={"location_opt_in": True})
+    assert client.get(path, params=params).status_code == 200
+    assert last_area(world) == "UT Dallas"
+    body = client.get("/api/v1/me").json()
+    assert not {"lat", "lng", "last_area"} & set(body["user"])
+
+
+def test_search_works_without_location(client: TestClient) -> None:
+    assert client.get("/api/v1/marks/search", params={"q": "kumo"}).status_code in (
+        200,
+        404,
+    )
+
+
+def test_access_log_redacts_nearby_coordinates() -> None:
+    from app.core.logging import strip_nearby_query
+
+    assert strip_nearby_query("/api/v1/moves/nearby?lat=1.234567&lng=2.3456") == (
+        "/api/v1/moves/nearby?<redacted>"
+    )
+    assert strip_nearby_query("/api/v1/marks/nearby?lat=1&lng=2") == (
+        "/api/v1/marks/nearby?<redacted>"
+    )
+    assert strip_nearby_query("/api/v1/marks/search?q=kumo") == (
+        "/api/v1/marks/search?q=kumo"
+    )

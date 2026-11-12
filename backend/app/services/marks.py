@@ -20,24 +20,20 @@ Outside a request use `SqlMarkGateway`, which opens one session per call.
 
 import math
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from statistics import fmean
 from typing import get_args
 
-from sqlalchemy import Engine
-from sqlmodel import Session
-
 from app.domain.errors import Invalid, MarkNotFound
+from app.domain.records import Moment, Reel, SavedMark, SavedReel, User
 from app.ports import Category, Clock, MarkSnapshot, SaveSource
 from app.repositories.marks import (
     Box,
     GhostCandidate,
     MarkRepository,
     NewMark,
-    SqlMarkRepository,
 )
-from app.tables import Moment, Reel, SavedMark, SavedReel, User
 
 GHOST_WINDOW = timedelta(hours=24)
 MOMENTS_LIMIT = 12
@@ -321,7 +317,7 @@ class MarkService:
                 saved_at=self.clock.now(),
             )
         elif source == "reel":
-            row.source, row.source_ref = source, source_ref
+            row = replace(row, source=source, source_ref=source_ref)
         else:
             return
         self.repo.put_saved(row)
@@ -337,7 +333,7 @@ class MarkService:
         row = self.repo.saved_row(user_id, mark_id)
         if row is None:
             return
-        row.flared_at = self.clock.now()
+        row = replace(row, flared_at=self.clock.now())
         self.repo.put_saved(row)
         self.repo.commit()
 
@@ -375,36 +371,3 @@ class MarkService:
         user = self.repo.users([best.user_id])[best.user_id]
         return TopRanker(user, best.score)
 
-
-class SqlMarkGateway:
-    """`MarkGateway` for other lanes; one short session per call."""
-
-    def __init__(self, engine: Engine, clock: Clock) -> None:
-        self._engine = engine
-        self._clock = clock
-
-    def _service(self, session: Session) -> MarkService:
-        return MarkService(SqlMarkRepository(session), self._clock)
-
-    def get(self, mark_id: str) -> MarkSnapshot | None:
-        with Session(self._engine) as session:
-            return self._service(session).get(mark_id)
-
-    def nearest(self, lat: float, lng: float, limit: int) -> list[MarkSnapshot]:
-        with Session(self._engine) as session:
-            return self._service(session).nearest(lat, lng, limit)
-
-    def save(
-        self, user_id: str, mark_id: str, source: SaveSource, source_ref: str | None
-    ) -> None:
-        """Raises `MarkNotFound` for an unknown Mark."""
-        with Session(self._engine) as session:
-            self._service(session).save(user_id, mark_id, source, source_ref)
-
-    def unsave(self, user_id: str, mark_id: str) -> None:
-        with Session(self._engine) as session:
-            self._service(session).unsave(user_id, mark_id)
-
-    def mark_flared(self, user_id: str, mark_id: str) -> None:
-        with Session(self._engine) as session:
-            self._service(session).mark_flared(user_id, mark_id)

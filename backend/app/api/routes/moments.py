@@ -3,28 +3,35 @@
 GET  /moves/{id}/moments    the Move's Moments the caller may see
 POST /moves/{id}/moments    multipart: file, caption, tagged_user_ids (repeated)
 POST /moments/{id}/approve  `{approve: bool}` from a tagged user
-GET  /media/{filename}      the Moment's media, if the caller may see it
+GET  /media/{filename}      (root, see routes/media.py) the Moment's media;
+                            /api/v1/media/{filename} is a legacy alias
 
 Media goes through a route rather than a bare `StaticFiles` mount so a
 pending Moment's photo is never reachable by URL alone (rule 1.5.7); like
 every other route it needs `X-User-Id`.
 """
 
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
 
 from app.api.deps import ContainerDep
 from app.api.deps_core import CurrentUserDep
-from app.api.routes.users import UserLite
+from app.core.composition import build_moment_service
 from app.core.config import settings
 from app.core.db import SessionDep
-from app.ports import MediaType, MomentStatus
-from app.services.moments import MomentService, MomentView
+from app.models.moments import (
+    ApproveBody as ApproveBody,
+)
+from app.models.moments import (
+    MomentRead as MomentRead,
+)
+from app.models.moments import (
+    MomentTagRead as MomentTagRead,
+)
+from app.services.moments import MomentService
 
 router = APIRouter(tags=["moments"])
 
@@ -38,58 +45,23 @@ def get_moment_service(
     container: ContainerDep,
     media_dir: Annotated[Path, Depends(get_media_dir)],
 ) -> MomentService:
-    return MomentService(
+    return build_moment_service(
         session,
         container.clock,
         container.events,
         container.notifier,
         media_dir,
-        media_url_prefix=f"{settings.API_V1_STR}/media",
+        media_url_prefix="/media",
     )
 
 
 MomentServiceDep = Annotated[MomentService, Depends(get_moment_service)]
 
 
-class MomentTagRead(BaseModel):
-    user: UserLite
-    approved: bool | None
 
 
-class MomentRead(BaseModel):
-    id: str
-    move_id: str
-    mark_id: str
-    author: UserLite
-    media_url: str
-    media_type: MediaType
-    caption: str
-    status: MomentStatus
-    created_at: datetime
-    tags: list[MomentTagRead]
-
-    @classmethod
-    def from_view(cls, view: MomentView) -> "MomentRead":
-        m = view.moment
-        return cls(
-            id=m.id,
-            move_id=m.move_id,
-            mark_id=m.mark_id,
-            author=UserLite.model_validate(view.author),
-            media_url=m.media_url,
-            media_type=m.media_type,
-            caption=m.caption,
-            status=m.status,
-            created_at=m.created_at,
-            tags=[
-                MomentTagRead(user=UserLite.model_validate(u), approved=a)
-                for u, a in view.tags
-            ],
-        )
 
 
-class ApproveBody(BaseModel):
-    approve: bool
 
 
 @router.get("/moves/{move_id}/moments")
@@ -130,9 +102,20 @@ async def approve_moment(
 def get_media(
     filename: str, user: CurrentUserDep, moments: MomentServiceDep
 ) -> FileResponse:
-    media = moments.media(user.id, filename)
+    """Legacy alias of the canonical `/media/{filename}` (same policy)."""
+    return serve_moment_media(moments, user.id, filename)
+
+
+def serve_moment_media(
+    moments: MomentService, viewer_id: str, filename: str
+) -> FileResponse:
+    media = moments.media(viewer_id, filename)
     return FileResponse(
         media.path,
         media_type=media.content_type,
-        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private"},
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            # Consent can be withdrawn, so every fetch must be rechecked.
+            "Cache-Control": "private, no-store",
+        },
     )

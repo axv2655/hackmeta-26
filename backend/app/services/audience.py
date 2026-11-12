@@ -11,8 +11,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from app.domain.privacy import ResolvedAudience, can_see, resolve_audience
+from app.domain.records import User
 from app.repositories.audience import AudienceRepository, CircleMembers
-from app.tables import User
 
 
 @dataclass(frozen=True, slots=True)

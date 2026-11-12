@@ -349,3 +349,10 @@ def test_strangers_and_mom_see_no_friend_moves(world: Session) -> None:
     assert moves.list_live_visible(ids.MOM) == []
     assert [m.id for m in moves.list_live_visible(ids.ANISH)] == [ids.MOVE_TONY_KUMO]
     assert moves.get_visible(ids.MOVE_TONY_KUMO, ids.JORDAN) is None
+
+
+def test_every_seed_mark_is_in_the_supported_area(world: Session) -> None:
+    from app.core.areas import coarse_area
+
+    marks = world.exec(select(Mark)).all()
+    assert marks and {coarse_area(m.lat, m.lng) for m in marks} == {core.HOME_AREA}

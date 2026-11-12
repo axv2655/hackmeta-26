@@ -37,12 +37,12 @@ from starlette.websockets import WebSocketDisconnect
 from app.api.routes.moments import get_media_dir
 from app.core import db
 from app.core.config import settings
+from app.core.gateways import SqlMoveGateway
 from app.domain.errors import MoveNotFound, MoveNotOpen
 from app.hooks import Hooks
 from app.main import create_app
 from app.ports import EventType
 from app.realtime import ConnectionHub
-from app.services.moves import SqlMoveGateway
 from app.tables import metadata
 from tests.core.factories import (
     T0,
@@ -802,7 +802,9 @@ def _dump(engine: Engine) -> dict[str, list[tuple[Any, ...]]]:
     with Session(engine) as session:
         return {
             table.name: sorted(
-                (tuple(map(repr, row)) for row in session.exec(select(table))),
+                # `execute`, not `exec`: `exec` yields bare ids for a Table, so
+                # a changed column (like `last_area`) would go unnoticed.
+                (tuple(map(repr, row)) for row in session.execute(select(table))),
             )
             for table in metadata.sorted_tables
         }
@@ -821,6 +823,26 @@ def test_location_queries_are_coarse_and_never_stored(
         assert response.status_code == 200
         assert "2849371" not in response.text and "7341288" not in response.text
     assert _dump(engine) == before
+
+
+def test_opted_in_nearby_changes_only_the_area_label(
+    scene: Scene, engine: Engine
+) -> None:
+    opted = scene.client.patch(
+        f"{API}/me/settings", headers=as_("eve"), json={"location_opt_in": True}
+    )
+    scene.ok(opted)
+    before = _dump(engine)
+    lat, lng = 32.9857123, -96.7502456  # inside the demo region
+    for path in ("/moves/nearby", "/marks/nearby"):
+        assert scene.get("eve", path, lat=lat, lng=lng).status_code == 200
+    after = _dump(engine)
+
+    assert [t for t in after if after[t] != before[t]] == ["users"]
+    assert "UT Dallas" in repr(after["users"]) and "UT Dallas" not in repr(
+        before["users"]
+    )
+    assert "9857" not in repr(after) and "7502" not in repr(after)
 
 
 def test_other_users_area_is_never_shown(scene: Scene) -> None:
@@ -855,6 +877,8 @@ def test_audit_catches_leaks() -> None:
 PUBLIC = (
     ("GET", f"{API}/health"),
     ("GET", f"{API}/auth/users"),  # the login picker, before anyone is signed in
+    # Demo Mark photos: manifest-listed, shared by category, carry no user data.
+    ("GET", "/media/seed/marks/{asset_name}"),
 )
 PUBLIC_PREFIXES = (
     f"{API}/notes",  # scaffolding sample, not part of the product
@@ -885,6 +909,7 @@ def test_route_inventory_covers_core() -> None:
     paths = {path for _, path in PRIVATE_ROUTES}
     for expected in ("/moves/{move_id}", "/media/{filename}", "/me", "/circles"):
         assert f"{API}{expected}" in paths
+    assert "/media/{filename}" in paths  # canonical root route, same policy
     assert ("GET", f"{API}/auth/users") in OPERATIONS
 
 

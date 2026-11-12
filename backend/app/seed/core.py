@@ -34,10 +34,13 @@ The demo storyline this supports:
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Literal
 
 from sqlmodel import Session
 
+from app.core.areas import CENTER, HOME_AREA
+from app.core.config import settings
 from app.domain import moves as rules
 from app.domain.moves import NewMove
 from app.domain.privacy import ResolvedAudience, resolve_audience
@@ -51,7 +54,7 @@ from app.ports import (
 )
 from app.repositories.audience import SqlAudienceRepository
 from app.repositories.moves import SqlMoveRepository
-from app.seed import ids
+from app.seed import ids, media
 from app.tables import (
     AutojoinPref,
     Block,
@@ -66,18 +69,6 @@ from app.tables import (
     User,
     UserSettings,
 )
-
-CENTER = (32.9857, -96.7502)
-"""Demo area center (UT Dallas). Change it to the venue where the demo phones
-physically are; every Mark is placed relative to it (ARCHITECTURE.md 18)."""
-
-HOME_AREA = "UT Dallas"
-
-
-def photo(key: str, width: int = 800, height: int = 600) -> str:
-    """A stable placeholder image URL, so the repo ships no media."""
-    return f"https://picsum.photos/seed/{key}/{width}/{height}"
-
 
 # --- People -------------------------------------------------------------------
 
@@ -534,7 +525,7 @@ def _mark(place: Place) -> Mark:
         lat=round(lat + place.north_km / KM_PER_DEG_LAT, 6),
         lng=round(lng + place.east_km / KM_PER_DEG_LNG, 6),
         address=place.address,
-        photo_url=photo(place.id),
+        photo_url=media.mark_photo_url(place.category),
         price_level=place.price_level,
         vibe_tags=place.vibes.split(),
         source="seed",
@@ -650,6 +641,7 @@ def _snapshot(moves: SqlMoveRepository, move_id: str) -> MoveSnapshot:
 
 def _add_moment(session: Session, spec: MomentSpec, move_start: datetime) -> None:
     move = session.get_one(Move, spec.move_id)
+    filename = media.materialize_moment(spec.id, Path(settings.MEDIA_DIR))
     approved = all(answer is True for answer in spec.tags.values())
     session.add(
         Moment(
@@ -657,7 +649,7 @@ def _add_moment(session: Session, spec: MomentSpec, move_start: datetime) -> Non
             move_id=spec.move_id,
             mark_id=move.mark_id,
             author_id=spec.author_id,
-            media_url=photo(spec.id, 900, 1200),
+            media_url=f"/media/{filename}",
             media_type="photo",
             caption=spec.caption,
             status="approved" if approved else "pending",

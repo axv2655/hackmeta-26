@@ -18,6 +18,8 @@ from app.domain.errors import MoveNotFound, MoveNotLive
 from app.hooks import Hooks
 from app.main import create_app
 from app.ports import MoveCreate
+from app.repositories.media import LocalMediaStore
+from app.repositories.unit_of_work import SqlCoreUnitOfWork
 from app.services.moments import (
     InvalidMoment,
     MomentNotFound,
@@ -27,7 +29,7 @@ from app.services.moments import (
     moment_status,
 )
 from app.services.moves import MoveService
-from app.tables import Block, Mark, Moment, MomentTag, User
+from app.tables import Block, Mark, Moment, MomentTag, MoveAudience, User
 from tests.core.fakes import FixedClock, RecordingPublisher
 
 T0 = datetime(2026, 11, 12, 20, 0, tzinfo=UTC)
@@ -84,7 +86,9 @@ def move_id(session: Session, clock: FixedClock) -> str:
         Mark(id="kumo", name="Kumo", category="coffee", lat=1, lng=2, address="x")
     )
     session.commit()
-    moves = MoveService(session, clock, RecordingPublisher(), Hooks())
+    moves = MoveService(
+        SqlCoreUnitOfWork(session), clock, RecordingPublisher(), Hooks()
+    )
     draft = MoveCreate(
         mark_id="kumo",
         text="matcha",
@@ -112,7 +116,14 @@ def service(
     notifier: RecordingNotifier,
     media_dir: Path,
 ) -> MomentService:
-    return MomentService(session, clock, events, notifier, media_dir, max_bytes=1024)
+    return MomentService(
+        SqlCoreUnitOfWork(session),
+        clock,
+        events,
+        notifier,
+        LocalMediaStore(media_dir),
+        max_bytes=1024,
+    )
 
 
 def upload(
@@ -179,6 +190,68 @@ def test_upload_stores_file_row_and_tags(
     assert tags == [("cy", None)]  # deduplicated, author dropped
 
 
+def test_failed_moment_commit_removes_file(
+    service: MomentService,
+    session: Session,
+    media_dir: Path,
+    events: RecordingPublisher,
+    notifier: RecordingNotifier,
+    move_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail() -> None:
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(session, "commit", fail)
+    before = len(events.published)
+
+    with pytest.raises(RuntimeError):
+        upload(service, move_id, tags=("cy",))
+
+    assert list(media_dir.glob("*")) == []
+    assert session.exec(select(Moment)).all() == []
+    assert len(events.published) == before
+    assert notifier.sent == []
+
+
+def test_media_write_failure_creates_no_row(
+    service: MomentService,
+    session: Session,
+    media_dir: Path,
+    events: RecordingPublisher,
+    move_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(self: LocalMediaStore, filename: str, data: bytes) -> None:
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(LocalMediaStore, "write", fail)
+    before = len(events.published)
+
+    with pytest.raises(OSError):
+        upload(service, move_id, tags=("cy",))
+
+    assert session.exec(select(Moment)).all() == []
+    assert session.exec(select(MomentTag)).all() == []
+    assert len(events.published) == before
+
+
+def test_approval_cannot_widen_the_move_audience(
+    service: MomentService, session: Session, move_id: str
+) -> None:
+    before = {r.user_id for r in session.exec(select(MoveAudience)).all()}
+    moment_id = upload(service, move_id, tags=("cy",))
+
+    run(service.answer("cy", moment_id, True))
+    run(service.answer("cy", moment_id, False))
+    run(service.answer("cy", moment_id, True))
+
+    after = {r.user_id for r in session.exec(select(MoveAudience)).all()}
+    assert after == before
+    with pytest.raises(MoveNotFound):  # a blocked viewer stays locked out
+        visible_ids(service, "mom", move_id)
+
+
 def test_upload_detects_clip(service: MomentService, session: Session, move_id: str):
     moment_id = upload(service, move_id, data=MP4, content_type="video/mp4")
     moment = session.get(Moment, moment_id)
@@ -241,7 +314,11 @@ def test_only_visible_participants_upload(
 def test_no_uploads_after_the_move_ends(
     service: MomentService, session: Session, clock: FixedClock, move_id: str
 ) -> None:
-    run(MoveService(session, clock, RecordingPublisher(), Hooks()).end("ana", move_id))
+    run(
+        MoveService(
+            SqlCoreUnitOfWork(session), clock, RecordingPublisher(), Hooks()
+        ).end("ana", move_id)
+    )
     with pytest.raises(MoveNotLive):
         upload(service, move_id)
 
@@ -376,7 +453,11 @@ def test_failing_notifier_does_not_fail_upload(
     session: Session, clock: FixedClock, media_dir: Path, move_id: str
 ) -> None:
     service = MomentService(
-        session, clock, RecordingPublisher(), FailingNotifier(), media_dir
+        SqlCoreUnitOfWork(session),
+        clock,
+        RecordingPublisher(),
+        FailingNotifier(),
+        LocalMediaStore(media_dir),
     )
     moment_id = upload(service, move_id, tags=("cy",))
     assert session.get(Moment, moment_id) is not None
@@ -428,7 +509,7 @@ def test_http_upload_approve_list_and_media(
         ("ana", None),
         ("cy", None),
     ]
-    assert moment["media_url"] == f"/api/v1/media/{moment['id']}.jpg"
+    assert moment["media_url"] == f"/media/{moment['id']}.jpg"
     assert len(notifier.sent) == 2
 
     media = client.get(moment["media_url"], headers=as_user("cy"))
@@ -489,3 +570,62 @@ def test_http_approve_errors(client: TestClient, move_id: str) -> None:
     assert client.post(url, headers=as_user("ana"), json=body).status_code == 403
     assert client.post(url, headers=as_user("dee"), json=body).status_code == 404
     assert client.post(url, headers=as_user("cy"), json={}).status_code == 422
+
+
+def test_both_media_routes_enforce_identical_consent(
+    client: TestClient, move_id: str
+) -> None:
+    res = client.post(
+        f"/api/v1/moves/{move_id}/moments",
+        headers=as_user("bo"),
+        files={"file": ("a.jpg", JPEG, "image/jpeg")},
+        data={"tagged_user_ids": ["cy"]},
+    )
+    moment_id = res.json()["id"]
+    canonical, legacy = f"/media/{moment_id}.jpg", f"/api/v1/media/{moment_id}.jpg"
+
+    for url in (canonical, legacy):
+        assert client.get(url).status_code == 401
+        assert client.get(url, headers=as_user("dee")).status_code == 404  # pending
+        assert client.get(url, headers=as_user("mom")).status_code == 404  # blocked
+        shown = client.get(url, headers=as_user("cy"))
+        assert shown.status_code == 200
+        assert shown.headers["cache-control"] == "private, no-store"
+
+    client.post(
+        f"/api/v1/moments/{moment_id}/approve",
+        headers=as_user("cy"),
+        json={"approve": True},
+    )
+    bodies = {
+        url: client.get(url, headers=as_user("dee")) for url in (canonical, legacy)
+    }
+    assert {r.status_code for r in bodies.values()} == {200}
+    assert bodies[canonical].content == bodies[legacy].content == JPEG
+    assert client.get(canonical, headers=as_user("mom")).status_code == 404
+
+    client.post(  # withdrawing consent closes the media again, on both routes
+        f"/api/v1/moments/{moment_id}/approve",
+        headers=as_user("cy"),
+        json={"approve": False},
+    )
+    for url in (canonical, legacy):
+        assert client.get(url, headers=as_user("dee")).status_code == 404
+
+
+def test_legacy_stored_urls_still_resolve(
+    client: TestClient, session: Session, move_id: str
+) -> None:
+    res = client.post(
+        f"/api/v1/moves/{move_id}/moments",
+        headers=as_user("bo"),
+        files={"file": ("a.jpg", JPEG, "image/jpeg")},
+    )
+    moment_id = res.json()["id"]
+    moment = session.get_one(Moment, moment_id)
+    moment.media_url = f"/api/v1/media/{moment_id}.jpg"  # as stored before the move
+    session.add(moment)
+    session.commit()
+
+    for url in (f"/media/{moment_id}.jpg", f"/api/v1/media/{moment_id}.jpg"):
+        assert client.get(url, headers=as_user("cy")).status_code == 200

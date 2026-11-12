@@ -26,17 +26,32 @@ LANES: dict[str, tuple[str, ...]] = {
     "core": (
         "app.core",
         "app.core.*",
-        *_modules("app.domain", "moves", "privacy", "errors"),
-        *_modules("app.repositories", "moves", "marks", "audience"),
+        *_modules("app.domain", "moves", "privacy", "errors", "records"),
+        *_modules(
+            "app.repositories",
+            "moves",
+            "marks",
+            "audience",
+            "users",
+            "circles",
+            "moments",
+            "media",
+            "records",
+            "unit_of_work",
+        ),
+        *_modules(
+            "app.models", "users", "circles", "audience", "marks", "moves", "moments"
+        ),
         *_modules(
             "app.services", "moves", "marks", "audience", "users", "moments", "circles"
         ),
         "app.realtime",
         "app.realtime.*",
         "app.seed.core",
+        "app.seed.media",
         "app.seed.assets.*",
         *_routes("auth", "users", "circles", "audience", "marks", "moves"),
-        *_routes("moments", "ws"),
+        *_routes("moments", "ws", "media"),
         "app.api.deps_core",
         "app.lanes.core",
         "tests.core",

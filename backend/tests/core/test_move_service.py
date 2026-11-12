@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
+from app.core.gateways import SqlMoveGateway
 from app.domain.errors import (
     EndNotAllowed,
     IllegalTransition,
@@ -19,7 +20,8 @@ from app.domain.errors import (
 )
 from app.hooks import Hooks
 from app.ports import MoveCreate, MoveGateway
-from app.services.moves import MoveService, SqlMoveGateway
+from app.repositories.unit_of_work import SqlCoreUnitOfWork
+from app.services.moves import MoveService
 from app.tables import (
     Block,
     Circle,
@@ -111,7 +113,7 @@ def log(hooks: Hooks) -> HookLog:
 def service(
     world: Session, clock: FixedClock, events: RecordingPublisher, hooks: Hooks
 ) -> MoveService:
-    return MoveService(world, clock, events, hooks)
+    return MoveService(SqlCoreUnitOfWork(world), clock, events, hooks)
 
 
 def draft(**fields: Any) -> MoveCreate:
@@ -205,7 +207,9 @@ def test_failing_hook_and_publisher_do_not_break_the_service(
     hooks.on_move_created.register(boom)
     hooks.on_move_created.register(log._recorder("after"))
     move = run(
-        MoveService(world, clock, BrokenPublisher(), hooks).create("ana", draft())
+        MoveService(SqlCoreUnitOfWork(world), clock, BrokenPublisher(), hooks).create(
+            "ana", draft()
+        )
     )
 
     assert [name for name, _ in log.calls] == ["on_move_created", "after"]
@@ -213,7 +217,9 @@ def test_failing_hook_and_publisher_do_not_break_the_service(
 
 
 def test_works_without_hook_handlers(world: Session, clock: FixedClock) -> None:
-    service = MoveService(world, clock, RecordingPublisher(), Hooks())
+    service = MoveService(
+        SqlCoreUnitOfWork(world), clock, RecordingPublisher(), Hooks()
+    )
     move_id = create(service)
     run(service.join("bo", move_id))
     run(service.end("ana", move_id))
@@ -428,3 +434,39 @@ def test_gateway_ends_for_reason(gateway: SqlMoveGateway, log: HookLog) -> None:
     assert snapshot is not None
     assert snapshot.status == "cancelled"
     assert log.calls[-1] == ("on_move_ended", (move.id,))
+
+
+def test_creation_refreshes_hook_changes_before_publication(
+    engine, service, hooks, events, clock
+):
+    order = []
+
+    async def sweep(mid):
+        with Session(engine) as other:
+            assert other.get(MoveRow, mid) is not None
+        order.append('sweep')
+        gateway = SqlMoveGateway(engine, clock, events, hooks)
+        await gateway.add_participant(mid, 'bo', 'there', 'ble_auto')
+        with Session(engine) as other:
+            other.add(Block(user_id='ana', hidden_from_user_id='cy'))
+            other.commit()
+
+    def notify(mid):
+        assert not any(kind == 'move.created' for _, kind, _ in events.published)
+        order.append('notify')
+
+    hooks.on_move_created.register(sweep)
+    hooks.on_move_created.register(notify)
+    move = run(service.create('ana', draft()))
+    assert order == ['sweep', 'notify']
+    assert next(p for p in move.participants if p.user_id == 'bo').status == 'there'
+    creation = [e for e in events.published if e[1] == 'move.created']
+    assert len(creation) == 1
+    assert creation[0][0] == frozenset({'ana', 'bo'})
+
+
+def test_default_lane_order():
+    from app.main import LANES
+    assert [register.__module__ for register in LANES] == [
+        'app.lanes.core', 'app.lanes.surfaces', 'app.lanes.muse'
+    ]

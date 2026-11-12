@@ -17,6 +17,7 @@ from sqlalchemy import ColumnElement, and_, exists, or_
 from sqlmodel import Session, col, select
 
 from app.domain.privacy import MoveVisibility, ResolvedAudience
+from app.repositories.records import record
 from app.tables import (
     Block,
     Circle,
@@ -117,13 +118,13 @@ class SqlAudienceRepository:
 
     def users(self, user_ids: Collection[str]) -> list[User]:
         """Users by id, ordered by name then id."""
-        return list(
+        return [record(row) for row in (
             self.session.exec(
                 select(User)
                 .where(col(User.id).in_(user_ids))
                 .order_by(col(User.name), col(User.id))
             ).all()
-        )
+        )]
 
     def move_visibility(self, move_id: str) -> MoveVisibility | None:
         move = self.session.get(Move, move_id)

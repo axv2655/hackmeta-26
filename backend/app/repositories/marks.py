@@ -24,6 +24,7 @@ from sqlmodel import Session, col, select
 from app.ports import Category, MarkSnapshot, MoveStatus, ParticipantStatus
 from app.repositories.audience import visible_to
 from app.repositories.moves import mark_snapshot
+from app.repositories.records import record, store
 from app.tables import (
     Block,
     Friendship,
@@ -183,7 +184,7 @@ class SqlMarkRepository:
     # --- Saved Marks and Reels -----------------------------------------------
 
     def saved_row(self, user_id: str, mark_id: str) -> SavedMark | None:
-        return self.session.get(SavedMark, (user_id, mark_id))
+        return record(self.session.get(SavedMark, (user_id, mark_id)))
 
     def saved_ids(self, user_id: str, mark_ids: Collection[str]) -> frozenset[str]:
         rows = self.session.exec(
@@ -201,7 +202,7 @@ class SqlMarkRepository:
             .where(SavedMark.user_id == user_id)
             .order_by(col(SavedMark.saved_at).desc(), col(Mark.id))
         )
-        return [(saved, mark_snapshot(mark)) for saved, mark in rows]
+        return [(record(saved), mark_snapshot(mark)) for saved, mark in rows]
 
     def saved_reels(self, user_id: str) -> list[tuple[SavedReel, Reel]]:
         """The user's saved Reels, most recently saved first."""
@@ -211,14 +212,13 @@ class SqlMarkRepository:
             .where(SavedReel.user_id == user_id)
             .order_by(col(SavedReel.saved_at).desc(), col(Reel.id))
         )
-        return [(saved, reel) for saved, reel in rows]
+        return [(record(saved), record(reel)) for saved, reel in rows]
 
     def put_saved(self, row: SavedMark) -> None:
-        self.session.add(row)
-        self.session.flush()
+        store(self.session, row)
 
     def delete_saved(self, user_id: str, mark_id: str) -> None:
-        if row := self.saved_row(user_id, mark_id):
+        if row := self.session.get(SavedMark, (user_id, mark_id)):
             self.session.delete(row)
             self.session.flush()
 
@@ -299,7 +299,7 @@ class SqlMarkRepository:
             .order_by(col(Moment.created_at).desc(), col(Moment.id))
             .limit(limit)
         )
-        return list(rows)
+        return [record(row) for row in rows]
 
     def moves_count(self, viewer_id: str, mark_id: str) -> int:
         """Live or ended Moves at the Mark that the viewer may see."""
@@ -341,7 +341,7 @@ class SqlMarkRepository:
         if not ids:
             return {}
         rows = self.session.exec(select(User).where(col(User.id).in_(ids)))
-        return {user.id: user for user in rows}
+        return {user.id: record(user) for user in rows}
 
     def commit(self) -> None:
         self.session.commit()

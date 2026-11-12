@@ -26,14 +26,13 @@ It is served only through `media()`, which applies the same visibility.
 
 import logging
 from collections.abc import Collection, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from sqlmodel import Session, col, select
-
 from app.domain.errors import Forbidden, Invalid, MoveNotFound, MoveNotLive, NotFound
 from app.domain.privacy import MoveVisibility, can_see
+from app.domain.records import Moment, MomentTag, User, new_id
 from app.ports import (
     Clock,
     EventPublisher,
@@ -42,9 +41,8 @@ from app.ports import (
     MomentStatus,
     Notifier,
 )
-from app.repositories.audience import SqlAudienceRepository
-from app.tables import Moment, MomentTag, Move, User
-from app.tables.types import new_id
+from app.repositories.media import MediaStore
+from app.repositories.unit_of_work import CoreUnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +69,7 @@ MEDIA_KINDS: dict[str, MediaKind] = {
         MediaKind("clip", ".mov", "video/quicktime"),
     )
 }
+LEGACY_MEDIA_PREFIXES = ("/media", "/api/v1/media")
 _BY_EXTENSION = {kind.extension: kind for kind in MEDIA_KINDS.values()}
 
 
@@ -166,23 +165,24 @@ class _Event:
 class MomentService:
     def __init__(
         self,
-        session: Session,
+        uow: CoreUnitOfWork,
         clock: Clock,
         events: EventPublisher,
         notifier: Notifier,
-        media_dir: Path,
+        media: MediaStore,
         *,
         media_url_prefix: str = "/media",
         max_bytes: int = MAX_UPLOAD_BYTES,
     ) -> None:
-        self.session = session
+        self.uow = uow
+        self.repo = uow.moments
         self.clock = clock
         self.events = events
         self.notifier = notifier
-        self.media_dir = media_dir
+        self.files = media
         self.media_url_prefix = media_url_prefix.rstrip("/")
         self.max_bytes = max_bytes
-        self.audience = SqlAudienceRepository(session)
+        self.audience = uow.audience
 
     # --- Reads ---------------------------------------------------------------
 
@@ -190,11 +190,7 @@ class MomentService:
         """The Move's Moments the viewer may see, oldest first. Raises
         `MoveNotFound` if the viewer cannot see the Move."""
         move = self._visible_move(viewer_id, move_id)
-        moments = self.session.exec(
-            select(Moment)
-            .where(Moment.move_id == move_id)
-            .order_by(col(Moment.created_at), col(Moment.id))
-        ).all()
+        moments = self.repo.list_for_move(move_id)
         return [self._view(m) for m in moments if may_view(viewer_id, move, m.status)]
 
     def get(self, viewer_id: str, moment_id: str) -> MomentView:
@@ -209,8 +205,8 @@ class MomentService:
         if kind is None or name.name != filename:
             raise MomentNotFound(name.stem)
         moment, _ = self._visible_moment(viewer_id, name.stem)
-        path = self.media_dir / filename
-        if moment.media_url != self._url(filename) or not path.is_file():
+        path = self.files.resolve(filename)
+        if moment.media_url not in self._known_urls(filename) or path is None:
             raise MomentNotFound(moment.id)
         return MediaFile(path, kind.content_type)
 
@@ -229,7 +225,7 @@ class MomentService:
         Raises `MoveNotFound`, `MoveNotLive`, `NotMoveParticipant`,
         `InvalidMoment`."""
         move = self._visible_move(author_id, move_id)
-        row = self.session.get(Move, move_id)
+        row = self.uow.moves.get(move_id)
         assert row is not None
         if row.status != "live":
             raise MoveNotLive(move_id, row.status)
@@ -246,7 +242,7 @@ class MomentService:
         moment = Moment(
             id=moment_id,
             move_id=move_id,
-            mark_id=row.mark_id,
+            mark_id=row.mark.id,
             author_id=author_id,
             media_url=self._url(filename),
             media_type=kind.media_type,
@@ -254,15 +250,15 @@ class MomentService:
             status=moment_status(None for _ in tags),
             created_at=self.clock.now(),
         )
-        self.session.add(moment)
-        self.session.add_all(MomentTag(moment_id=moment_id, user_id=u) for u in tags)
-        path = self.media_dir / filename
-        self.media_dir.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
         try:
-            self.session.commit()
+            self.files.write(filename, data)
+            self.repo.put(moment)
+            for uid in tags:
+                self.repo.put_tag(MomentTag(moment_id=moment_id, user_id=uid))
+            self.uow.commit()
         except Exception:
-            path.unlink(missing_ok=True)
+            self.uow.rollback()
+            self.files.remove(filename)
             raise
 
         ref = {"moment_id": moment_id, "move_id": move_id}
@@ -276,7 +272,7 @@ class MomentService:
                 _Event(frozenset(tags), "moment.approval_needed", ref),
             ]
         )
-        author = self.session.get(User, author_id)
+        author = self.uow.users.get(author_id)
         assert author is not None
         for user_id in tags:
             await self._notify(user_id, author.first_name, ref)
@@ -286,15 +282,17 @@ class MomentService:
         """A tagged user approves or declines (or changes their answer).
         Raises `MomentNotFound`, `NotTagged`."""
         moment, move = self._visible_moment(user_id, moment_id)
-        tag = self.session.get(MomentTag, (moment_id, user_id))
+        tag = self.repo.get_tag(moment_id, user_id)
         if tag is None:
             raise NotTagged(moment_id)
-        tag.approved = approve
-        self.session.add(tag)
+        tag = replace(tag, approved=approve)
+        self.repo.put_tag(tag)
         before = moment.status
-        moment.status = moment_status(t.approved for t in self._tags(moment_id))
-        self.session.add(moment)
-        self.session.commit()
+        moment = replace(
+            moment, status=moment_status(t.approved for t in self._tags(moment_id))
+        )
+        self.repo.put(moment)
+        self.uow.commit()
         if before != "approved" and moment.status == "approved":
             newly = _viewers(move, "approved") - _viewers(move, before)
             data = {"moment_id": moment.id, "move_id": moment.move_id}
@@ -314,7 +312,7 @@ class MomentService:
     def _visible_moment(
         self, viewer_id: str, moment_id: str
     ) -> tuple[Moment, MoveVisibility]:
-        moment = self.session.get(Moment, moment_id)
+        moment = self.repo.get(moment_id)
         if moment is not None:
             move = self.audience.move_visibility(moment.move_id)
             if move is not None and may_view(viewer_id, move, moment.status):
@@ -348,16 +346,12 @@ class MomentService:
         return MEDIA_KINDS[sniffed], bytes(data)
 
     def _tags(self, moment_id: str) -> Sequence[MomentTag]:
-        return self.session.exec(
-            select(MomentTag)
-            .where(MomentTag.moment_id == moment_id)
-            .order_by(col(MomentTag.user_id))
-        ).all()
+        return self.repo.tags(moment_id)
 
     def _view(self, moment: Moment) -> MomentView:
         tags = self._tags(moment.id)
         users = {u.id: u for u in self.audience.users([t.user_id for t in tags])}
-        author = self.session.get(User, moment.author_id)
+        author = self.uow.users.get(moment.author_id)
         assert author is not None
         return MomentView(
             moment, author, tuple((users[t.user_id], t.approved) for t in tags)
@@ -365,6 +359,13 @@ class MomentService:
 
     def _url(self, filename: str) -> str:
         return f"{self.media_url_prefix}/{filename}"
+
+    def _known_urls(self, filename: str) -> set[str]:
+        """The stored URL may use the current prefix or a legacy one; rows are
+        never rewritten, so both name the same file."""
+        return {self._url(filename)} | {
+            f"{prefix.rstrip('/')}/{filename}" for prefix in LEGACY_MEDIA_PREFIXES
+        }
 
     async def _publish(self, events: Iterable[_Event]) -> None:
         for event in events:

@@ -16,6 +16,7 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlmodel import Session
 
 from app.api.deps import ContainerDep
+from app.core.composition import build_circle_service, build_user_service
 from app.core.db import SessionDep
 from app.services.circles import CircleService
 from app.services.users import UserService
@@ -25,11 +26,11 @@ USER_HEADER = "X-User-Id"
 
 
 def get_user_service(session: SessionDep, container: ContainerDep) -> UserService:
-    return UserService(session, container.clock)
+    return build_user_service(session, container.clock)
 
 
 def get_circle_service(session: SessionDep) -> CircleService:
-    return CircleService(session)
+    return build_circle_service(session)
 
 
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]

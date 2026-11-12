@@ -37,12 +37,10 @@ from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import Any
 
-from sqlalchemy import Engine
-from sqlmodel import Session
-
 from app.domain import moves as rules
-from app.domain.errors import IllegalTransition, MoveNotFound
+from app.domain.errors import MoveNotFound
 from app.domain.privacy import within_audience
+from app.domain.records import User
 from app.hooks import Hook, Hooks
 from app.ports import (
     Clock,
@@ -55,10 +53,8 @@ from app.ports import (
     ParticipantSnapshot,
     ParticipantStatus,
 )
-from app.repositories.audience import SqlAudienceRepository
-from app.repositories.moves import SqlMoveRepository
+from app.repositories.unit_of_work import CoreUnitOfWork
 from app.services.audience import AudiencePreview, AudienceService, CircleLabel
-from app.tables import User
 
 logger = logging.getLogger(__name__)
 
@@ -90,14 +86,14 @@ class _Outbox:
 
 class MoveService:
     def __init__(
-        self, session: Session, clock: Clock, events: EventPublisher, hooks: Hooks
+        self, uow: CoreUnitOfWork, clock: Clock, events: EventPublisher, hooks: Hooks
     ) -> None:
-        self.session = session
+        self.uow = uow
         self.clock = clock
         self.events = events
         self.hooks = hooks
-        self.moves = SqlMoveRepository(session)
-        self._audience_repo = SqlAudienceRepository(session)
+        self.moves = uow.moves
+        self._audience_repo = uow.audience
         self.audience = AudienceService(self._audience_repo)
 
     # --- Reads ---------------------------------------------------------------
@@ -151,7 +147,7 @@ class MoveService:
         participant and audience (C3), then announce it. Raises `InvalidMove`,
         `MarkNotFound`, or `UnverifiedOpenMove` for an open Move by an
         unverified user (12.3). The notify list keeps only audience members."""
-        creator = self.session.get(User, creator_id)
+        creator = next(iter(self._audience_repo.users([creator_id])), None)
         rules.require_may_post(
             draft, creator_verified=creator is not None and creator.fb_verified
         )
@@ -160,7 +156,18 @@ class MoveService:
         new = replace(
             new, notify_user_ids=within_audience(new.notify_user_ids, audience)
         )
-        move = self.moves.create(new, audience)
+        # Hooks can mutate through their own sessions. Release the write
+        # transaction first, then reload both state and recipients afterwards.
+        try:
+            move = self.moves.create(new, audience)
+            self.uow.commit()
+        except Exception:
+            self.uow.rollback()
+            raise
+        await self.hooks.on_move_created.fire(move.id)
+        self.uow.refresh()
+        move = self.moves.get(move.id)
+        assert move is not None
         outbox = _Outbox()
         outbox.publish(
             self._viewers(move.id),
@@ -173,7 +180,6 @@ class MoveService:
                 "kind": move.kind,
             },
         )
-        outbox.fire(self.hooks.on_move_created, move.id)
         await self._commit(outbox)
         return move
 
@@ -280,7 +286,7 @@ class MoveService:
         raise MoveNotFound(move_id)
 
     def _may_discover(self, user_id: str, creator_id: str) -> bool:
-        user = self.session.get(User, user_id)
+        user = next(iter(self._audience_repo.users([user_id])), None)
         return (
             user is not None
             and user.fb_verified
@@ -335,7 +341,7 @@ class MoveService:
         return ended
 
     async def _commit(self, outbox: _Outbox) -> None:
-        self.session.commit()
+        self.uow.commit()
         for event in outbox.events:
             try:
                 await self.events.publish(event.user_ids, event.type, event.data)
@@ -344,65 +350,3 @@ class MoveService:
         for fire in outbox.hooks:
             await fire()
 
-
-class SqlMoveGateway:
-    """`MoveGateway` for other lanes and the scheduler: one short session per
-    call on `engine`, the same rules as the routes.
-
-    `add_participant` is how BLE joins arrive (proximity sweep, open Moves). A
-    user who already left a Move is not pulled back in: the rejoin's
-    `IllegalTransition` is logged and the call is a no-op, because an
-    automatic sweep must never undo someone's choice to leave. Every other
-    domain error propagates.
-    """
-
-    def __init__(
-        self, engine: Engine, clock: Clock, events: EventPublisher, hooks: Hooks
-    ) -> None:
-        self._engine = engine
-        self._clock = clock
-        self._events = events
-        self._hooks = hooks
-
-    def _service(self, session: Session) -> MoveService:
-        return MoveService(session, self._clock, self._events, self._hooks)
-
-    def get(self, move_id: str) -> MoveSnapshot | None:
-        """Any Move by id, no visibility check (consumers check themselves)."""
-        with Session(self._engine) as session:
-            return SqlMoveRepository(session).get(move_id)
-
-    def audience_ids(self, move_id: str) -> frozenset[str]:
-        with Session(self._engine) as session:
-            return self._service(session).audience_ids(move_id)
-
-    def list_live_visible(self, viewer_id: str) -> list[MoveSnapshot]:
-        with Session(self._engine) as session:
-            return self._service(session).list_live_visible(viewer_id)
-
-    async def create(self, creator_id: str, draft: MoveCreate) -> MoveSnapshot:
-        with Session(self._engine) as session:
-            return await self._service(session).create(creator_id, draft)
-
-    async def add_participant(
-        self,
-        move_id: str,
-        user_id: str,
-        status: ParticipantStatus,
-        joined_via: JoinedVia,
-    ) -> None:
-        with Session(self._engine) as session:
-            try:
-                await self._service(session).join(user_id, move_id, status, joined_via)
-            except IllegalTransition as exc:
-                if exc.current != "left":
-                    raise
-                logger.info("not re-adding %s to move %s: left", user_id, move_id)
-
-    async def end(self, move_id: str, reason: EndReason) -> None:
-        with Session(self._engine) as session:
-            await self._service(session).end_for_reason(move_id, reason)
-
-    async def end_stale(self) -> list[str]:
-        with Session(self._engine) as session:
-            return await self._service(session).end_stale()

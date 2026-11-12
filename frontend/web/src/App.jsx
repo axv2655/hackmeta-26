@@ -20,9 +20,6 @@ const Globe = pick('globe', L.Globe)
 const ThumbsUp = pick('like', L.ThumbsUp)
 const MessageSquare = pick('comment', L.MessageSquare)
 const Share2 = pick('share', L.Share2)
-const Video = pick('live', L.Video)
-const Image = pick('photo', L.Image)
-const Smile = pick('feeling', L.Smile)
 const Plus = pick('plus', L.Plus)
 
 const ME = 'Alex Rivera'
@@ -224,12 +221,9 @@ function Composer({ onPost }) {
       <div className="row">
         <Avatar name={ME} />
         <input className="pill-input" value={text} onChange={(e) => setText(e.target.value)} placeholder={`What's on your mind, ${ME.split(' ')[0]}?`} aria-label="Create post" />
-      </div>
-      <div className="divider" />
-      <div className="actions">
-        <button type="button"><Video color="#f02849" /> Live video</button>
-        <button type="button"><Image color="#45bd62" /> Photo/video</button>
-        <button type="submit"><Smile color="#f7b928" /> Post</button>
+        <button type="button" className="icon-btn" aria-label="Live video" title="Live video"><img src="/fb/live.webp" width="24" height="24" alt="" /></button>
+        <button type="button" className="icon-btn" aria-label="Photo/video" title="Photo/video"><img src="/fb/photo.webp" width="24" height="24" alt="" /></button>
+        <button type="button" className="icon-btn" aria-label="Feeling/activity" title="Feeling/activity"><img src="/fb/feeling.webp" width="24" height="24" alt="" /></button>
       </div>
     </form>
   )

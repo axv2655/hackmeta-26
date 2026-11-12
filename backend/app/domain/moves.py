@@ -42,6 +42,7 @@ from app.domain.errors import (
     MoveNotOpen,
     NotMoveCreator,
     NotParticipant,
+    UnverifiedOpenMove,
 )
 from app.ports import (
     Category,
@@ -123,6 +124,13 @@ def fill_deadline(now: datetime, fill_minutes: int | None) -> datetime | None:
             f"{FILL_MINUTES.stop - 1} minutes"
         )
     return now + timedelta(minutes=fill_minutes)
+
+
+def require_may_post(draft: MoveCreate, *, creator_verified: bool) -> None:
+    """Only verified users may post an open Move (12.3); `UnverifiedOpenMove`
+    otherwise. Any user may post a Move to their own Circles and picks."""
+    if draft.open and not creator_verified:
+        raise UnverifiedOpenMove()
 
 
 def plan_move(creator_id: str, draft: MoveCreate, now: datetime) -> NewMove:

@@ -15,6 +15,7 @@ from app.domain.errors import (
     MoveNotOpen,
     NotMoveCreator,
     NotParticipant,
+    UnverifiedOpenMove,
 )
 from app.ports import (
     EndReason,
@@ -116,6 +117,20 @@ class TestPlanMove:
         draft = MoveCreate(mark_id="k", text="x", category="food", kind="flare")
         with pytest.raises(InvalidMove):
             domain.plan_move("ana", draft, T0)
+
+    @pytest.mark.parametrize(
+        ("open_", "verified", "allowed"),
+        [(True, True, True), (True, False, False), (False, False, True)],
+    )
+    def test_only_verified_users_post_open_moves(
+        self, open_: bool, verified: bool, allowed: bool
+    ) -> None:
+        draft = MoveCreate(mark_id="k", text="x", category="food", open=open_)
+        if allowed:
+            domain.require_may_post(draft, creator_verified=verified)
+        else:
+            with pytest.raises(UnverifiedOpenMove):
+                domain.require_may_post(draft, creator_verified=verified)
 
     @pytest.mark.parametrize("text", ["", "   ", "x" * 281])
     def test_bad_text(self, text: str) -> None:

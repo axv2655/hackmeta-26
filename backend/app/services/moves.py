@@ -141,8 +141,13 @@ class MoveService:
 
     async def create(self, creator_id: str, draft: MoveCreate) -> MoveSnapshot:
         """Validate, resolve the audience (C2), store the Move with its creator
-        participant and audience (C3), then announce it. Raises `InvalidMove`
-        or `MarkNotFound`."""
+        participant and audience (C3), then announce it. Raises `InvalidMove`,
+        `MarkNotFound`, or `UnverifiedOpenMove` for an open Move by an
+        unverified user (12.3)."""
+        creator = self.session.get(User, creator_id)
+        rules.require_may_post(
+            draft, creator_verified=creator is not None and creator.fb_verified
+        )
         new = rules.plan_move(creator_id, draft, self.clock.now())
         audience = self.audience.resolve(creator_id, draft.circle_ids, draft.user_ids)
         move = self.moves.create(new, audience)

@@ -106,5 +106,13 @@ class MoveNotOpen(Forbidden):
         self.move_id = move_id
 
 
+class UnverifiedOpenMove(Forbidden):
+    """An unverified user tried to post an open Move (12.3): open Moves widen
+    discovery to nearby strangers, so only verified accounts may post them."""
+
+    def __init__(self) -> None:
+        super().__init__("only verified accounts can post open moves")
+
+
 class InvalidMove(Invalid):
     """A new Move breaks an invariant (blank text, bad fill window, ...)."""

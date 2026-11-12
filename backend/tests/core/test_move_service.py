@@ -15,6 +15,7 @@ from app.domain.errors import (
     MoveNotFound,
     MoveNotLive,
     NotMoveCreator,
+    UnverifiedOpenMove,
 )
 from app.hooks import Hooks
 from app.ports import MoveCreate, MoveGateway
@@ -58,13 +59,13 @@ class HookLog:
 @pytest.fixture
 def world(session: Session) -> Session:
     """ana owns Circle "crew" (bo, cy); dee is a stranger; ana blocks mom;
-    zed is verified for open Moves."""
+    ana and zed are verified for open Moves."""
     session.add_all(
         User(
             id=u,
             name=u.title(),
             first_name=u.title(),
-            fb_verified=u in {"zed", "mom"},
+            fb_verified=u in {"ana", "zed", "mom"},
             created_at=T0,
         )
         for u in USERS
@@ -157,6 +158,18 @@ def test_create_persists_move_creator_and_audience(
             },
         )
     ]
+
+
+def test_unverified_user_cannot_post_open_move(
+    service: MoveService, world: Session, events: RecordingPublisher
+) -> None:
+    with pytest.raises(UnverifiedOpenMove):
+        run(service.create("bo", draft(circle_ids=(), user_ids=("ana",), open=True)))
+    assert world.exec(select(MoveRow)).all() == []
+    assert events.published == []
+
+    closed = run(service.create("bo", draft(circle_ids=(), user_ids=("ana",))))
+    assert not closed.open
 
 
 def test_create_with_creator_there(service: MoveService) -> None:

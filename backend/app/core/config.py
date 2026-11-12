@@ -37,5 +37,9 @@ class Settings(BaseSettings):
     MUSE_MODEL: str | None = None
     MUSE_VISION_MODEL: str | None = None
 
+    # Shared invite links (ARCHITECTURE.md 9.4): public origin of the /m/{token}
+    # page, e.g. a tunnel. Unset: the URL the request came in on (LAN only).
+    PUBLIC_BASE_URL: HttpUrl | None = None
+
 
 settings = Settings()

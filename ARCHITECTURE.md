@@ -713,6 +713,39 @@ send       = store notification, publish over WebSocket
 | `muse_nobody_bit` | "Quiet one. Jordan + 3 are playing pickleball 5 min away and it's open. Pull up?" |
 | `muse_route` | "You and Dev are both heading to Kumo from campus. Go together?" |
 
+### 9.4 Share a Move with people outside the app
+
+For friends who aren't in the group or don't have the app. This is the cold-start
+loop from mentor feedback: a shared link pulls in people who aren't on Facebook yet.
+
+- **No SMS service.** The app asks the backend for a link, then opens the phone's
+  share sheet (React Native `Share`) with the line and the link. The text goes out
+  from the user's own number (iMessage, WhatsApp, anything), so there is no sending
+  number to register and nothing to pay for.
+- **Copy**: "Anish is making a move to the library. You want to pull up?" then the
+  link on its own line, which iMessage shows as a second bubble with a preview card.
+  Sharing someone else's Move: "Anish: Tony is making a move to ...". The client may
+  send Muse's own line as `message`.
+- **Who can share**: anyone who can see a live Move (creator, participant,
+  audience). Each share makes a row in `move_invites` with its own token, so the
+  sharer sees opens and who's coming. No phone numbers are stored.
+- **The page** (`app/api/invite_page.py`, mounted at the site root): no login, like
+  a Luma link. Place, what's happening, first names of who's there, Apple/Google Maps
+  links, and an "I'm pulling up" form that takes only a first name. Open Graph tags
+  build the preview card; preview fetchers aren't counted as opens. Stops showing
+  details when the Move ends; `noindex`.
+- **Guest going**: the sharer and the creator get a `joined_your_move` notification
+  through the normal pipeline (9.1, in-app). Guests are not users.
+- **Public URL**: set `PUBLIC_BASE_URL` (tunnel or subdomain) so links open off the
+  venue Wi-Fi and the preview card can be built.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/moves/{id}/invites` | `{message?}` → `{url, text, body}`; `body` is what the share sheet sends |
+| GET | `/moves/{id}/invites` | creator sees all, others their own: opens, guest names |
+| GET | `/m/{token}` | public page (site root, not `/api/v1`) |
+| POST | `/m/{token}/going` | form post `name` → 303 back to the page |
+
 ---
 
 ## 10. Muse

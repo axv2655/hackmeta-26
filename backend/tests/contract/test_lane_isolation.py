@@ -89,6 +89,15 @@ LANES: dict[str, tuple[str, ...]] = {
         "tests.surfaces",
         "tests.surfaces.*",
     ),
+    "messages": (
+        "app.domain.invites",
+        *_modules("app.services", "invites"),
+        *_routes("invites"),
+        "app.api.invite_page",
+        "app.lanes.messages",
+        "tests.messages",
+        "tests.messages.*",
+    ),
 }
 
 ALWAYS_ALLOWED = (

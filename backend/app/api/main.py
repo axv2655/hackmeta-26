@@ -11,6 +11,7 @@ from app.api.routes import (
     demo,
     glasses,
     home,
+    invites,
     leaderboards,
     marks,
     moments,
@@ -55,3 +56,6 @@ api_router.include_router(ratings.router)
 api_router.include_router(leaderboards.router)
 api_router.include_router(glasses.router)
 api_router.include_router(demo.router)
+
+# messages (ARCHITECTURE.md 9.4, 9.5)
+api_router.include_router(invites.router)

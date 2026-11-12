@@ -10,14 +10,12 @@ pending Moment's photo is never reachable by URL alone (rule 1.5.7); like
 every other route it needs `X-User-Id`.
 """
 
-from collections.abc import Callable, Coroutine
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.routing import APIRoute
+from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.api.deps import ContainerDep
@@ -25,35 +23,10 @@ from app.api.deps_core import CurrentUserDep
 from app.api.routes.users import UserLite
 from app.core.config import settings
 from app.core.db import SessionDep
-from app.domain.errors import Conflict, DomainError, Forbidden, Invalid, NotFound
 from app.ports import MediaType, MomentStatus
 from app.services.moments import MomentService, MomentView
 
-_STATUS: tuple[tuple[type[DomainError], int], ...] = (
-    (NotFound, 404),
-    (Forbidden, 403),
-    (Conflict, 409),
-    (Invalid, 422),
-)
-
-
-class _DomainErrorRoute(APIRoute):
-    """Maps domain error kinds to statuses until the app-wide handlers land."""
-
-    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
-        handler = super().get_route_handler()
-
-        async def handle(request: Request) -> Response:
-            try:
-                return await handler(request)
-            except DomainError as exc:
-                code = next(c for kind, c in _STATUS if isinstance(exc, kind))
-                return JSONResponse(status_code=code, content={"detail": str(exc)})
-
-        return handle
-
-
-router = APIRouter(tags=["moments"], route_class=_DomainErrorRoute)
+router = APIRouter(tags=["moments"])
 
 
 def get_media_dir() -> Path:

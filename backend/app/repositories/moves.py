@@ -15,10 +15,11 @@ one transaction (with the audience rows from `SqlAudienceRepository`).
 """
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from datetime import datetime
 from typing import Protocol
 
+from sqlalchemy import exists, func, or_
 from sqlmodel import Session, col, select
 from sqlmodel.sql.expression import Select
 
@@ -33,7 +34,15 @@ from app.ports import (
     ParticipantSnapshot,
 )
 from app.repositories.audience import SqlAudienceRepository, visible_to
-from app.tables import Mark, Move, MoveAudience, MoveParticipant
+from app.tables import (
+    Circle,
+    Mark,
+    Moment,
+    Move,
+    MoveAudience,
+    MoveAudienceCircle,
+    MoveParticipant,
+)
 
 _MoveQuery = Select[tuple[Move, Mark]]
 
@@ -52,6 +61,12 @@ class MoveRepository(Protocol):
     def participants(self, move_id: str) -> tuple[ParticipantSnapshot, ...]: ...
 
     def audience_ids(self, move_id: str) -> frozenset[str]: ...
+
+    def audience_circles(self, move_id: str) -> list[tuple[str, str]]: ...
+
+    def moments_counts(
+        self, viewer_id: str, move_ids: Collection[str]
+    ) -> dict[str, int]: ...
 
     def create(self, new: NewMove, audience: ResolvedAudience) -> MoveSnapshot: ...
 
@@ -160,6 +175,44 @@ class SqlMoveRepository:
             select(MoveAudience.user_id).where(MoveAudience.move_id == move_id)
         ).all()
         return frozenset(rows)
+
+    def audience_circles(self, move_id: str) -> list[tuple[str, str]]:
+        """`(id, name)` of the Circles the Move was posted to, by name."""
+        rows = self.session.exec(
+            select(Circle.id, Circle.name)
+            .join(MoveAudienceCircle, col(MoveAudienceCircle.circle_id) == Circle.id)
+            .where(MoveAudienceCircle.move_id == move_id)
+            .order_by(col(Circle.name), col(Circle.id))
+        ).all()
+        return [(cid, name) for cid, name in rows]
+
+    def moments_counts(
+        self, viewer_id: str, move_ids: Collection[str]
+    ) -> dict[str, int]:
+        """Moments per Move that `viewer_id` may see: approved ones, plus every
+        one for the Move's creator, participants and the author (7.4). Moves
+        with none are left out. The caller has already checked `can_see`."""
+        if not move_ids:
+            return {}
+        in_move = exists().where(
+            MoveParticipant.move_id == Moment.move_id,
+            MoveParticipant.user_id == viewer_id,
+        )
+        rows = self.session.exec(
+            select(Moment.move_id, func.count())
+            .join(Move, col(Move.id) == col(Moment.move_id))
+            .where(
+                col(Moment.move_id).in_(move_ids),
+                or_(
+                    Moment.status == "approved",
+                    Moment.author_id == viewer_id,
+                    Move.creator_id == viewer_id,
+                    in_move,
+                ),
+            )
+            .group_by(col(Moment.move_id))
+        ).all()
+        return {move_id: count for move_id, count in rows}
 
     # --- Writes --------------------------------------------------------------
 

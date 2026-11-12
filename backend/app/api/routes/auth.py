@@ -9,10 +9,10 @@ that needs no current user.
 
 from fastapi import APIRouter
 
-from app.api.deps_core import CoreRoute, UserServiceDep
+from app.api.deps_core import UserServiceDep
 from app.api.routes.users import UserLite
 
-router = APIRouter(tags=["auth"], route_class=CoreRoute)
+router = APIRouter(tags=["auth"])
 
 
 @router.get("/auth/users")

@@ -4,7 +4,8 @@
 The service writes only core people tables. Visibility itself (who sees which
 Move) lives in `domain/privacy.py`; a block here is the data it reads.
 
-Errors subclass `UserError`; `app/api/deps_core.py` maps them to statuses.
+Errors are the core kinds from `app.domain.errors` (`UserNotFound` is a
+`NotFound`, bad input is `Invalid`); `app/api/errors.py` maps them to statuses.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from typing import Any, Literal
 from sqlalchemy import Engine
 from sqlmodel import Session, col, delete, or_, select
 
+from app.domain.errors import Invalid, NotFound
 from app.ports import Clock
 from app.tables import (
     AutojoinPref,
@@ -40,25 +42,9 @@ SETTINGS_FIELDS = frozenset(UserSettings.model_fields) - {"user_id"}
 NULLABLE_SETTINGS = frozenset({"quiet_hours"})
 
 
-class UserError(Exception):
-    """Base for people-related errors the API turns into a status code."""
-
-
-class NotFoundError(UserError):
-    pass
-
-
-class UserNotFound(NotFoundError):
+class UserNotFound(NotFound):
     def __init__(self, user_id: str) -> None:
         super().__init__(f"User {user_id!r} not found")
-
-
-class ForbiddenError(UserError):
-    pass
-
-
-class InvalidRequest(UserError):
-    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,11 +60,11 @@ def require_users(
 ) -> list[User]:
     """Users for `user_ids` in the given order, de-duplicated.
 
-    Raises `UserNotFound` for an unknown id and `InvalidRequest` for `not_self`.
+    Raises `UserNotFound` for an unknown id and `Invalid` for `not_self`.
     """
     wanted = list(dict.fromkeys(user_ids))
     if not_self is not None and not_self in wanted:
-        raise InvalidRequest("You cannot pick yourself")
+        raise Invalid("You cannot pick yourself")
     found = {
         user.id: user
         for user in session.exec(select(User).where(col(User.id).in_(wanted)))
@@ -130,10 +116,10 @@ class UserService:
     def update_settings(self, user_id: str, changes: Mapping[str, Any]) -> UserSettings:
         """Apply only the keys present; `quiet_hours` alone may be None."""
         if unknown := set(changes) - SETTINGS_FIELDS:
-            raise InvalidRequest(f"Unknown settings: {', '.join(sorted(unknown))}")
+            raise Invalid(f"Unknown settings: {', '.join(sorted(unknown))}")
         nulled = {k for k, v in changes.items() if v is None} - NULLABLE_SETTINGS
         if nulled:
-            raise InvalidRequest(f"Cannot clear: {', '.join(sorted(nulled))}")
+            raise Invalid(f"Cannot clear: {', '.join(sorted(nulled))}")
         if "default_circle_ids" in changes:
             self._check_owned_circles(user_id, changes["default_circle_ids"])
         row = self.settings(user_id)
@@ -153,7 +139,7 @@ class UserService:
             )
         )
         if missing := set(circle_ids) - owned:
-            raise InvalidRequest(f"Not your Circles: {', '.join(sorted(missing))}")
+            raise Invalid(f"Not your Circles: {', '.join(sorted(missing))}")
 
     # --- friends ----------------------------------------------------------
 
@@ -257,6 +243,6 @@ class SqlUserGateway:
         self._clock = clock
 
     def add_autojoin(self, user_id: str, other_user_id: str) -> None:
-        """Raises `UserError` for an unknown user or `other_user_id == user_id`."""
+        """Raises `UserNotFound` for an unknown user, `Invalid` for yourself."""
         with Session(self._engine) as session:
             UserService(session, self._clock).add_autojoin(user_id, other_user_id)

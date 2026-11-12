@@ -7,11 +7,15 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine
+from sqlmodel import Session
 from starlette.websockets import WebSocketDisconnect
 
+from app.core import db
 from app.main import create_app
 from app.ports import EventPublisher
 from app.realtime import ConnectionHub
+from app.tables import User
 
 T0 = datetime(2026, 11, 12, 14, 0, tzinfo=UTC)
 
@@ -147,9 +151,19 @@ def test_disconnect_during_publish(hub: ConnectionHub) -> None:
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
-    with TestClient(create_app()) as client:
-        client.app.state.container.events = ConnectionHub(FixedClock())
+def client(engine: Engine, session: Session) -> Iterator[TestClient]:
+    for uid in ("u1", "u2"):
+        session.add(User(id=uid, name=uid, first_name=uid, created_at=T0))
+    session.commit()
+
+    def session_override() -> Iterator[Session]:
+        with Session(engine) as session:
+            yield session
+
+    app = create_app()
+    app.dependency_overrides[db.get_session] = session_override
+    with TestClient(app) as client:
+        app.state.container.events = ConnectionHub(FixedClock())
         yield client
 
 
@@ -186,9 +200,10 @@ def test_ws_route_delivers_events_and_cleans_up(client: TestClient) -> None:
     wait_for_sockets(client, "u2", 0)
 
 
-def test_ws_route_requires_user_id(client: TestClient) -> None:
+@pytest.mark.parametrize("query", ["", "?user_id=", "?user_id=ghost"])
+def test_ws_route_requires_a_known_user(client: TestClient, query: str) -> None:
     with pytest.raises(WebSocketDisconnect) as closed:
-        with client.websocket_connect("/api/v1/ws"):
+        with client.websocket_connect(f"/api/v1/ws{query}"):
             pass
     assert closed.value.code == 1008
 

@@ -32,7 +32,7 @@ opens one short session per call on the engine it was given.
 """
 
 import logging
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Any
@@ -56,7 +56,7 @@ from app.ports import (
 )
 from app.repositories.audience import SqlAudienceRepository
 from app.repositories.moves import SqlMoveRepository
-from app.services.audience import AudienceService
+from app.services.audience import AudiencePreview, AudienceService, CircleLabel
 from app.tables import User
 
 logger = logging.getLogger(__name__)
@@ -113,6 +113,29 @@ class MoveService:
 
     def audience_ids(self, move_id: str) -> frozenset[str]:
         return self.moves.audience_ids(move_id)
+
+    def audience_preview(self, move_id: str) -> AudiencePreview:
+        """The stored audience as an AudienceLine (7.2). Show it to the
+        Move's creator only."""
+        ids = self.moves.audience_ids(move_id)
+        return AudiencePreview(
+            count=len(ids),
+            circles=tuple(
+                CircleLabel(id=cid, name=name)
+                for cid, name in self.moves.audience_circles(move_id)
+            ),
+            people=tuple(self._audience_repo.users(ids)),
+        )
+
+    def moments_counts(
+        self, viewer_id: str, move_ids: Collection[str]
+    ) -> dict[str, int]:
+        """Moments the viewer may see per Move (missing means none)."""
+        return self.moves.moments_counts(viewer_id, move_ids)
+
+    def users(self, user_ids: Collection[str]) -> dict[str, User]:
+        """Users by id, for showing creators and participants."""
+        return {user.id: user for user in self._audience_repo.users(user_ids)}
 
     # --- Mutations -----------------------------------------------------------
 

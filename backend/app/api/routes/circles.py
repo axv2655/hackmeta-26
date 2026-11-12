@@ -6,11 +6,11 @@ GET/POST /circles, PATCH/DELETE /circles/{id}
 from fastapi import APIRouter, status
 from pydantic import BaseModel, ConfigDict
 
-from app.api.deps_core import CircleServiceDep, CoreRoute, CurrentUserDep
+from app.api.deps_core import CircleServiceDep, CurrentUserDep
 from app.api.routes.users import UserLite
 from app.services.circles import CircleView
 
-router = APIRouter(tags=["circles"], route_class=CoreRoute)
+router = APIRouter(tags=["circles"])
 
 
 class CircleRead(BaseModel):

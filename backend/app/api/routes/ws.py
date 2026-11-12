@@ -6,15 +6,15 @@ Server push only: the socket is registered with the `ConnectionHub` and
 anything the client sends is ignored until it disconnects.
 
 The user is the `user_id` query parameter (mocked auth, 3.1; browsers cannot
-set `X-User-Id` on a WebSocket). This is a minimal local check until core C7's
-shared user resolution in `api/deps_core.py` lands.
+set `X-User-Id` on a WebSocket), resolved with the same `find_user` as
+`CurrentUserDep`. A missing or unknown user is closed with 1008.
 """
 
-from typing import Annotated
-
-from fastapi import APIRouter, Query, WebSocket, status
+from fastapi import APIRouter, WebSocket, status
 
 from app.api.deps import ContainerDep
+from app.api.deps_core import find_user
+from app.core.db import SessionDep
 from app.realtime import ConnectionHub
 
 router = APIRouter(tags=["realtime"])
@@ -24,17 +24,24 @@ router = APIRouter(tags=["realtime"])
 async def events_socket(
     websocket: WebSocket,
     container: ContainerDep,
-    user_id: Annotated[str, Query(min_length=1)],
+    session: SessionDep,
+    user_id: str | None = None,
 ) -> None:
     hub = container.events
     if not isinstance(hub, ConnectionHub):
         # The core lane is not registered, so nothing would ever be pushed.
         await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER)
         return
+    user = find_user(session, user_id)
+    # The socket outlives the request; do not hold a connection open with it.
+    session.close()
+    if user is None:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
     await websocket.accept()
-    hub.connect(user_id, websocket)
+    hub.connect(user.id, websocket)
     try:
         while (await websocket.receive())["type"] != "websocket.disconnect":
             pass
     finally:
-        hub.disconnect(user_id, websocket)
+        hub.disconnect(user.id, websocket)

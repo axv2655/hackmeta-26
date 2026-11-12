@@ -134,7 +134,7 @@ function useDismiss(open, setOpen) {
   return ref
 }
 
-function TopNav() {
+function TopNav({ view, setView }) {
   const [open, setOpen] = useState(null)
   const [notifs, setNotifs] = useState(NOTIFS)
   const ref = useDismiss(open, setOpen)
@@ -143,12 +143,12 @@ function TopNav() {
   return (
     <header className="topnav">
       <div className="topnav-left">
-        <img className="logo" src="/logo.svg" alt="Home" />
+        <button className="logo-btn" onClick={() => setView('Home')} aria-label="Home"><img className="logo" src="/logo.svg" alt="" /></button>
         <input className="search" placeholder="Search" aria-label="Search" />
       </div>
       <nav className="topnav-center" aria-label="Primary">
-        {[['Home', Home], ['Friends', Friends], ['Video', MonitorPlay], ['Marketplace', Store], ['Groups', Users]].map(([t, I], i) => (
-          <button key={t} className={`tab ${i === 0 ? 'active' : ''}`} aria-label={t} title={t}><I size={24} /></button>
+        {[['Home', Home], ['Friends', Friends], ['Video', MonitorPlay], ['Marketplace', Store], ['Groups', Users]].map(([t, I]) => (
+          <button key={t} className={`tab ${view === t ? 'active' : ''}`} aria-label={t} aria-current={view === t ? 'page' : undefined} data-tip={t === 'Video' ? 'Reels' : t} onClick={() => setView(t)}><I size={24} /></button>
         ))}
       </nav>
       <div className="topnav-right" ref={ref}>
@@ -260,7 +260,7 @@ function Post({ post, onLike, onComment }) {
     <article className="card post">
       <div className="row post-head">
         <Avatar name={post.author} />
-        <div><strong>{post.author}</strong><div className="muted">{post.time} · <Globe size={12} /></div></div>
+        <div>{post.group && <strong className="group-name">{post.group}</strong>}<strong className={post.group ? 'muted small' : ''}>{post.author}</strong><div className="muted">{post.time} · <Globe size={12} /></div></div>
       </div>
       <p className="post-text">{post.text}</p>
       {post.image != null && <div className="post-img" style={{ backgroundImage: art(post.image) }} role="img" aria-label="Post photo" />}
@@ -281,13 +281,164 @@ function Post({ post, onLike, onComment }) {
   )
 }
 
+// ---- tab pages (demo content) ----
+function SideNav({ title, items, gear = true, search, children }) {
+  const [active, setActive] = useState(items[0][0])
+  return (
+    <aside className="side-nav">
+      <div className="row between"><h1>{title}</h1>{gear && <button className="icon-btn gear" aria-label={`${title} settings`}><L.Settings size={20} /></button>}</div>
+      {search && <label className="side-search"><L.Search size={16} /><input placeholder={search} aria-label={search} /></label>}
+      {items.map(([label, I, more]) => (
+        <button key={label} className={`side-item ${active === label ? 'on' : ''}`} onClick={() => setActive(label)}>
+          <span className="side-icon"><I size={20} /></span><span className="grow">{label}</span>{more && <L.ChevronRight size={22} className="muted" />}
+        </button>
+      ))}
+      {children}
+    </aside>
+  )
+}
+
+const LISTINGS = [['$360', 'Vintage film camera', 'Grapevine, TX'], ['$1', 'Box of paperback books', 'Irving, TX'], ['$2,500', '2012 sport motorcycle', 'Euless, TX'], ['$80', 'Fly fishing gear', 'Durant, OK'], ['$900', 'Upright piano', 'Lewisville, TX'], ['$150', 'Leather sofa', 'Denton, TX'], ['$120', 'Ping pong table', 'Flower Mound, TX'], ['$450', 'Laptop, like new', 'Plano, TX']]
+const MARKET_CATEGORIES = [['Vehicles', L.Car], ['Property Rentals', L.House], ['Apparel', L.Shirt], ['Classifieds', L.Tag], ['Electronics', L.Smartphone], ['Entertainment', L.Clapperboard], ['Family', L.Users], ['Free Stuff', L.Gift], ['Garden & Outdoor', L.Sprout], ['Hobbies', L.Puzzle], ['Home Goods', L.Sofa], ['Home Improvement Supplies', L.Hammer], ['Home Sales', L.Building], ['Musical Instruments', L.Guitar], ['Office Supplies', L.Printer], ['Pet Supplies', L.PawPrint], ['Sporting Goods', L.Dumbbell], ['Toys & Games', L.ToyBrick]]
+
+function Marketplace() {
+  return (
+    <div className="page">
+      <SideNav title="Marketplace" search="Search Marketplace" items={[['Browse all', L.Store], ['Jobs', L.Briefcase], ['Notifications', L.Bell], ['Inbox', L.Inbox], ['Marketplace status', L.ShieldCheck], ['Buying', L.ShoppingBag, true], ['Selling', L.Tag, true]]}>
+        <button className="btn-blue wide-btn"><L.Plus size={18} /> Create new listing</button>
+        <button className="btn-gray wide-btn">Create multiple listings</button>
+        <div className="divider" />
+        <h3 className="side-h">Location</h3>
+        <a className="blue side-link">Highland Village, Texas · Within 40 mi</a>
+        <div className="divider" />
+        <h3 className="side-h">Categories</h3>
+        {MARKET_CATEGORIES.map(([label, I]) => <button key={label} className="side-item"><span className="side-icon"><I size={20} /></span>{label}</button>)}
+      </SideNav>
+      <main className="page-main">
+        <div className="row between"><h2>Today&apos;s picks</h2><a className="blue row"><L.MapPin size={16} /> Lewisville · 40 mi</a></div>
+        <div className="grid listings">
+          {LISTINGS.map(([price, title, city], i) => (
+            <a key={title} className="listing">
+              <span className="listing-img" style={{ backgroundImage: art(i * 47) }} />
+              <b>{price}</b><span className="clip">{title}</span><span className="muted">{city}</span>
+            </a>
+          ))}
+        </div>
+      </main>
+    </div>
+  )
+}
+
+const GROUPS = [['Hackathon Builders', 'Last active a day ago'], ['Dallas Startup Network', 'Last active a week ago'], ['Weekend Hikers of Texas', 'Last active 29 weeks ago']]
+const GROUP_POSTS = [
+  { id: 101, group: 'Hackathon Builders', author: 'Marcus Lee', time: 'Yesterday at 12:00 PM', text: 'Demo day tips: show the working product in the first 30 seconds, then explain how it works.', image: 210, likes: 64, comments: [], shares: 3 },
+  { id: 102, group: 'Weekend Hikers of Texas', author: 'Priya Shah', time: '2d', text: 'Trail report: dry, shaded, and the creek crossing is easy this week.', image: 120, likes: 31, comments: [], shares: 1 },
+]
+
+function Groups() {
+  const [posts, setPosts] = useState(GROUP_POSTS)
+  return (
+    <div className="page">
+      <SideNav title="Groups" search="Search groups" items={[['Your feed', L.Newspaper], ['Discover', L.Compass], ['Your groups', L.Users]]}>
+        <button className="btn-blue wide-btn"><L.Plus size={18} /> Create new group</button>
+        <div className="divider" />
+        <div className="row between"><h3 className="side-h">Groups you&apos;ve joined</h3><a className="blue">See all</a></div>
+        {GROUPS.map(([g, when]) => (
+          <a key={g} className="side-item"><span className="group-pic" style={{ backgroundImage: art(hue(g)) }} /><span className="grow"><b className="block">{g}</b><span className="muted">{when}</span></span></a>
+        ))}
+      </SideNav>
+      <main className="page-main narrow">
+        <h3 className="muted">Recent activity</h3>
+        {posts.map((p) => (
+          <Post key={p.id} post={p}
+            onLike={() => setPosts((ps) => ps.map((x) => (x.id === p.id ? { ...x, liked: !x.liked } : x)))}
+            onComment={(text) => setPosts((ps) => ps.map((x) => (x.id === p.id ? { ...x, comments: [...x.comments, { author: ME, text }] } : x)))} />
+        ))}
+      </main>
+    </div>
+  )
+}
+
+const REELS = [['Ava Chen', 'Camping snack haul', '615K', '1.2K', '3.5K', 30], ['Noah Patel', 'Sunset skate session', '82K', '940', '1.1K', 200], ['Lena Novak', 'One-pan pasta in 10 minutes', '240K', '3.4K', '9.8K', 330]]
+
+function Reels() {
+  const [i, setI] = useState(0)
+  const [muted, setMuted] = useState(true)
+  const [liked, setLiked] = useState({})
+  const [who, caption, likes, comments, shares, h] = REELS[i]
+  return (
+    <div className="page reels">
+      <aside className="side-nav dark">
+        <h1>Reels</h1>
+        {[['For you', L.Star], ['Following', L.CalendarPlus], ['Profile', L.CircleUser]].map(([label, I], k) => (
+          <button key={label} className={`side-item ${k === 0 ? 'on' : ''}`}><I size={22} /> {label}</button>
+        ))}
+      </aside>
+      <main className="reel-stage">
+        <div className="reel" style={{ backgroundImage: art(h) }}>
+          <button className="reel-mute" aria-label={muted ? 'Unmute' : 'Mute'} onClick={() => setMuted(!muted)}>{muted ? <L.VolumeX size={20} /> : <L.Volume2 size={20} />}</button>
+          <div className="reel-meta">
+            <div className="row"><Avatar name={who} size={36} /><b>{who}</b> · <a>Follow</a></div>
+            <div className="row small"><L.Music size={12} /> {who} · Original audio</div>
+            <div className="small">{caption}</div>
+          </div>
+        </div>
+        <div className="reel-actions">
+          <button className={liked[i] ? 'liked' : ''} onClick={() => setLiked({ ...liked, [i]: !liked[i] })} aria-pressed={!!liked[i]}><L.ThumbsUp size={26} fill={liked[i] ? 'currentColor' : 'none'} />{likes}</button>
+          <button><L.MessageCircle size={26} />{comments}</button>
+          <button><L.Forward size={26} />{shares}</button>
+          <button aria-label="More"><L.Ellipsis size={26} /></button>
+        </div>
+        <div className="reel-nav">
+          <button aria-label="Previous reel" onClick={() => setI((i + REELS.length - 1) % REELS.length)}><L.ChevronUp size={28} /></button>
+          <button aria-label="Next reel" onClick={() => setI((i + 1) % REELS.length)}><L.ChevronDown size={28} /></button>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+const REQUESTS = [['Nicole Carter', 15], ['Chloe Martin', 1], ['Daniel Reyes', 24], ['Grace Whitfield', 16], ['Ruth Lambert', 19], ['Samuel Okafor', 8], ['Maya Brooks', 3], ['Ethan Wu', 11], ['Isabel Torres', 6], ['Victor Hale', 2]]
+
+function FriendsPage() {
+  const [done, setDone] = useState({})
+  return (
+    <div className="page">
+      <SideNav title="Friends" items={[['Home', L.Users], ['Friend requests', L.UserPlus, true], ['Suggestions', L.UserPlus, true], ['All friends', L.UserCheck, true], ['Birthdays', L.Gift], ['Custom lists', L.List, true]]} />
+      <main className="page-main">
+        <div className="row between"><h2>Friend Requests</h2><a className="blue">See all</a></div>
+        <div className="grid requests">
+          {REQUESTS.map(([name, mutual]) => (
+            <div key={name} className="request card">
+              <img src={PFPS[hue(name) % PFPS.length]} alt="" />
+              <div className="request-body">
+                <b>{name}</b>
+                <span className="muted small">{mutual} mutual friend{mutual === 1 ? '' : 's'}</span>
+                {done[name] ? <span className="muted">{done[name]}</span> : <>
+                  <button className="btn-primary" onClick={() => setDone({ ...done, [name]: 'Request accepted' })}>Confirm</button>
+                  <button className="btn-gray" onClick={() => setDone({ ...done, [name]: 'Request removed' })}>Delete</button>
+                </>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+    </div>
+  )
+}
+
 export default function App() {
+  const [view, setView] = useState('Home')
   const [posts, setPosts] = useState(INITIAL_POSTS)
   const update = (id, fn) => setPosts((ps) => ps.map((p) => (p.id === id ? fn(p) : p)))
   return (
     <>
-      <TopNav />
-      <div className="layout">
+      <TopNav view={view} setView={setView} />
+      {view === 'Friends' && <FriendsPage />}
+      {view === 'Video' && <Reels />}
+      {view === 'Marketplace' && <Marketplace />}
+      {view === 'Groups' && <Groups />}
+      {view === 'Home' && <div className="layout">
         <LeftRail />
         <main className="feed">
           <Stories />
@@ -299,7 +450,7 @@ export default function App() {
           ))}
         </main>
         <RightRail />
-      </div>
+      </div>}
     </>
   )
 }

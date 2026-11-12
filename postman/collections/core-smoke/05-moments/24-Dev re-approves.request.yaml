@@ -1,0 +1,20 @@
+$kind: http-request
+name: 'Dev re-approves'
+method: POST
+url: '{{base_url}}/api/v1/moments/{{moment_id}}/approve'
+order: 24000
+headers:
+  - key: X-User-Id
+    value: '{{dev}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"approve": true}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('approved again', () => pm.expect(pm.response.json().status).to.eql('approved'));

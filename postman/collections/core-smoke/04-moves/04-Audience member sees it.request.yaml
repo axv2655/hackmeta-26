@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Audience member sees it'
+method: GET
+url: '{{base_url}}/api/v1/moves/{{move_id}}'
+order: 4000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));

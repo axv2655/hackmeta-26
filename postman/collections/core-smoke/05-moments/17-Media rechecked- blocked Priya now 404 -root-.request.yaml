@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Media rechecked: blocked Priya now 404 (root)'
+method: GET
+url: '{{base_url}}/media/{{media_file}}'
+order: 17000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));

@@ -1,0 +1,44 @@
+name: core-local
+values:
+  - key: base_url
+    value: 'http://127.0.0.1:8765'
+    enabled: true
+    type: default
+    description: Overridden by check_core_live.py with its own port
+  - key: anish
+    value: u_anish
+    enabled: true
+    type: default
+  - key: tony
+    value: u_tony
+    enabled: true
+    type: default
+  - key: maya
+    value: u_maya
+    enabled: true
+    type: default
+  - key: priya
+    value: u_priya
+    enabled: true
+    type: default
+  - key: dev
+    value: u_dev
+    enabled: true
+    type: default
+  - key: mom
+    value: u_mom
+    enabled: true
+    type: default
+  - key: jordan
+    value: u_jordan
+    enabled: true
+    type: default
+  - key: kumo_mark
+    value: mk_kumo_matcha
+    enabled: true
+    type: default
+  - key: fixture_png
+    value: fixtures/moment.png
+    enabled: true
+    type: default
+    description: Overridden with an absolute path by check_core_live.py (the CLI does not resolve relative file sources)

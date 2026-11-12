@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Dev pulls up'
+method: POST
+url: '{{base_url}}/api/v1/moves/{{move_id}}/join'
+order: 7000
+headers:
+  - key: X-User-Id
+    value: '{{dev}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));

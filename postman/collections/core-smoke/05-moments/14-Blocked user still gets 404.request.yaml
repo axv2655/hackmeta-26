@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Blocked user still gets 404'
+method: GET
+url: '{{base_url}}/media/{{media_file}}'
+order: 14000
+headers:
+  - key: X-User-Id
+    value: '{{mom}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));

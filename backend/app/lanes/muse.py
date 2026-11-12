@@ -9,12 +9,14 @@ in-memory database with a `FakeMuseClient`.
 """
 
 from sqlalchemy import Engine
+from sqlmodel import select
 
 from app.container import Container
 from app.core import db
 from app.hooks import Hooks
 from app.muse.agents.flare import FlareScanner
 from app.muse.agents.move_ranker import MoveRanker
+from app.muse.agents.revive import ReviveService
 from app.muse.client import MuseClient, client_from_settings
 from app.muse.compose import ComposeService
 from app.muse.lane import MuseLane
@@ -22,6 +24,7 @@ from app.scheduler.loop import Scheduler
 from app.services.notify import MuseNotifier, NotifyService
 from app.services.suggestions import SuggestionService
 from app.services.taste import TasteService
+from app.tables import UserSettings
 
 
 def register(
@@ -98,5 +101,22 @@ def register(
         await lane.call(TasteService, "on_rating_submitted", move_id, user_id)
 
     hooks.on_rating_submitted.register(on_rating_submitted)
+
+    # M9: pseudo-groups and revive (daily; Demo Control calls the scan directly)
+    async def run_revive_scan(user_id: str):
+        return await lane.call(ReviveService, "run_revive_scan", user_id)
+
+    async def daily_pseudo_groups() -> int:
+        with lane.session() as session:
+            users = session.exec(
+                select(UserSettings.user_id).where(UserSettings.muse_proactive)
+            ).all()
+        hits = 0
+        for uid in users:
+            hits += await run_revive_scan(uid) is not None
+        return hits
+
+    gateway.bind("run_revive_scan", run_revive_scan)
+    scheduler.register("muse_pseudo_groups", daily_pseudo_groups, interval_s=86400)
 
     return lane

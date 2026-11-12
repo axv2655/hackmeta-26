@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.hooks import Hooks
 from app.realtime import ConnectionHub
 from app.scheduler.loop import Scheduler
+from app.services.marks import SqlMarkGateway
 from app.services.moves import SqlMoveGateway
 from app.services.users import SqlUserGateway
 
@@ -34,3 +35,6 @@ def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:
     moves = SqlMoveGateway(db.engine, container.clock, container.events, hooks)
     container.moves = moves
     scheduler.register("end_stale_moves", moves.end_stale, interval_s=60)
+
+    # C6: marks
+    container.marks = SqlMarkGateway(db.engine, container.clock)

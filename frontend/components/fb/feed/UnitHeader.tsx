@@ -8,7 +8,7 @@ export type UnitHeaderProps = {
   title: string;
   /** Small glyph before the title ("Reels and short videos"). */
   icon?: IconName;
-  /** Row height. The 44pt buttons may overflow a shorter row; that is intended. Default 40. */
+  /** Row height. The 44pt buttons may overflow a shorter row; that is intended. Default 48. */
   height?: number;
   /** "..." button. Always rendered; a no-op when omitted. */
   onPressMore?: () => void;
@@ -18,7 +18,7 @@ export type UnitHeaderProps = {
 };
 
 /** Title row shared by the feed's suggestion units: title at the gutter, "..." and X flush right. */
-export function UnitHeader({ title, icon, height = 40, onPressMore, onDismiss, style }: UnitHeaderProps) {
+export function UnitHeader({ title, icon, height = 48, onPressMore, onDismiss, style }: UnitHeaderProps) {
   return (
     <View style={[styles.row, { height }, style]}>
       {icon ? <Icon name={icon} size={20} color={colors.text} filled style={styles.icon} /> : null}
@@ -27,16 +27,18 @@ export function UnitHeader({ title, icon, height = 40, onPressMore, onDismiss, s
       </Text>
       <IconButton
         name="more"
-        size={24}
+        size={22}
         color={colors.textSecondary}
+        hitSize={40}
         accessibilityLabel={`More options for ${title}`}
         onPress={onPressMore}
       />
       {onDismiss ? (
         <IconButton
           name="close"
-          size={26}
+          size={24}
           color={colors.textSecondary}
+          hitSize={40}
           accessibilityLabel={`Hide ${title}`}
           onPress={onDismiss}
         />
@@ -50,13 +52,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: layout.gutter,
+    paddingRight: spacing.xs,
   },
   icon: { marginRight: spacing.sm },
   title: {
     ...typeScale.sectionTitle,
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: fontWeights.medium,
+    fontWeight: fontWeights.bold,
+    letterSpacing: -0.3,
     flex: 1,
   },
 });

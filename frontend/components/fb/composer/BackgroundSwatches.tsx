@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection } from '@/lib/haptics';
-import { colors, fontWeights, hairlineWidth, layout, spacing } from '@/lib/theme';
+import { colors, fontWeights, hairlineWidth, layout, radius, spacing } from '@/lib/theme';
 
 import { composerBackgrounds, GRADIENT_END, GRADIENT_START } from './backgrounds';
 
@@ -90,7 +90,8 @@ const styles = StyleSheet.create({
   ring: {
     width: RING,
     height: RING,
-    borderRadius: 11,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
     borderWidth: 2,
     borderColor: colors.transparent,
     alignItems: 'center',
@@ -100,7 +101,8 @@ const styles = StyleSheet.create({
   tile: {
     width: TILE,
     height: TILE,
-    borderRadius: 7,
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
     overflow: 'hidden',
   },
   plainTile: {

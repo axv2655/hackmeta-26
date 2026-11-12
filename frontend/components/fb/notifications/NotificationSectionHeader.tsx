@@ -1,32 +1,31 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { PressableScale } from '@/components/ui/PressableScale';
-import { colors, fontWeights, layout, spacing, type as typeScale } from '@/lib/theme';
+import { IconButton } from '@/components/ui/IconButton';
+import { colors, fontWeights, layout, spacing } from '@/lib/theme';
 
 export type NotificationSectionHeaderProps = {
   title: string;
-  /** Blue text link at the right edge ("See all"). Hidden when omitted. */
-  actionLabel?: string;
-  onPressAction?: () => void;
+  /** Shows an X at the right edge ("Pending friend requests"). Hidden when omitted. */
+  onDismiss?: () => void;
+  dismissLabel?: string;
 };
 
-/** "New" / "Earlier" heading above a group of notification rows. */
-export function NotificationSectionHeader({ title, actionLabel, onPressAction }: NotificationSectionHeaderProps) {
+/** "New" / "Earlier" / "Pending friend requests" heading. */
+export function NotificationSectionHeader({ title, onDismiss, dismissLabel }: NotificationSectionHeaderProps) {
   return (
     <View style={styles.row}>
-      <Text style={styles.title} accessibilityRole="header">
+      <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
         {title}
       </Text>
-      {actionLabel ? (
-        <PressableScale
-          onPress={onPressAction}
-          pressedOpacity={0.5}
-          accessibilityRole="link"
-          accessibilityLabel={`${actionLabel} ${title.toLowerCase()} notifications`}
-          style={styles.action}
-        >
-          <Text style={styles.actionLabel}>{actionLabel}</Text>
-        </PressableScale>
+      {onDismiss ? (
+        <IconButton
+          name="close"
+          size={24}
+          color={colors.text}
+          accessibilityLabel={dismissLabel ?? `Hide ${title.toLowerCase()}`}
+          onPress={onDismiss}
+          style={styles.dismiss}
+        />
       ) : null}
     </View>
   );
@@ -34,23 +33,18 @@ export function NotificationSectionHeader({ title, actionLabel, onPressAction }:
 
 const styles = StyleSheet.create({
   row: {
-    height: layout.hitTarget,
+    minHeight: layout.hitTarget,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: layout.gutter,
+    paddingLeft: layout.gutter + spacing.xxs,
+    paddingRight: spacing.xs,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxs,
     backgroundColor: colors.white,
   },
-  title: { ...typeScale.sectionTitle, fontWeight: fontWeights.bold },
-  // Full-height target with its own side padding so the link is easy to hit.
-  action: {
-    height: layout.hitTarget,
-    minWidth: layout.hitTarget,
-    paddingHorizontal: layout.gutter,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  actionLabel: { fontSize: 15, lineHeight: 20, fontWeight: fontWeights.regular, color: colors.blue, paddingLeft: spacing.sm },
+  title: { flex: 1, fontSize: 20, lineHeight: 25, fontWeight: fontWeights.bold, letterSpacing: -0.3, color: colors.text },
+  dismiss: { marginLeft: spacing.sm },
 });
 
 export default NotificationSectionHeader;

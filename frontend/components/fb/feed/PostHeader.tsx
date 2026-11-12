@@ -5,7 +5,7 @@ import { Icon, type IconName } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import type { Audience, Post } from '@/lib/mock';
-import { colors, fontWeights, layout, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, layout, spacing } from '@/lib/theme';
 
 export type PostHeaderProps = {
   post: Post;
@@ -14,6 +14,8 @@ export type PostHeaderProps = {
   onDismiss?: () => void;
 };
 
+const AVATAR_SIZE = 42;
+
 const AUDIENCE: Record<Audience, { icon: IconName; label: string }> = {
   public: { icon: 'globe', label: 'Public' },
   friends: { icon: 'friends', label: 'Friends' },
@@ -21,7 +23,10 @@ const AUDIENCE: Record<Audience, { icon: IconName; label: string }> = {
   'only-me': { icon: 'lock', label: 'Only me' },
 };
 
-/** Avatar, name line (with verified check, group or check-in), "4 m · audience" meta, "..." and X. */
+/**
+ * Avatar, one-line name ("Name is at Place", "Name ▸ Group", or name + verified check),
+ * "23h · audience" meta, then "..." and X flush right.
+ */
 export function PostHeader({ post, onPressMore, onDismiss }: PostHeaderProps) {
   const { author, group, placeName } = post;
   const audience = AUDIENCE[post.audience];
@@ -29,14 +34,14 @@ export function PostHeader({ post, onPressMore, onDismiss }: PostHeaderProps) {
 
   return (
     <View style={styles.header}>
-      <Avatar source={author.avatar} size={layout.avatar} />
+      <Avatar source={author.avatar} size={AVATAR_SIZE} />
       <View style={styles.titles}>
         {isRich ? (
-          <Text style={styles.name} numberOfLines={2}>
+          <Text style={styles.name} numberOfLines={1}>
             {author.name}
             {group ? (
               <>
-                <Text style={styles.arrow}>{'  ▸  '}</Text>
+                <Text style={styles.arrow}>{' ▸ '}</Text>
                 {group.name}
               </>
             ) : null}
@@ -52,7 +57,7 @@ export function PostHeader({ post, onPressMore, onDismiss }: PostHeaderProps) {
             <Text style={[styles.name, styles.shrink]} numberOfLines={1}>
               {author.name}
             </Text>
-            {author.verified ? <VerifiedBadge size={14} style={styles.verified} /> : null}
+            {author.verified ? <VerifiedBadge size={15} style={styles.verified} /> : null}
           </View>
         )}
         <View
@@ -60,29 +65,26 @@ export function PostHeader({ post, onPressMore, onDismiss }: PostHeaderProps) {
           accessible
           accessibilityLabel={`${post.timeLabel}, shared with ${audience.label}`}
         >
-          <Text style={styles.meta}>{`${post.timeLabel} · `}</Text>
-          <Icon
-            name={audience.icon}
-            size={12}
-            color={colors.textSecondary}
-            strokeWidth={2.4}
-            style={styles.audienceIcon}
-          />
+          <Text style={styles.meta}>{post.timeLabel.replace(' ', '')}</Text>
+          <Text style={styles.dot}>·</Text>
+          <Icon name={audience.icon} size={14} color={colors.textSecondary} strokeWidth={2.2} />
         </View>
       </View>
       <View style={styles.actions}>
         <IconButton
           name="more"
-          size={24}
+          size={22}
           color={colors.textSecondary}
+          hitSize={40}
           accessibilityLabel={`More options for ${author.name}'s post`}
           onPress={onPressMore}
         />
         {post.dismissible ? (
           <IconButton
             name="close"
-            size={26}
+            size={24}
             color={colors.textSecondary}
+            hitSize={40}
             accessibilityLabel="Hide post"
             onPress={onDismiss}
           />
@@ -95,29 +97,36 @@ export function PostHeader({ post, onPressMore, onDismiss }: PostHeaderProps) {
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingLeft: layout.gutter,
+    paddingRight: spacing.xs,
     paddingTop: spacing.md,
-    paddingBottom: 10,
+    paddingBottom: spacing.sm,
   },
   titles: {
     flex: 1,
-    minHeight: layout.avatar,
+    minHeight: AVATAR_SIZE,
     justifyContent: 'center',
-    marginLeft: spacing.sm,
-    gap: spacing.xxs,
+    marginLeft: 10,
+    gap: 1,
   },
   nameRow: { flexDirection: 'row', alignItems: 'center' },
-  name: { ...typeScale.name },
+  name: {
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: fontWeights.semibold,
+    letterSpacing: -0.3,
+    color: colors.text,
+  },
   shrink: { flexShrink: 1 },
   verified: { marginLeft: spacing.xs },
   arrow: { fontSize: 13, color: colors.textSecondary, fontWeight: fontWeights.regular },
   connector: { fontWeight: fontWeights.regular },
-  metaRow: { flexDirection: 'row', alignItems: 'center' },
-  meta: { ...typeScale.meta },
-  audienceIcon: { marginTop: 1 },
-  // The 44pt buttons sit flush right and are pulled up so their glyphs line up with the name.
-  actions: { flexDirection: 'row', marginTop: -10 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  meta: { fontSize: 14, lineHeight: 18, color: colors.textSecondary },
+  dot: { fontSize: 14, lineHeight: 18, color: colors.textSecondary, fontWeight: fontWeights.bold },
+  // "..." and X sit beside the name line, not centered on the whole header.
+  actions: { flexDirection: 'row', alignSelf: 'flex-start', marginTop: -6 },
 });
 
 export default PostHeader;

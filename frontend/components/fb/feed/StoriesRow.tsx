@@ -52,7 +52,8 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 0, backgroundColor: colors.white },
   content: {
     paddingHorizontal: layout.storyEdgeInset,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.md,
     gap: layout.storyCardGap,
   },
 });

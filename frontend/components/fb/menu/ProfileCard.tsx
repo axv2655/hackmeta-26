@@ -4,7 +4,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import type { User } from '@/lib/mock';
-import { colors, fontWeights, layout, radii, shadows, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
 
 export type ProfileCardProps = {
   user: User;
@@ -12,6 +12,7 @@ export type ProfileCardProps = {
 };
 
 const SWITCH_SIZE = 32;
+const AVATAR = 48;
 
 /** White card at the top of the Menu: who you are, with the "switch profile" chevron. */
 export function ProfileCard({ user, onPress }: ProfileCardProps) {
@@ -24,10 +25,15 @@ export function ProfileCard({ user, onPress }: ProfileCardProps) {
       accessibilityLabel={`${user.name}, go to your profile`}
       style={styles.card}
     >
-      <Avatar source={user.avatar} size={layout.avatar} />
-      <Text style={styles.name} numberOfLines={1}>
-        {user.name}
-      </Text>
+      <Avatar source={user.avatar} size={AVATAR} />
+      <View style={styles.texts}>
+        <Text style={styles.name} numberOfLines={1}>
+          {user.name}
+        </Text>
+        <Text style={styles.sub} numberOfLines={1}>
+          See your profile
+        </Text>
+      </View>
       <View style={styles.switch}>
         <Icon name="chevron-down" size={18} color={colors.text} />
       </View>
@@ -40,21 +46,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    minHeight: 64,
+    minHeight: 72,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    borderRadius: radii.lg,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: colors.white,
     ...shadows.card,
   },
-  name: { ...typeScale.row, fontWeight: fontWeights.semibold, flex: 1 },
+  texts: { flex: 1, gap: spacing.xxs },
+  name: { ...typeScale.row, fontWeight: fontWeights.semibold },
+  sub: { ...typeScale.rowSub },
   switch: {
     width: SWITCH_SIZE,
     height: SWITCH_SIZE,
     borderRadius: SWITCH_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.grayButton,
+    backgroundColor: colors.buttonSecondary,
   },
 });
 

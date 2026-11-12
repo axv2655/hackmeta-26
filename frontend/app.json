@@ -9,9 +9,6 @@
     "ios": {
       "bundleIdentifier": "com.anishalle.hackmeta26"
     },
-    "android": {
-      "package": "com.anishalle.hackmeta26"
-    },
     "plugins": [
       "expo-router",
       "expo-image",

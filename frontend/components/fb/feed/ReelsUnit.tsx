@@ -7,7 +7,7 @@ import ArrowRight from 'lucide-react-native/icons/arrow-right';
 
 import { PressableScale } from '@/components/ui/PressableScale';
 import { formatCount, reels as mockReels, type Reel } from '@/lib/mock';
-import { colors, hairline, layout, spacing, type as typeScale } from '@/lib/theme';
+import { colors, hairline, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 import { UnitHeader } from './UnitHeader';
 
@@ -24,7 +24,7 @@ export type ReelsUnitProps = {
 
 const CARD_WIDTH = 190;
 const CARD_HEIGHT = Math.round((CARD_WIDTH * 16) / 9);
-const CARD_RADIUS = 10;
+const CARD_RADIUS = radius.lg;
 const CARD_GAP = spacing.sm;
 const ARROW_DISC = 60;
 
@@ -51,7 +51,7 @@ export function ReelsUnit({
 
   return (
     <View style={[styles.root, style]}>
-      <UnitHeader title={title} icon="reels" height={48} onPressMore={onPressMore} />
+      <UnitHeader title={title} icon="reels" onPressMore={onPressMore} />
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -95,13 +95,14 @@ const styles = StyleSheet.create({
   root: { backgroundColor: colors.white },
   strip: {
     paddingHorizontal: layout.gutter,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.lg,
     gap: CARD_GAP,
   },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: CARD_RADIUS,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     backgroundColor: colors.grayButton,
   },

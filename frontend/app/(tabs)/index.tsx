@@ -3,6 +3,7 @@ import { FlatList, RefreshControl, StyleSheet, View, type ListRenderItem } from 
 import { useRouter, useScrollToTop } from 'expo-router';
 
 import { AppHeader } from '@/components/fb/AppHeader';
+import { useTabBarHeight } from '@/components/fb/TabBar';
 import { AddFriendsCard } from '@/components/fb/feed/AddFriendsCard';
 import { ComposerBar } from '@/components/fb/feed/ComposerBar';
 import { PeopleYouMayKnow } from '@/components/fb/feed/PeopleYouMayKnow';
@@ -19,12 +20,14 @@ const REFRESH_MS = 900;
 
 const keyExtractor = (item: FeedItem) => item.id;
 
-/** Search, Messenger, "..." and the other controls that have no destination in the mock. */
+/** Messenger, "..." and the other controls that have no destination in the mock. */
 const noop = () => {};
 
 export default function HomeScreen() {
   const router = useRouter();
   const feed = useFeedStore((s) => s.posts);
+  // The feed scrolls under the floating liquid-glass tab bar; the last unit still clears it.
+  const tabBarHeight = useTabBarHeight();
 
   const listRef = useRef<FlatList<FeedItem>>(null);
   // Tapping the Home tab while it is focused scrolls the feed back to the top.
@@ -87,7 +90,6 @@ export default function HomeScreen() {
     () => (
       <View>
         <ComposerBar onPress={openComposer} />
-        <SectionBand />
         <StoriesRow onPressCreate={openComposer} />
         <SectionBand />
       </View>
@@ -108,7 +110,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
-      <AppHeader onPressPlus={openComposer} onPressSearch={noop} onPressMessenger={noop} />
+      <AppHeader onPressPlus={openComposer} onPressMessenger={noop} />
       <FlatList
         ref={listRef}
         style={styles.list}
@@ -118,6 +120,9 @@ export default function HomeScreen() {
         ItemSeparatorComponent={SectionBand}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
+        contentContainerStyle={{ paddingBottom: tabBarHeight }}
+        scrollIndicatorInsets={{ bottom: tabBarHeight }}
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         initialNumToRender={4}
         maxToRenderPerBatch={4}
@@ -126,7 +131,6 @@ export default function HomeScreen() {
             refreshing={refreshing}
             onRefresh={handleRefresh}
             tintColor={colors.textSecondary}
-            colors={[colors.blue]}
           />
         }
       />

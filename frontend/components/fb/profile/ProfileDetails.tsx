@@ -1,66 +1,94 @@
 import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 
-import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { colors, fontWeights, layout, spacing, type as typeScale } from '@/lib/theme';
 
-import { profileDetails } from './data';
+import { profileDetails, type DetailIcon } from './data';
 import { sectionStyles } from './sectionStyles';
 
+const ICON_SIZE = 26;
+
 export type ProfileDetailsProps = {
+  onPressSeeAll?: () => void;
+  /** @deprecated The "Edit public details" button was removed with the redesign. */
   onPressEdit?: () => void;
+  /** @deprecated Use `onPressSeeAll`. */
   onPressAbout?: () => void;
 };
 
-/** "Details" list: school, current city, hometown, join date. */
-export function ProfileDetails({ onPressEdit, onPressAbout }: ProfileDetailsProps) {
+/** Two interlocking rings: the gender glyph lucide does not have. */
+function GenderGlyph({ size, color }: { size: number; color: string }) {
   return (
-    <View style={sectionStyles.section}>
-      <Text style={sectionStyles.heading} accessibilityRole="header">
-        Details
-      </Text>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx={8.5} cy={12} r={6} stroke={color} strokeWidth={1.8} />
+      <Circle cx={15.5} cy={12} r={6} stroke={color} strokeWidth={1.8} />
+    </Svg>
+  );
+}
+
+function DetailGlyph({ icon }: { icon: DetailIcon }) {
+  if (icon === 'gender') return <GenderGlyph size={ICON_SIZE} color={colors.text} />;
+  return <Icon name={icon} size={ICON_SIZE} color={colors.text} strokeWidth={1.7} />;
+}
+
+/** "At a glance": heading with a blue "See all" link, then outline-icon rows (Lives in, From, ...). */
+export function ProfileDetails({ onPressSeeAll, onPressAbout }: ProfileDetailsProps) {
+  return (
+    <View style={[sectionStyles.section, styles.section]}>
+      <View style={styles.headingRow}>
+        <Text style={sectionStyles.heading} accessibilityRole="header">
+          At a glance
+        </Text>
+        <PressableScale
+          onPress={onPressSeeAll ?? onPressAbout}
+          scaleTo={1}
+          pressedOpacity={0.6}
+          hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+          accessibilityRole="link"
+          accessibilityLabel="See all of your About info"
+        >
+          <Text style={sectionStyles.link}>See all</Text>
+        </PressableScale>
+      </View>
 
       <View style={styles.list}>
         {profileDetails.map((detail) => (
           <View key={detail.id} style={styles.row}>
-            <Icon name={detail.icon} size={22} color={colors.placeholder} />
+            <View style={styles.iconBox}>
+              <DetailGlyph icon={detail.icon} />
+            </View>
             <Text style={styles.rowText}>
-              {detail.prefix} <Text style={styles.rowValue}>{detail.value}</Text>
+              {detail.prefix ? (
+                <>
+                  {detail.prefix} <Text style={styles.rowValue}>{detail.value}</Text>
+                </>
+              ) : (
+                detail.value
+              )}
             </Text>
           </View>
         ))}
-        <PressableScale
-          onPress={onPressAbout}
-          scaleTo={1}
-          pressedOpacity={0.6}
-          accessibilityRole="link"
-          accessibilityLabel="See your About info"
-          style={[styles.row, styles.aboutRow]}
-        >
-          <Icon name="more" size={22} color={colors.placeholder} />
-          <Text style={styles.rowText}>See your About info</Text>
-        </PressableScale>
       </View>
-
-      <Button title="Edit public details" variant="tinted" onPress={onPressEdit} style={styles.editButton} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { marginTop: spacing.xs },
+  section: { paddingTop: spacing.xxl, paddingBottom: spacing.lg },
+  headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  list: { marginTop: spacing.md },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
+    gap: spacing.lg,
+    minHeight: layout.hitTarget - spacing.xs,
+    paddingVertical: spacing.xxs,
   },
-  // Stretches the last row to a 44pt target without changing the rhythm much.
-  aboutRow: { minHeight: layout.hitTarget, paddingVertical: 0 },
-  rowText: { ...typeScale.body, flex: 1 },
+  iconBox: { width: 28, alignItems: 'center' },
+  rowText: { ...typeScale.row, flex: 1 },
   rowValue: { fontWeight: fontWeights.semibold },
-  editButton: { marginTop: spacing.sm },
 });
 
 export default ProfileDetails;

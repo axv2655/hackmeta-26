@@ -10,7 +10,7 @@ import { selection } from '@/lib/haptics';
 import { isPost } from '@/lib/mock';
 import type { Post, User } from '@/lib/mock';
 import { useFeedStore } from '@/lib/store/feed';
-import { colors, layout, radii, spacing, type as typeScale } from '@/lib/theme';
+import { colors, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 import { matchesFilter, ownSeedPosts, postFilters, type PostFilterKey } from './data';
 import { ProfilePostCard } from './ProfilePostCard';
@@ -100,6 +100,7 @@ export function ProfilePosts({ user, onPressCompose }: ProfilePostsProps) {
                 if (!selected) selection();
                 setFilter(option.key);
               }}
+              scaleTo={0.96}
               pressedOpacity={0.7}
               hitSlop={{ top: 6, bottom: 6 }}
               accessibilityRole="tab"
@@ -144,36 +145,42 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingLeft: layout.gutter,
     paddingRight: spacing.xs,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.lg,
   },
   composer: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 60,
+    height: 64,
     paddingLeft: layout.gutter,
     paddingRight: spacing.xs,
     gap: spacing.sm + 2,
   },
-  prompt: { flex: 1, height: layout.hitTarget, justifyContent: 'center' },
+  prompt: {
+    flex: 1,
+    height: 40,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
   promptText: { ...typeScale.prompt },
   chips: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: layout.gutter,
+    gap: spacing.xxs,
+    paddingHorizontal: layout.gutter - spacing.xxs,
     paddingVertical: spacing.md,
   },
   chip: {
     height: 36,
     paddingHorizontal: spacing.md + 2,
-    borderRadius: radii.pill,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.grayButton,
   },
-  chipActive: { backgroundColor: colors.tintBg },
-  chipLabel: { ...typeScale.button },
-  chipLabelActive: { color: colors.tintText },
+  chipActive: { backgroundColor: colors.chipSelectedBg },
+  chipLabel: { ...typeScale.button, fontSize: 16, lineHeight: 21 },
+  chipLabelActive: { color: colors.chipSelectedText },
   empty: {
     alignItems: 'center',
     paddingHorizontal: spacing.xxl,

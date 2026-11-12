@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { colors, hairline, layout, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, hairline, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 export type ComposerActionId = 'photo' | 'tag' | 'feeling' | 'check-in' | 'live';
 
@@ -59,7 +59,9 @@ export function ComposerActions({ variant, onAction, photoAttached = false }: Co
           style={styles.row}
           accessibilityLabel={action.label}
         >
-          <Icon name={action.icon} size={24} color={action.color} />
+          <View style={styles.iconWell}>
+            <Icon name={action.icon} size={22} color={action.color} />
+          </View>
           <Text style={styles.label} numberOfLines={1}>
             {action.label}
           </Text>
@@ -71,17 +73,25 @@ export function ComposerActions({ variant, onAction, photoAttached = false }: Co
 }
 
 const styles = StyleSheet.create({
-  list: { ...hairline('Top') },
+  list: { ...hairline('Top'), paddingVertical: spacing.xs },
   row: {
-    height: 48,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
   },
-  label: { ...typeScale.body, flex: 1 },
+  iconWell: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  label: { ...typeScale.row, fontWeight: fontWeights.medium, flex: 1 },
   bar: {
-    height: 48,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.sm,

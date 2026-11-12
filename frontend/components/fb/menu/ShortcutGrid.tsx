@@ -9,7 +9,7 @@ import { motion, spacing } from '@/lib/theme';
 import { chunk, MOVES_TAGLINE, moreShortcuts, movesShortcut, primaryShortcuts } from './data';
 import { ShortcutTile } from './ShortcutTile';
 
-const GAP = spacing.sm;
+const GAP = spacing.sm + 2;
 
 export type ShortcutGridProps = {
   onPressShortcut?: (shortcut: MenuShortcut) => void;

@@ -9,9 +9,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Icon, type IconName } from '@/components/ui/Icon';
+import type { SFSymbol } from 'expo-symbols';
+
+import type { IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { colors, layout, motion, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, layout, motion, spacing } from '@/lib/theme';
+
+import { FeedSymbol } from './FeedSymbol';
 
 export type PostActionsProps = {
   liked: boolean;
@@ -21,16 +25,17 @@ export type PostActionsProps = {
 };
 
 const EASE_OUT = Easing.bezier(motion.easeOut[0], motion.easeOut[1], motion.easeOut[2], motion.easeOut[3]);
-const ICON_SIZE = 24;
+const ICON_SIZE = 20;
 
 type ActionProps = {
+  symbol: SFSymbol;
   icon: IconName;
   label: string;
   accessibilityLabel: string;
   onPress?: () => void;
 };
 
-function Action({ icon, label, accessibilityLabel, onPress }: ActionProps) {
+function Action({ symbol, icon, label, accessibilityLabel, onPress }: ActionProps) {
   return (
     <PressableScale
       onPress={onPress}
@@ -39,13 +44,13 @@ function Action({ icon, label, accessibilityLabel, onPress }: ActionProps) {
       accessibilityLabel={accessibilityLabel}
       style={styles.action}
     >
-      <Icon name={icon} size={ICON_SIZE} color={colors.textSecondary} />
+      <FeedSymbol name={symbol} fallback={icon} size={ICON_SIZE} color={colors.textSecondary} />
       <Text style={styles.label}>{label}</Text>
     </PressableScale>
   );
 }
 
-/** Like / Comment / Share: three equal 44pt columns. Like pops and turns blue. */
+/** Like / Comment / Share: three equal columns of SF Symbol + label. Like pops and turns blue. */
 export function PostActions({ liked, onLike, onComment, onShare }: PostActionsProps) {
   const pop = useSharedValue(1);
   const reduceMotion = useReducedMotion();
@@ -81,12 +86,24 @@ export function PostActions({ liked, onLike, onComment, onShare }: PostActionsPr
         style={styles.action}
       >
         <Animated.View style={thumbStyle}>
-          <Icon name="like" size={ICON_SIZE} color={likeColor} filled={liked} />
+          <FeedSymbol
+            name={liked ? 'hand.thumbsup.fill' : 'hand.thumbsup'}
+            fallback="like"
+            filled={liked}
+            size={ICON_SIZE}
+            color={likeColor}
+          />
         </Animated.View>
         <Text style={[styles.label, { color: likeColor }]}>Like</Text>
       </PressableScale>
-      <Action icon="comment" label="Comment" accessibilityLabel="Comment" onPress={onComment} />
-      <Action icon="share" label="Share" accessibilityLabel="Share" onPress={onShare} />
+      <Action symbol="bubble.right" icon="comment" label="Comment" accessibilityLabel="Comment" onPress={onComment} />
+      <Action
+        symbol="arrowshape.turn.up.right"
+        icon="share"
+        label="Share"
+        accessibilityLabel="Share"
+        onPress={onShare}
+      />
     </View>
   );
 }
@@ -95,6 +112,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     height: layout.actionRowHeight,
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.xs,
     backgroundColor: colors.white,
   },
   action: {
@@ -102,9 +121,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 7,
   },
-  label: { ...typeScale.action },
+  label: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: fontWeights.medium,
+    letterSpacing: -0.2,
+    color: colors.textSecondary,
+  },
 });
 
 export default PostActions;

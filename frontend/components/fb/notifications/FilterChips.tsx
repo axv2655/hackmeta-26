@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection } from '@/lib/haptics';
-import { colors, layout, radii, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, layout, radius, spacing } from '@/lib/theme';
 
 import type { NotificationFilter } from './types';
 
@@ -19,7 +19,7 @@ export type FilterChipsProps = {
   onChange: (value: NotificationFilter) => void;
 };
 
-/** "All" / "Unread" pills under the Notifications title. */
+/** "All" / "Unread" capsules, shown under the header while the Unread filter is on. */
 export function FilterChips({ value, onChange }: FilterChipsProps) {
   return (
     <View style={styles.row} accessibilityRole="tablist">
@@ -51,22 +51,23 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     paddingHorizontal: layout.gutter,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xs,
   },
+  // Unselected chips are plain text; the selected one sits on a light-blue capsule.
   chip: {
     height: CHIP_HEIGHT,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.grayButton,
+    backgroundColor: colors.transparent,
   },
-  chipActive: { backgroundColor: colors.tintBg },
-  label: { ...typeScale.button },
-  labelActive: { color: colors.tintText },
+  chipActive: { backgroundColor: colors.chipSelectedBg },
+  label: { fontSize: 15, lineHeight: 20, fontWeight: fontWeights.semibold, color: colors.text },
+  labelActive: { color: colors.chipSelectedText },
 });
 
 export default FilterChips;

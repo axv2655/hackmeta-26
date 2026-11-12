@@ -13,17 +13,17 @@ export const KEN_BURNS_SWEEP_MS = 14000;
 export const DOUBLE_TAP_MS = 260;
 
 /** Width reserved on the right for the action rail; the caption block stops before it. */
-export const RAIL_COLUMN_WIDTH = 68;
+export const RAIL_COLUMN_WIDTH = 64;
+
+/** Left inset of the caption block and both ends of the progress bar (lines up with the floating tab bar). */
+export const SIDE_INSET = 14;
 
 /** Gap between the bottom of the overlays and the progress bar. */
-export const OVERLAY_BOTTOM_INSET = 12;
+export const OVERLAY_BOTTOM_INSET = 14;
 
 export const PROGRESS_BAR_HEIGHT = 2;
 
-/**
- * The bar floats just above the page edge instead of sitting on it, so its
- * white fill never merges with the tab bar's white active-tab line below.
- */
+/** Gap between the progress bar and the top of the floating glass tab bar beneath it. */
 export const PROGRESS_BOTTOM_INSET = 6;
 
 /** Track behind the progress fill. No theme token is this light. */

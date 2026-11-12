@@ -1,10 +1,9 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Hairline } from '@/components/ui/Hairline';
 import type { Post } from '@/lib/mock';
 import { useFeedStore } from '@/lib/store/feed';
-import { colors, layout, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, layout, spacing } from '@/lib/theme';
 
 import { LifeEventPost } from './LifeEventPost';
 import { LinkPreview } from './LinkPreview';
@@ -22,6 +21,41 @@ export type PostCardProps = {
   onComment?: (post: Post) => void;
   onShare?: (post: Post) => void;
 };
+
+/**
+ * Text longer than this is cut (at a word boundary) with an inline "See more".
+ * About two lines of 17pt text on a 393pt-wide phone.
+ */
+const COLLAPSE_AT = 80;
+
+function collapse(text: string): string | null {
+  if (text.length <= COLLAPSE_AT + 20) return null;
+  const cut = text.slice(0, COLLAPSE_AT);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > COLLAPSE_AT * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s.,;:!?-]+$/, '');
+}
+
+/** Post copy at 17pt. Long text shows "…See more" inline and expands in place when tapped. */
+function PostText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const short = expanded ? null : collapse(text);
+
+  if (short == null) return <Text style={styles.body}>{text}</Text>;
+
+  return (
+    <Text style={styles.body}>
+      {`${short}... `}
+      <Text
+        style={styles.seeMore}
+        onPress={() => setExpanded(true)}
+        accessibilityRole="button"
+        accessibilityLabel="See more"
+      >
+        See more
+      </Text>
+    </Text>
+  );
+}
 
 /**
  * One feed post: header, text, full-bleed photo (with a link footer on link
@@ -42,7 +76,7 @@ function PostCardBase({ post, onPressMore, onDismiss, onComment, onShare }: Post
     <View style={styles.card}>
       <PostHeader post={post} onPressMore={handleMore} onDismiss={handleDismiss} />
 
-      {post.text ? <Text style={styles.body}>{post.text}</Text> : null}
+      {post.text ? <PostText text={post.text} /> : null}
 
       {post.lifeEvent ? <LifeEventPost event={post.lifeEvent} /> : null}
 
@@ -63,7 +97,6 @@ function PostCardBase({ post, onPressMore, onDismiss, onComment, onShare }: Post
         reactions={post.reactions}
         liked={post.liked}
       />
-      <Hairline inset={layout.gutter} />
       <PostActions liked={post.liked} onLike={handleLike} onComment={handleComment} onShare={handleShare} />
     </View>
   );
@@ -74,10 +107,15 @@ export const PostCard = memo(PostCardBase);
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.white },
   body: {
-    ...typeScale.body,
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: fontWeights.regular,
+    letterSpacing: -0.2,
+    color: colors.text,
     paddingHorizontal: layout.gutter,
-    paddingBottom: 10,
+    paddingBottom: spacing.md,
   },
+  seeMore: { color: colors.textSecondary, fontWeight: fontWeights.medium },
 });
 
 export default PostCard;

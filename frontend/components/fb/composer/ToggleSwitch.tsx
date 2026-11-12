@@ -25,7 +25,7 @@ const TRAVEL = TRACK_WIDTH - THUMB - 4;
 const EASE_OUT = Easing.bezier(motion.easeOut[0], motion.easeOut[1], motion.easeOut[2], motion.easeOut[3]);
 
 /**
- * The platform switch on iOS and Android. react-native-web draws a Material
+ * The native UISwitch on iOS. react-native-web draws a Material
  * style switch, so on web an iOS-shaped one (51x31, blue track) is drawn instead.
  */
 export function ToggleSwitch({ value, onValueChange, accessibilityLabel }: ToggleSwitchProps) {

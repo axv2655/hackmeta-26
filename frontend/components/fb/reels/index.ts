@@ -7,4 +7,4 @@ export { ReelMedia, type ReelMediaProps } from './ReelMedia';
 export { ReelProgressBar, type ReelProgressBarProps } from './ReelProgressBar';
 export { ReelsTopBar, type ReelsTopBarProps } from './ReelsTopBar';
 export { placeDistanceLabel } from './place';
-export { likeCountFor, useReelsStore, type ReelReaction } from './store';
+export { likeCountFor, saveCountFor, useReelsStore, type ReelReaction } from './store';

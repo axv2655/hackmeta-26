@@ -5,6 +5,17 @@ import { colors, layout } from '@/lib/theme';
 import { Icon, type IconName } from './Icon';
 import { PressableScale } from './PressableScale';
 
+/**
+ * - 'flat'    : bare glyph (default).
+ * - 'outline' : glyph inside a thin outline circle (header "more" button).
+ * - 'filled'  : solid circle in `color` with the glyph knocked out in `knockoutColor`.
+ *               The Messenger glyph is already a filled shape, so it renders as-is.
+ */
+export type IconButtonVariant = 'flat' | 'outline' | 'filled';
+
+/** Glyphs that are already a solid filled shape and need no extra circle for the 'filled' variant. */
+const SELF_FILLED: readonly IconName[] = ['messenger'];
+
 export type IconButtonProps = {
   name: IconName;
   /** Required: icon-only buttons need a spoken name. */
@@ -16,6 +27,12 @@ export type IconButtonProps = {
   color?: string;
   /** Use the filled variant of the glyph when it has one. */
   filled?: boolean;
+  /** Visual treatment, see `IconButtonVariant`. Default 'flat'. Ignored when `background` is set. */
+  variant?: IconButtonVariant;
+  /** Circle diameter for the 'outline' / 'filled' variants. Default 28. */
+  circleSize?: number;
+  /** Glyph color inside a 'filled' circle. Default white. */
+  knockoutColor?: string;
   /** Draw the glyph on a 36pt gray circle (old-style header buttons, close buttons on sheets). */
   background?: boolean;
   /** Circle color when `background` is on. Default `colors.grayButton`. */
@@ -40,6 +57,9 @@ export function IconButton({
   size = 24,
   color = colors.text,
   filled = false,
+  variant = 'flat',
+  circleSize = 28,
+  knockoutColor = colors.white,
   background = false,
   backgroundColor = colors.grayButton,
   backgroundSize = 36,
@@ -50,6 +70,43 @@ export function IconButton({
   style,
 }: IconButtonProps) {
   const glyph = <Icon name={name} size={size} color={color} filled={filled} />;
+
+  let content = glyph;
+  if (background) {
+    content = (
+      <View
+        style={[
+          styles.circle,
+          { width: backgroundSize, height: backgroundSize, borderRadius: backgroundSize / 2, backgroundColor },
+        ]}
+      >
+        {glyph}
+      </View>
+    );
+  } else if (variant === 'outline') {
+    content = (
+      <View
+        style={[
+          styles.circle,
+          styles.outline,
+          { width: circleSize, height: circleSize, borderRadius: circleSize / 2, borderColor: color },
+        ]}
+      >
+        {glyph}
+      </View>
+    );
+  } else if (variant === 'filled' && !SELF_FILLED.includes(name)) {
+    content = (
+      <View
+        style={[
+          styles.circle,
+          { width: circleSize, height: circleSize, borderRadius: circleSize / 2, backgroundColor: color },
+        ]}
+      >
+        <Icon name={name} size={size} color={knockoutColor} filled={filled} />
+      </View>
+    );
+  }
 
   return (
     <PressableScale
@@ -62,18 +119,7 @@ export function IconButton({
       accessibilityState={{ disabled }}
       style={[styles.target, { width: hitSize, height: hitSize }, style]}
     >
-      {background ? (
-        <View
-          style={[
-            styles.circle,
-            { width: backgroundSize, height: backgroundSize, borderRadius: backgroundSize / 2, backgroundColor },
-          ]}
-        >
-          {glyph}
-        </View>
-      ) : (
-        glyph
-      )}
+      {content}
       {badge ? (
         <View style={styles.badge}>
           <Text style={styles.badgeText} allowFontScaling={false}>
@@ -88,6 +134,7 @@ export function IconButton({
 const styles = StyleSheet.create({
   target: { alignItems: 'center', justifyContent: 'center' },
   circle: { alignItems: 'center', justifyContent: 'center' },
+  outline: { borderWidth: 1.75 },
   badge: {
     position: 'absolute',
     top: 3,

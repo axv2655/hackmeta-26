@@ -64,7 +64,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     zIndex: 1000,
-    elevation: 1000,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.white,

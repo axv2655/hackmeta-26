@@ -14,7 +14,7 @@ export type PostCountsProps = {
   liked?: boolean;
 };
 
-const BADGE_SIZE = 18;
+const BADGE_SIZE = 19;
 const BADGE_RING = 2;
 
 /** "[like][love] 9.7k ............ 1.1k comments  234 shares". Renders nothing when every count is 0. */
@@ -58,7 +58,7 @@ export function PostCounts({ likeCount, commentCount, shareCount, reactions, lik
 
 const styles = StyleSheet.create({
   row: {
-    height: 40,
+    height: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   badges: { flexDirection: 'row', alignItems: 'center', marginLeft: -BADGE_RING },
   badgeOverlap: { marginLeft: -6 },
   right: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  count: { ...typeScale.count },
+  count: { ...typeScale.count, fontSize: 15, lineHeight: 20 },
 });
 
 export default PostCounts;

@@ -4,25 +4,44 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { IconName } from '@/components/ui/Icon';
-import { IconButton } from '@/components/ui/IconButton';
+import { IconButton, type IconButtonVariant } from '@/components/ui/IconButton';
 import { colors, hairlineWidth, layout, type as typeScale } from '@/lib/theme';
 
 export type HeaderAction = {
   icon: IconName;
   accessibilityLabel: string;
   onPress?: () => void;
-  /** Put the glyph on a 36pt gray circle. Default false (flat, like the Home header). */
+  /** Put the glyph on a 36pt gray circle. Default false (flat, like the Home header). Wins over `variant`. */
   background?: boolean;
+  /**
+   * 'flat' (default) = bare glyph; 'outline' = glyph inside a thin outline circle (the "more" button);
+   * 'filled' = solid black circle look (Messenger; other glyphs are knocked out of a black circle).
+   */
+  variant?: IconButtonVariant;
   /** Red count badge. */
   badge?: number;
-  /** Glyph size. Default 26 flat, 20 on a gray circle. */
+  /** Glyph size. Defaults: flat 26 (28 in the large header), outline 16, filled 26 (Messenger) / 16, gray circle 20. */
   size?: number;
 };
+
+const CIRCLE_SIZE = 28;
+
+function defaultActionSize(action: HeaderAction, large: boolean): number {
+  if (action.background) return 20;
+  switch (action.variant) {
+    case 'outline':
+      return 16;
+    case 'filled':
+      return action.icon === 'messenger' ? 26 : 16;
+    default:
+      return large ? 28 : 26;
+  }
+}
 
 export type ScreenHeaderProps = {
   title: string;
   /**
-   * 'large'   = left-aligned 24pt bold title (tab roots: Notifications, Menu, Moves).
+   * 'large'   = hamburger + left-aligned heavy large title (tab roots: Notifications, Reels, Moves, Search).
    * 'compact' = back button, centered 17pt semibold title, hairline underneath (pushed screens and modals).
    * Default 'large'.
    */
@@ -37,8 +56,12 @@ export type ScreenHeaderProps = {
   onBack?: () => void;
   /** Compact only: hide the leading button. */
   hideBack?: boolean;
-  /** Large only: custom element left of the title (an avatar on Menu). */
+  /** Large only: custom element left of the title (rendered after the hamburger). */
   left?: ReactNode;
+  /** Large only: hamburger at the far left that opens the Menu screen. Default true. */
+  showMenu?: boolean;
+  /** Large only: hamburger handler. Defaults to `router.push('/menu')`. */
+  onPressMenu?: () => void;
   /** Bottom hairline. Default: true for compact, false for large. */
   border?: boolean;
   /** Add the top safe-area inset above the 52pt bar. Default true. */
@@ -60,6 +83,8 @@ export function ScreenHeader({
   onBack,
   hideBack = false,
   left,
+  showMenu = true,
+  onPressMenu,
   border,
   safeTop = true,
   dark = false,
@@ -78,6 +103,8 @@ export function ScreenHeader({
       else router.replace('/');
     });
 
+  const large = variant === 'large';
+
   const actionButtons = actions?.map((action) => (
     <IconButton
       key={action.accessibilityLabel}
@@ -86,8 +113,11 @@ export function ScreenHeader({
       onPress={action.onPress}
       background={action.background}
       backgroundColor={dark ? 'rgba(255,255,255,0.16)' : undefined}
+      variant={action.variant}
+      circleSize={CIRCLE_SIZE}
+      knockoutColor={dark ? colors.black : colors.white}
       badge={action.badge}
-      size={action.size ?? (action.background ? 20 : 26)}
+      size={action.size ?? defaultActionSize(action, large)}
       color={fg}
     />
   ));
@@ -106,8 +136,17 @@ export function ScreenHeader({
         style,
       ]}
     >
-      {variant === 'large' ? (
-        <View style={styles.largeBar}>
+      {large ? (
+        <View style={[styles.largeBar, showMenu && styles.largeBarWithMenu]}>
+          {showMenu ? (
+            <IconButton
+              name="menu"
+              size={28}
+              color={fg}
+              accessibilityLabel="Menu"
+              onPress={onPressMenu ?? (() => router.push('/menu'))}
+            />
+          ) : null}
           {left}
           <Text style={[styles.largeTitle, { color: fg }]} numberOfLines={1} accessibilityRole="header">
             {title}
@@ -147,14 +186,16 @@ export function ScreenHeader({
 
 const styles = StyleSheet.create({
   largeBar: {
-    height: layout.headerHeight,
+    height: layout.largeHeaderHeight,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: layout.gutter,
     paddingRight: 8,
     gap: 10,
   },
-  largeTitle: { ...typeScale.screenTitle, flex: 1 },
+  // The hamburger's 44pt target supplies the left inset; its bars line up with the 12pt gutter.
+  largeBarWithMenu: { paddingLeft: 0, gap: 2 },
+  largeTitle: { ...typeScale.largeTitle, flex: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   compactBar: {
     height: layout.headerHeight,

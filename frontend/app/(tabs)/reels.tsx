@@ -29,9 +29,10 @@ const INITIAL_PAGES = WINDOWED ? 2 : reels.length;
 const WINDOW_SIZE = WINDOWED ? 3 : reels.length * 2 + 1;
 
 /**
- * Reels tab: a full-screen vertical pager, one reel per viewport. The viewport
- * is whatever is left above the tab bar; it is estimated from the window for
- * the first frame and then measured, so paging stays exact on web too.
+ * Reels tab: a full-screen vertical pager, one reel per viewport. Pages run
+ * under the floating glass tab bar (dark on this tab); each reel lifts its
+ * caption, rail and progress bar above it. The viewport is estimated from the
+ * window for the first frame and then measured, so paging stays exact.
  */
 export default function ReelsScreen() {
   const window = useWindowDimensions();
@@ -40,7 +41,7 @@ export default function ReelsScreen() {
 
   const [measured, setMeasured] = useState<Size | null>(null);
   const width = measured?.width ?? window.width;
-  const height = measured?.height ?? Math.max(1, window.height - tabBarHeight);
+  const height = measured?.height ?? Math.max(1, window.height);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const activeIndexRef = useRef(0);
@@ -88,11 +89,12 @@ export default function ReelsScreen() {
         index={index}
         width={width}
         height={height}
+        bottomInset={tabBarHeight}
         active={focused && index === activeIndex}
         onPressPlace={onPressPlace}
       />
     ),
-    [activeIndex, focused, height, onPressPlace, width],
+    [activeIndex, focused, height, onPressPlace, tabBarHeight, width],
   );
 
   return (
@@ -109,7 +111,6 @@ export default function ReelsScreen() {
         pagingEnabled
         decelerationRate="fast"
         bounces={false}
-        overScrollMode="never"
         scrollsToTop={false}
         showsVerticalScrollIndicator={false}
         onScroll={onScroll}

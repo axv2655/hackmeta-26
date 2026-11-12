@@ -1,7 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/PressableScale';
-import { colors, fontWeights, hairline, layout, shadows, spacing } from '@/lib/theme';
+import { colors, fontWeights, radius, shadows, spacing } from '@/lib/theme';
 
 export type LogoutDialogProps = {
   visible: boolean;
@@ -9,11 +9,13 @@ export type LogoutDialogProps = {
   onConfirm: () => void;
 };
 
-const DIALOG_WIDTH = 270;
-const DIALOG_RADIUS = 14;
+const DIALOG_WIDTH = 300;
+/** iOS 26 alerts are much rounder than before. */
+const DIALOG_RADIUS = 32;
+const ACTION_HEIGHT = 48;
 
 /**
- * iOS-alert-style confirm. Built on Modal instead of Alert.alert because Alert
+ * iOS 26 alert-style confirm: rounded card, side-by-side capsule buttons. Built on Modal instead of Alert.alert because Alert
  * is a no-op on react-native-web, and the mock has to work in a browser too.
  */
 export function LogoutDialog({ visible, onCancel, onConfirm }: LogoutDialogProps) {
@@ -40,24 +42,23 @@ export function LogoutDialog({ visible, onCancel, onConfirm }: LogoutDialogProps
           <View style={styles.actions}>
             <PressableScale
               onPress={onCancel}
-              scaleTo={1}
-              pressedOpacity={0.4}
+              scaleTo={0.97}
+              pressedOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Cancel"
               style={styles.action}
             >
               <Text style={styles.actionText}>Cancel</Text>
             </PressableScale>
-            <View style={styles.divider} />
             <PressableScale
               onPress={onConfirm}
-              scaleTo={1}
-              pressedOpacity={0.4}
+              scaleTo={0.97}
+              pressedOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Log out"
               style={styles.action}
             >
-              <Text style={[styles.actionText, styles.confirmText]}>Log out</Text>
+              <Text style={[styles.actionText, styles.destructiveText]}>Log out</Text>
             </PressableScale>
           </View>
         </View>
@@ -79,14 +80,16 @@ const styles = StyleSheet.create({
   dialog: {
     width: DIALOG_WIDTH,
     maxWidth: '100%',
+    padding: spacing.lg,
+    paddingTop: spacing.xxl,
+    gap: spacing.xl,
     borderRadius: DIALOG_RADIUS,
+    borderCurve: 'continuous',
     backgroundColor: colors.white,
     ...shadows.sheet,
   },
   body: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
     alignItems: 'center',
     gap: spacing.xs,
   },
@@ -97,12 +100,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
   },
-  message: { fontSize: 13, lineHeight: 18, color: colors.text, textAlign: 'center' },
-  actions: { flexDirection: 'row', ...hairline('Top') },
-  action: { flex: 1, height: layout.hitTarget, alignItems: 'center', justifyContent: 'center' },
-  divider: { ...hairline('Left') },
-  actionText: { fontSize: 17, lineHeight: 22, color: colors.blue },
-  confirmText: { fontWeight: fontWeights.semibold },
+  message: { fontSize: 15, lineHeight: 20, color: colors.textSecondary, textAlign: 'center' },
+  actions: { flexDirection: 'row', gap: spacing.sm },
+  action: {
+    flex: 1,
+    height: ACTION_HEIGHT,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.buttonSecondary,
+  },
+  actionText: { fontSize: 17, lineHeight: 22, fontWeight: fontWeights.semibold, color: colors.text },
+  destructiveText: { color: colors.badgeRed },
 });
 
 export default LogoutDialog;

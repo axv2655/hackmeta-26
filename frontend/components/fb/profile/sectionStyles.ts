@@ -1,20 +1,21 @@
 import { StyleSheet } from 'react-native';
 
-import { colors, fontWeights, layout, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
-/** Shared chrome for the profile's stacked sections (Details, Friends, Posts). */
+/** Shared chrome for the profile's stacked sections (At a glance, Friends, Posts). */
 export const sectionStyles = StyleSheet.create({
   section: {
     paddingHorizontal: layout.gutter,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
     backgroundColor: colors.white,
   },
-  /** Section headings are a step above the 17pt feed section title, like the real profile. */
+  /** Section headings: "At a glance", "Friends", "Posts". */
   heading: {
     fontSize: 20,
     lineHeight: 25,
     fontWeight: fontWeights.bold,
+    letterSpacing: -0.3,
     color: colors.text,
   },
   headingRow: {
@@ -23,5 +24,12 @@ export const sectionStyles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   subheading: { ...typeScale.rowSub, marginTop: spacing.xxs },
-  link: { ...typeScale.body, color: colors.tintText },
+  /** Blue "See all" style link at the right of a heading. */
+  link: { ...typeScale.row, color: colors.blue },
+  /** Full-width gray button ("See all friends"): 44pt, rounded 12, #E9EBEE. */
+  secondaryButton: {
+    height: layout.hitTarget,
+    borderRadius: radius.md,
+    backgroundColor: colors.buttonSecondary,
+  },
 });

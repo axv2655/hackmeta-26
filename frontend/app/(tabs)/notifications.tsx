@@ -1,9 +1,18 @@
 import { useCallback, useMemo, useState } from 'react';
-import { SectionList, StyleSheet, View, type SectionListData, type SectionListRenderItemInfo } from 'react-native';
+import {
+  ActionSheetIOS,
+  SectionList,
+  StyleSheet,
+  View,
+  type SectionListData,
+  type SectionListRenderItemInfo,
+} from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { ScreenHeader, type HeaderAction } from '@/components/fb/ScreenHeader';
+import { useTabBarHeight } from '@/components/fb/TabBar';
 import { FilterChips } from '@/components/fb/notifications/FilterChips';
+import { FriendRequestCard, SeeFriendRequestsLink, SeePreviousButton } from '@/components/fb/notifications/FriendRequests';
 import {
   NotificationActionSheet,
   type NotificationSheetAction,
@@ -19,12 +28,19 @@ import type {
   RequestResolution,
 } from '@/components/fb/notifications/types';
 import { success, tap } from '@/lib/haptics';
-import { notifications } from '@/lib/mock';
+import { notifications, type Notification } from '@/lib/mock';
 import { useUIStore } from '@/lib/store/ui';
 import { colors, spacing } from '@/lib/theme';
 
-/** Rows shown under "New" before "See all" is tapped. */
-const NEW_PREVIEW_COUNT = 4;
+/** Rows shown under "Earlier" before "See previous notifications" is tapped. */
+const EARLIER_PREVIEW_COUNT = 4;
+/** Request cards shown in "Pending friend requests" before "See N friend requests" is tapped. */
+const REQUEST_PREVIEW_COUNT = 1;
+
+/** Friend requests with Confirm / Delete live in the "Pending friend requests" module, not as rows. */
+function isPendingRequest(notification: Notification): boolean {
+  return notification.type === 'friend-request' && notification.hasActions;
+}
 
 type SheetState = { id: string | null; visible: boolean };
 type SnackState = { key: number; message: string; undo?: () => void };
@@ -43,6 +59,7 @@ function withoutId(set: ReadonlySet<string>, id: string): Set<string> {
 
 export default function NotificationsScreen() {
   const clearNotificationCount = useUIStore((s) => s.clearNotificationCount);
+  const tabBarHeight = useTabBarHeight();
 
   // Opening the tab clears the red count on the tab bar; rows keep their own unread tint.
   useFocusEffect(
@@ -59,7 +76,9 @@ export default function NotificationsScreen() {
   const [lingerIds, setLingerIds] = useState<Set<string>>(() => new Set());
   const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
   const [resolutions, setResolutions] = useState<Record<string, RequestResolution>>({});
-  const [newExpanded, setNewExpanded] = useState(false);
+  const [earlierExpanded, setEarlierExpanded] = useState(false);
+  const [requestsExpanded, setRequestsExpanded] = useState(false);
+  const [requestsHidden, setRequestsHidden] = useState(false);
   const [sheet, setSheet] = useState<SheetState>({ id: null, visible: false });
   const [snack, setSnack] = useState<SnackState | null>(null);
 
@@ -103,6 +122,31 @@ export default function NotificationsScreen() {
   const confirmRequest = useCallback((id: string) => resolveRequest(id, 'confirmed'), [resolveRequest]);
   const deleteRequest = useCallback((id: string) => resolveRequest(id, 'deleted'), [resolveRequest]);
 
+  const dismissRequests = useCallback(() => {
+    tap();
+    setRequestsHidden(true);
+    showSnack('Friend requests hidden.', () => setRequestsHidden(false));
+  }, [showSnack]);
+
+  const expandRequests = useCallback(() => {
+    tap();
+    setRequestsExpanded(true);
+  }, []);
+
+  const expandEarlier = useCallback(() => setEarlierExpanded(true), []);
+
+  // Mark-all-read and the Unread filter live behind the header's "more" button.
+  const openHeaderMenu = useCallback(() => {
+    const filterLabel = filter === 'unread' ? 'Show all notifications' : 'Show unread only';
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['Mark all as read', filterLabel, 'Cancel'], cancelButtonIndex: 2 },
+      (index) => {
+        if (index === 0) markAllRead();
+        else if (index === 1) changeFilter(filter === 'unread' ? 'all' : 'unread');
+      },
+    );
+  }, [changeFilter, filter, markAllRead]);
+
   const openSheet = useCallback((id: string) => setSheet({ id, visible: true }), []);
   // Keep the id while the sheet fades out so its content does not blank mid-animation.
   const closeSheet = useCallback(() => setSheet((prev) => ({ ...prev, visible: false })), []);
@@ -134,46 +178,60 @@ export default function NotificationsScreen() {
     [closeSheet, markRead, sheet.id, showSnack, unreadIds],
   );
 
-  const sections = useMemo<NotificationSection[]>(() => {
-    const rows: NotificationRowItem[] = notifications
+  const { sections, earlierHidden } = useMemo(() => {
+    const items: NotificationRowItem[] = notifications
       .filter((n) => !removedIds.has(n.id))
       .filter((n) => filter === 'all' || unreadIds.has(n.id) || lingerIds.has(n.id))
       .map((n) => ({ notification: n, unread: unreadIds.has(n.id), resolution: resolutions[n.id] }));
 
+    const requests = items.filter((item) => isPendingRequest(item.notification));
+    const rows = items.filter((item) => !isPendingRequest(item.notification));
+
     const fresh = rows.filter((row) => row.notification.section === 'new');
     const earlier = rows.filter((row) => row.notification.section === 'earlier');
-    const visibleFresh = newExpanded || filter === 'unread' ? fresh : fresh.slice(0, NEW_PREVIEW_COUNT);
+    const visibleEarlier = earlierExpanded || filter === 'unread' ? earlier : earlier.slice(0, EARLIER_PREVIEW_COUNT);
+    const visibleRequests = requestsExpanded ? requests : requests.slice(0, REQUEST_PREVIEW_COUNT);
 
     const result: NotificationSection[] = [];
-    if (visibleFresh.length > 0) {
-      result.push({ key: 'new', title: 'New', data: visibleFresh, hiddenCount: fresh.length - visibleFresh.length });
+    if (fresh.length > 0) {
+      result.push({ key: 'new', title: 'New', data: fresh, hiddenCount: 0, pendingCount: 0 });
     }
-    if (earlier.length > 0) {
-      result.push({ key: 'earlier', title: 'Earlier', data: earlier, hiddenCount: 0 });
+    if (!requestsHidden && visibleRequests.length > 0) {
+      result.push({
+        key: 'requests',
+        title: 'Pending friend requests',
+        data: visibleRequests,
+        hiddenCount: requests.length - visibleRequests.length,
+        pendingCount: requests.filter((item) => item.resolution == null).length,
+      });
     }
-    return result;
-  }, [filter, lingerIds, newExpanded, removedIds, resolutions, unreadIds]);
+    if (visibleEarlier.length > 0) {
+      result.push({ key: 'earlier', title: 'Earlier', data: visibleEarlier, hiddenCount: 0, pendingCount: 0 });
+    }
+    return { sections: result, earlierHidden: earlier.length - visibleEarlier.length };
+  }, [earlierExpanded, filter, lingerIds, removedIds, requestsExpanded, requestsHidden, resolutions, unreadIds]);
 
   const headerActions = useMemo<HeaderAction[]>(
     () => [
-      { icon: 'check', accessibilityLabel: 'Mark all as read', background: true, onPress: markAllRead },
-      { icon: 'search', accessibilityLabel: 'Search notifications', background: true },
+      { icon: 'messenger', variant: 'filled', accessibilityLabel: 'Messenger' },
+      { icon: 'more', variant: 'outline', accessibilityLabel: 'More notification options', onPress: openHeaderMenu },
     ],
-    [markAllRead],
+    [openHeaderMenu],
   );
 
   const renderItem = useCallback(
-    ({ item }: SectionListRenderItemInfo<NotificationRowItem, NotificationSection>) => (
-      <NotificationRow
-        notification={item.notification}
-        unread={item.unread}
-        resolution={item.resolution}
-        onPress={markRead}
-        onPressMore={openSheet}
-        onConfirm={confirmRequest}
-        onDelete={deleteRequest}
-      />
-    ),
+    ({ item, section }: SectionListRenderItemInfo<NotificationRowItem, NotificationSection>) =>
+      section.key === 'requests' ? (
+        <FriendRequestCard
+          notification={item.notification}
+          resolution={item.resolution}
+          onPress={markRead}
+          onConfirm={confirmRequest}
+          onDelete={deleteRequest}
+        />
+      ) : (
+        <NotificationRow notification={item.notification} unread={item.unread} onPress={markRead} onPressMore={openSheet} />
+      ),
     [confirmRequest, deleteRequest, markRead, openSheet],
   );
 
@@ -181,11 +239,19 @@ export default function NotificationsScreen() {
     ({ section }: { section: SectionListData<NotificationRowItem, NotificationSection> }) => (
       <NotificationSectionHeader
         title={section.title}
-        actionLabel={section.hiddenCount > 0 ? 'See all' : undefined}
-        onPressAction={() => setNewExpanded(true)}
+        onDismiss={section.key === 'requests' ? dismissRequests : undefined}
+        dismissLabel="Hide pending friend requests"
       />
     ),
-    [],
+    [dismissRequests],
+  );
+
+  const renderSectionFooter = useCallback(
+    ({ section }: { section: SectionListData<NotificationRowItem, NotificationSection> }) =>
+      section.key === 'requests' && section.hiddenCount > 0 ? (
+        <SeeFriendRequestsLink count={section.pendingCount} onPress={expandRequests} />
+      ) : null,
+    [expandRequests],
   );
 
   const sheetNotification = sheet.id ? notifications.find((n) => n.id === sheet.id) ?? null : null;
@@ -199,7 +265,9 @@ export default function NotificationsScreen() {
         keyExtractor={(item) => item.notification.id}
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
-        ListHeaderComponent={<FilterChips value={filter} onChange={changeFilter} />}
+        renderSectionFooter={renderSectionFooter}
+        ListHeaderComponent={filter === 'unread' ? <FilterChips value={filter} onChange={changeFilter} /> : null}
+        ListFooterComponent={earlierHidden > 0 ? <SeePreviousButton onPress={expandEarlier} /> : null}
         ListEmptyComponent={
           filter === 'unread' ? (
             <NotificationsEmptyState
@@ -219,7 +287,7 @@ export default function NotificationsScreen() {
         }
         stickySectionHeadersEnabled={false}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + spacing.lg }}
       />
 
       {snack ? (
@@ -249,5 +317,4 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white },
-  content: { paddingBottom: spacing.xxl },
 });

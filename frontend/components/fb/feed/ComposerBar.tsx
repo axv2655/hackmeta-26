@@ -15,7 +15,9 @@ export type ComposerBarProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** "What's on your mind?" row under the home header: avatar, prompt, photo shortcut. */
+const AVATAR_SIZE = 42;
+
+/** "What's on your mind?" row under the home header: avatar, prompt, photo shortcut. No action row under it. */
 export function ComposerBar({ onPress, onPressAvatar, style }: ComposerBarProps) {
   const router = useRouter();
   const openComposer = onPress ?? (() => router.push('/post/new'));
@@ -25,7 +27,7 @@ export function ComposerBar({ onPress, onPressAvatar, style }: ComposerBarProps)
     <View style={[styles.row, style]}>
       <Avatar
         source={currentUser.avatar}
-        size={layout.avatar}
+        size={AVATAR_SIZE}
         onPress={openProfile}
         accessibilityLabel="Your profile"
       />
@@ -42,7 +44,7 @@ export function ComposerBar({ onPress, onPressAvatar, style }: ComposerBarProps)
       </PressableScale>
       <IconButton
         name="photo"
-        size={24}
+        size={28}
         color={colors.textSecondary}
         accessibilityLabel="Add a photo"
         onPress={openComposer}
@@ -56,17 +58,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: layout.gutter,
-    // The 44pt photo button carries its own inset: its glyph ends 20pt from the edge.
-    paddingRight: 10,
-    // 44pt controls + 10pt above and below = the 64pt row in the reference.
-    paddingVertical: 10,
+    // The 44pt photo button carries its own inset: its glyph ends ~24pt from the edge.
+    paddingRight: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
     backgroundColor: colors.white,
   },
   prompt: {
     flex: 1,
     height: layout.hitTarget,
     justifyContent: 'center',
-    paddingLeft: spacing.sm,
+    paddingLeft: spacing.md,
   },
   promptText: { ...typeScale.prompt },
 });

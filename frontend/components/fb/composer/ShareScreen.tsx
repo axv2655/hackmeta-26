@@ -5,10 +5,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/fb/ScreenHeader';
 import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { selection, success } from '@/lib/haptics';
 import { useFeedStore } from '@/lib/store/feed';
-import { colors, hairline, layout, spacing, type as typeScale } from '@/lib/theme';
+import { colors, hairline, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 import { audienceOption } from './audience';
 import { defaultTrack, hasContent, toPostDraft, useComposerStore } from './draftStore';
@@ -87,9 +88,17 @@ export function ShareScreen({ onBack }: ShareScreenProps) {
           <SettingRow
             icon={audienceInfo.icon}
             title="Post audience"
-            subtitle={audienceInfo.label}
             onPress={handleCycleAudience}
+            accessibilityLabel={`Post audience, ${audienceInfo.label}`}
             accessibilityHint="Changes who can see this post"
+            trailing={
+              <View style={styles.audienceChip}>
+                <Text style={styles.audienceChipText} numberOfLines={1}>
+                  {audienceInfo.label}
+                </Text>
+                <Icon name="chevron-down" size={14} color={colors.chipSelectedText} />
+              </View>
+            }
           />
 
           {music ? (
@@ -131,14 +140,7 @@ export function ShareScreen({ onBack }: ShareScreenProps) {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-        <Button
-          title="Post"
-          size="lg"
-          onPress={handlePost}
-          disabled={!canPost}
-          haptic={false}
-          style={styles.postButton}
-        />
+        <Button title="Post" size="lg" onPress={handlePost} disabled={!canPost} haptic={false} fullWidth />
       </View>
     </View>
   );
@@ -152,8 +154,8 @@ const styles = StyleSheet.create({
   content: { paddingBottom: spacing.sm },
   previewWrap: {
     paddingHorizontal: spacing.xxl,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
   rows: { ...hairline('Top') },
   trailingButton: { marginRight: -spacing.sm },
@@ -163,13 +165,23 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
   },
   link: { color: colors.blue },
+  // Capsule chip showing the current audience, like a selected filter chip.
+  audienceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    height: 32,
+    maxWidth: 180,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.chipSelectedBg,
+  },
+  audienceChipText: { ...typeScale.button, color: colors.chipSelectedText, flexShrink: 1 },
   footer: {
-    paddingHorizontal: layout.gutter,
+    paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     backgroundColor: colors.white,
-    ...hairline('Top'),
   },
-  postButton: { height: 48 },
 });
 
 export default ShareScreen;

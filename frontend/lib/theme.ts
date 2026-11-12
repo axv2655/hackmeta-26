@@ -15,7 +15,7 @@ export const colors = {
   grayButton: '#E4E6EB',
   grayButtonPressed: '#D8DADF',
   /** 6pt band separating feed units. */
-  band: '#C9CCD1',
+  band: '#E4E6EB',
   hairline: '#CED0D4',
   /** Light-blue (tinted) button background + its text color. */
   tintBg: '#EBF5FF',
@@ -33,6 +33,17 @@ export const colors = {
   darkText: '#FFFFFF',
   darkTextSecondary: 'rgba(255,255,255,0.7)',
   darkHairline: 'rgba(255,255,255,0.16)',
+  /** Selected filter chip: light-blue capsule with blue text. Unselected chips are plain text. */
+  chipSelectedBg: '#E2EDFF',
+  chipSelectedText: '#0866FF',
+  /** Secondary (gray) button: "Delete", "See previous notifications". */
+  buttonSecondary: '#E9EBEE',
+  buttonSecondaryPressed: '#DCDEE2',
+  /** Translucent fills used by floating chrome when liquid glass is unavailable (iOS < 26). */
+  glassFallbackLight: 'rgba(255,255,255,0.86)',
+  glassFallbackDark: 'rgba(30,30,32,0.82)',
+  glassBorderLight: 'rgba(0,0,0,0.08)',
+  glassBorderDark: 'rgba(255,255,255,0.14)',
   transparent: 'transparent',
 } as const;
 
@@ -59,14 +70,35 @@ export const radii = {
   pill: 999,
 } as const;
 
+/**
+ * Corner radius scale for the iOS 26 look (larger, softer corners).
+ * Prefer this over `radii` in new / restyled code.
+ */
+export const radius = {
+  sm: 8,
+  /** Buttons, search fields. */
+  md: 12,
+  /** Cards, story tiles. */
+  lg: 16,
+  xl: 18,
+  /** Chips and capsules. */
+  pill: 999,
+} as const;
+
 /** Fixed layout metrics from the design spec (points, 393pt-wide reference). */
 export const layout = {
   /** Horizontal page gutter used by feed content. */
   gutter: 12,
   /** Home / screen header height, excluding the top safe-area inset. */
   headerHeight: 52,
-  /** Tab bar content height, excluding the bottom safe-area inset. */
-  tabBarHeight: 52,
+  /** Tab-root header (hamburger + large title) height, excluding the top safe-area inset. */
+  largeHeaderHeight: 56,
+  /** Visual height of the floating liquid-glass tab bar. */
+  tabBarHeight: 62,
+  /** Gap between the floating tab bar and the bottom safe-area edge. */
+  tabBarGap: 8,
+  /** Primary / secondary large button height. */
+  buttonHeight: 56,
   /** Minimum touch target. */
   hitTarget: 44,
   /** Height of the gray band between feed units. */
@@ -87,10 +119,13 @@ export const fontWeights = {
   medium: '500',
   semibold: '600',
   bold: '700',
+  heavy: '800',
 } as const satisfies Record<string, TextStyle['fontWeight']>;
 
 /** Type scale. System font only; spread a preset then override color if needed. */
 export const type = {
+  /** Tab-root large title (iOS large title, heavier): Notifications, Reels, Moves. */
+  largeTitle: { fontSize: 30, lineHeight: 36, fontWeight: '800', letterSpacing: -0.6, color: colors.text },
   /** Screen titles: Notifications, Menu. */
   screenTitle: { fontSize: 24, lineHeight: 30, fontWeight: '700', color: colors.text },
   /** Compact header title: "New post". */
@@ -127,10 +162,9 @@ export const type = {
 
 export type TypeName = keyof typeof type;
 
-function shadow(y: number, blur: number, opacity: number, elevation: number): ViewStyle {
+function shadow(y: number, blur: number, opacity: number): ViewStyle {
   return Platform.select<ViewStyle>({
     web: { boxShadow: `0px ${y}px ${blur}px rgba(0,0,0,${opacity})` },
-    android: { elevation },
     default: {
       shadowColor: colors.black,
       shadowOffset: { width: 0, height: y },
@@ -143,11 +177,13 @@ function shadow(y: number, blur: number, opacity: number, elevation: number): Vi
 export const shadows = {
   none: {} as ViewStyle,
   /** Cards sitting on white (story cards, suggestion cards). */
-  card: shadow(1, 3, 0.1, 1),
+  card: shadow(1, 3, 0.1),
   /** Floating controls. */
-  raised: shadow(2, 8, 0.15, 4),
+  raised: shadow(2, 8, 0.15),
   /** Sheets and popovers. */
-  sheet: shadow(8, 24, 0.2, 12),
+  sheet: shadow(8, 24, 0.2),
+  /** Floating glass chrome (fallback look when liquid glass is unavailable). */
+  glass: shadow(6, 24, 0.12),
 } as const;
 
 /** Thinnest line the device can draw (1 physical pixel). */
@@ -180,5 +216,5 @@ export function hitSlopFor(size: number): number {
   return Math.max(0, Math.ceil((layout.hitTarget - size) / 2));
 }
 
-export const theme = { colors, spacing, radii, layout, type, shadows, motion, fontWeights, hairlineWidth } as const;
+export const theme = { colors, spacing, radii, radius, layout, type, shadows, motion, fontWeights, hairlineWidth } as const;
 export default theme;

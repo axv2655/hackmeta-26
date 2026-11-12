@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BackHandler, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
   Easing,
@@ -71,16 +71,6 @@ export function ComposerFlow() {
     if (router.canGoBack()) router.back();
     else router.replace('/');
   }, [router]);
-
-  // Android back: step back to the composer before leaving the flow.
-  useEffect(() => {
-    if (step !== 'share') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setStep('compose');
-      return true;
-    });
-    return () => sub.remove();
-  }, [step]);
 
   const composeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: -progress.get() * width * PARALLAX }],

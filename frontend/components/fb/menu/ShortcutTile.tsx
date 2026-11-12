@@ -3,10 +3,16 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import type { MenuShortcut } from '@/lib/mock';
-import { colors, fontWeights, radii, shadows, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
 
-export const TILE_HEIGHT = 88;
-const TILE_ICON = 28;
+export const TILE_HEIGHT = 96;
+const TILE_ICON = 24;
+const ICON_WELL = 40;
+
+/** The accent at 10% opacity; colors that are not #RRGGBB fall back to the page gray. */
+function softFill(color: string): string {
+  return /^#[0-9a-f]{6}$/i.test(color) ? `${color}1A` : colors.surface;
+}
 
 export type ShortcutTileProps = {
   shortcut: MenuShortcut;
@@ -17,7 +23,7 @@ export type ShortcutTileProps = {
   tagline?: string;
 };
 
-/** White rounded shortcut tile: colored icon top-left, label bottom-left. */
+/** White 16pt-rounded shortcut tile: colored icon on a soft tinted well top-left, label bottom-left. */
 export function ShortcutTile({ shortcut, onPress, isNew = false, tagline }: ShortcutTileProps) {
   const badge = isNew ? 'New' : shortcut.badge;
 
@@ -30,7 +36,10 @@ export function ShortcutTile({ shortcut, onPress, isNew = false, tagline }: Shor
       style={styles.tile}
     >
       <View style={styles.top}>
-        <Icon name={shortcut.icon} size={TILE_ICON} color={shortcut.color} />
+        {/* Soft fill: the tile's accent at low opacity behind the glyph. */}
+        <View style={[styles.iconWell, { backgroundColor: softFill(shortcut.color) }]}>
+          <Icon name={shortcut.icon} size={TILE_ICON} color={shortcut.color} />
+        </View>
         {isNew ? (
           <View style={styles.newTag}>
             <Text style={styles.newTagText} allowFontScaling={false}>
@@ -66,18 +75,27 @@ const styles = StyleSheet.create({
     height: TILE_HEIGHT,
     padding: spacing.md,
     justifyContent: 'space-between',
-    borderRadius: radii.lg,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: colors.white,
     ...shadows.card,
   },
   top: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  iconWell: {
+    width: ICON_WELL,
+    height: ICON_WELL,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   bottom: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
   label: { ...typeScale.button, flexShrink: 0 },
   tagline: { ...typeScale.meta, flex: 1 },
   newTag: {
     height: 20,
     paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.blue,

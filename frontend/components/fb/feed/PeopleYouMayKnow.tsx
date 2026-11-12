@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { friends, suggestions as mockSuggestions, type User } from '@/lib/mock';
-import { colors, hairline, layout, radii, spacing, type as typeScale } from '@/lib/theme';
+import { colors, hairline, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 import { UnitHeader } from './UnitHeader';
 
@@ -169,12 +169,13 @@ const styles = StyleSheet.create({
   root: { backgroundColor: colors.white },
   strip: {
     paddingHorizontal: layout.gutter,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.lg,
     gap: CARD_GAP,
   },
   card: {
     width: CARD_WIDTH,
-    borderRadius: radii.md,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     backgroundColor: colors.white,
     ...hairline(),
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.grayButton,
   },
   info: { padding: spacing.md },
-  name: { ...typeScale.sectionTitle },
+  name: { ...typeScale.sectionTitle, fontWeight: '700', letterSpacing: -0.3 },
   mutualRow: {
     flexDirection: 'row',
     alignItems: 'center',

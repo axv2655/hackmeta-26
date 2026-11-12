@@ -1,11 +1,13 @@
-import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { Avatar } from '@/components/ui/Avatar';
 import { PressableScale } from '@/components/ui/PressableScale';
 import type { Story } from '@/lib/mock';
-import { colors, layout, radii, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, hairlineWidth, spacing } from '@/lib/theme';
+
+import { STORY_CARD_BORDER, STORY_CARD_HEIGHT, STORY_CARD_RADIUS, STORY_CARD_WIDTH } from './storyMetrics';
 
 export type StoryCardProps = {
   story: Story;
@@ -15,9 +17,9 @@ export type StoryCardProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-const SCRIM = ['rgba(0,0,0,0)', 'rgba(0,0,0,0.6)'] as const;
+const SCRIM = ['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)'] as const;
 
-/** One friend's story: full-bleed frame, ringed avatar top-left, name over a bottom scrim. */
+/** One friend's story: full-bleed frame, ringed avatar top-left, name bottom-left over a scrim. */
 export function StoryCard({ story, seen = story.seen, onPress, style }: StoryCardProps) {
   return (
     <PressableScale
@@ -29,22 +31,24 @@ export function StoryCard({ story, seen = story.seen, onPress, style }: StoryCar
       <LinearGradient colors={SCRIM} style={styles.scrim} />
       <Avatar
         source={story.user.avatar}
-        size={30}
+        size={28}
         ring={seen ? 'seen' : 'unseen'}
         style={styles.avatar}
       />
       <Text style={styles.name} numberOfLines={2}>
         {story.user.name}
       </Text>
+      <View style={styles.border} />
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    width: layout.storyCardWidth,
-    height: layout.storyCardHeight,
-    borderRadius: radii.lg,
+    width: STORY_CARD_WIDTH,
+    height: STORY_CARD_HEIGHT,
+    borderRadius: STORY_CARD_RADIUS,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     backgroundColor: colors.grayButton,
   },
@@ -53,7 +57,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 72,
+    height: 96,
     pointerEvents: 'none',
   },
   avatar: {
@@ -62,12 +66,23 @@ const styles = StyleSheet.create({
     left: spacing.sm,
   },
   name: {
-    ...typeScale.label,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: fontWeights.semibold,
+    letterSpacing: -0.2,
     color: colors.white,
     position: 'absolute',
     left: spacing.sm,
     right: spacing.sm,
-    bottom: spacing.sm,
+    bottom: 10,
+  },
+  border: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: STORY_CARD_RADIUS,
+    borderCurve: 'continuous',
+    borderWidth: hairlineWidth,
+    borderColor: STORY_CARD_BORDER,
+    pointerEvents: 'none',
   },
 });
 

@@ -6,10 +6,10 @@ import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { formatCount } from '@/lib/mock';
 import type { ImageRef } from '@/lib/mock';
-import { colors, fontWeights, spacing } from '@/lib/theme';
+import { colors, fontWeights, layout, radius, spacing } from '@/lib/theme';
 
 const COLUMNS = 3;
-const GAP = 2;
+const GAP = 4;
 
 export type MediaTile = {
   id: string;
@@ -27,7 +27,7 @@ export type ProfileMediaGridProps = {
   onPressTile?: (tile: MediaTile) => void;
 };
 
-/** Edge-to-edge 3-column grid used by the Photos and Reels tabs. */
+/** 3-column grid of rounded tiles used by the Photos and Reels tabs. */
 export function ProfileMediaGrid({ tiles, tileAspect = 1, itemLabel, onPressTile }: ProfileMediaGridProps) {
   const rows: MediaTile[][] = [];
   for (let i = 0; i < tiles.length; i += COLUMNS) rows.push(tiles.slice(i, i + COLUMNS));
@@ -75,10 +75,21 @@ export function ProfileMediaGrid({ tiles, tileAspect = 1, itemLabel, onPressTile
 }
 
 const styles = StyleSheet.create({
-  grid: { gap: GAP, paddingTop: GAP, backgroundColor: colors.white },
+  grid: {
+    gap: GAP,
+    paddingTop: spacing.md,
+    paddingHorizontal: layout.gutter,
+    backgroundColor: colors.white,
+  },
   row: { flexDirection: 'row', gap: GAP },
   cell: { flex: 1 },
-  tile: { width: '100%', overflow: 'hidden', backgroundColor: colors.grayButton },
+  tile: {
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: radius.sm,
+    borderCurve: 'continuous',
+    backgroundColor: colors.grayButton,
+  },
   spacer: { flex: 1 },
   fill: { width: '100%', height: '100%' },
   scrim: {

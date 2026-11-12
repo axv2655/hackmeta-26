@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { formatCount } from '@/lib/mock';
 import type { User } from '@/lib/mock';
-import { colors, hairlineWidth, radii, spacing, type as typeScale } from '@/lib/theme';
+import { colors, hairlineWidth, radius, spacing, type as typeScale } from '@/lib/theme';
 
 import { sectionStyles } from './sectionStyles';
 
@@ -77,7 +77,13 @@ export function ProfileFriends({ friends, friendCount, onPressFriend, onPressSee
         ))}
       </View>
 
-      <Button title="See all friends" variant="secondary" onPress={onPressSeeAll} style={styles.seeAll} />
+      <Button
+        title="See all friends"
+        variant="secondary"
+        size="lg"
+        onPress={onPressSeeAll}
+        style={[sectionStyles.secondaryButton, styles.seeAll]}
+      />
     </View>
   );
 }
@@ -89,14 +95,15 @@ const styles = StyleSheet.create({
   photo: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: radii.md,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     backgroundColor: colors.grayButton,
     borderWidth: hairlineWidth,
     borderColor: 'rgba(0,0,0,0.08)',
   },
   fill: { width: '100%', height: '100%' },
-  friendName: { ...typeScale.label, fontSize: 14, lineHeight: 18, marginTop: spacing.xs + 2 },
+  friendName: { ...typeScale.label, fontSize: 15, lineHeight: 19, marginTop: spacing.sm },
   seeAll: { marginTop: spacing.lg },
 });
 

@@ -22,7 +22,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection } from '@/lib/haptics';
 import { aspect, currentUser, type ImageRef } from '@/lib/mock';
-import { colors, fontWeights, layout, radii, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 import { audienceOption } from './audience';
 import { AutoGrowTextInput } from './AutoGrowTextInput';
@@ -42,6 +42,7 @@ export type ComposeScreenProps = {
 /** Short plain posts are set large, like Facebook's composer; they drop to body size once they run long. */
 const LARGE_TEXT_LIMIT = 84;
 const CANVAS_MIN_HEIGHT = 260;
+const AVATAR = 44;
 
 /**
  * Whether the software keyboard is up. Starts true on native because the input
@@ -53,9 +54,8 @@ function useKeyboardVisible(): boolean {
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    const ios = Platform.OS === 'ios';
-    const show = Keyboard.addListener(ios ? 'keyboardWillShow' : 'keyboardDidShow', () => setVisible(true));
-    const hide = Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', () => setVisible(false));
+    const show = Keyboard.addListener('keyboardWillShow', () => setVisible(true));
+    const hide = Keyboard.addListener('keyboardWillHide', () => setVisible(false));
     return () => {
       show.remove();
       hide.remove();
@@ -128,7 +128,7 @@ export function ComposeScreen({ onClose, onNext }: ComposeScreenProps) {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
+        behavior={Platform.OS === 'web' ? undefined : 'padding'}
       >
         <ScrollView
           style={styles.flex}
@@ -138,7 +138,7 @@ export function ComposeScreen({ onClose, onNext }: ComposeScreenProps) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.userRow}>
-            <Avatar source={currentUser.avatar} size={layout.avatar} />
+            <Avatar source={currentUser.avatar} size={AVATAR} />
             <View style={styles.userText}>
               <Text style={styles.name} numberOfLines={1}>
                 {currentUser.name}
@@ -150,9 +150,9 @@ export function ComposeScreen({ onClose, onNext }: ComposeScreenProps) {
                 accessibilityLabel={`Post audience: ${audienceInfo.label}`}
                 accessibilityHint="Changes who can see this post"
               >
-                <Icon name={audienceInfo.icon} size={12} color={colors.tintText} />
+                <Icon name={audienceInfo.icon} size={14} color={colors.chipSelectedText} />
                 <Text style={styles.audienceText}>{audienceInfo.label}</Text>
-                <Icon name="chevron-down" size={12} color={colors.tintText} />
+                <Icon name="chevron-down" size={14} color={colors.chipSelectedText} />
               </PressableScale>
             </View>
           </View>
@@ -202,7 +202,7 @@ export function ComposeScreen({ onClose, onNext }: ComposeScreenProps) {
                 color={colors.white}
                 background
                 backgroundColor={colors.scrim}
-                backgroundSize={28}
+                backgroundSize={30}
                 accessibilityLabel="Remove photo"
                 onPress={removeImage}
                 style={styles.removePhoto}
@@ -240,35 +240,41 @@ const styles = StyleSheet.create({
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm + 2,
-    paddingHorizontal: layout.gutter,
-    paddingTop: spacing.md,
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
   },
   userText: { flex: 1, alignItems: 'flex-start', gap: spacing.xs },
-  name: { ...typeScale.name },
+  name: { ...typeScale.row, fontWeight: fontWeights.semibold },
+  // Capsule chip, the same light-blue fill as a selected filter chip.
   audiencePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    height: 24,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.sm,
-    backgroundColor: colors.tintBg,
+    height: 28,
+    paddingHorizontal: spacing.md - 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.chipSelectedBg,
   },
-  audienceText: { ...typeScale.label, color: colors.tintText },
+  audienceText: { ...typeScale.label, fontSize: 14, lineHeight: 18, color: colors.chipSelectedText },
 
   canvas: { justifyContent: 'flex-start' },
   // Plain post without a photo: the writing area takes all the room that is left.
   canvasFill: { flexGrow: 1 },
+  // Colored text card: an inset, rounded card rather than an edge-to-edge band.
   canvasColored: {
     minHeight: CANVAS_MIN_HEIGHT,
     justifyContent: 'center',
     paddingVertical: spacing.xl,
     marginTop: spacing.xs,
+    marginHorizontal: layout.gutter,
+    borderRadius: radius.xl,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
   },
   input: {
-    paddingHorizontal: layout.gutter,
+    paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
     color: colors.text,
@@ -285,12 +291,13 @@ const styles = StyleSheet.create({
   photo: {
     marginHorizontal: layout.gutter,
     marginTop: spacing.sm,
-    borderRadius: radii.lg,
+    borderRadius: radius.xl,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     backgroundColor: colors.surface,
   },
   photoImage: { width: '100%' },
-  removePhoto: { position: 'absolute', top: 0, right: 0 },
+  removePhoto: { position: 'absolute', top: spacing.xs, right: spacing.xs },
 
   bottom: { backgroundColor: colors.white },
 });

@@ -6,10 +6,10 @@ import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection } from '@/lib/haptics';
 import type { MenuRow } from '@/lib/mock';
-import { colors, fontWeights, hairline, motion, radii, shadows, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, hairline, motion, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
 
 const HEADER_HEIGHT = 56;
-const SUB_ROW_HEIGHT = 52;
+const SUB_ROW_HEIGHT = 56;
 const HEADER_ICON = 28;
 
 const EASE_OUT = cubicBezier(motion.easeOut[0], motion.easeOut[1], motion.easeOut[2], motion.easeOut[3]);
@@ -22,7 +22,7 @@ export type AccordionSectionProps = {
   onPressItem?: (item: MenuRow) => void;
 };
 
-/** Menu section header (icon, title, chevron) that expands into white sub-row cards. */
+/** Menu section header (icon, title, chevron) that expands into white rounded sub-row cards. */
 export function AccordionSection({ row, leading, defaultOpen = false, onPressItem }: AccordionSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const reduceMotion = useReducedMotion();
@@ -52,14 +52,17 @@ export function AccordionSection({ row, leading, defaultOpen = false, onPressIte
         </Text>
         {/* Two-state toggle, so a CSS transition on the transform is the whole animation. */}
         <Animated.View
-          style={{
-            transform: [{ rotate: open ? '180deg' : '0deg' }],
-            transitionProperty: 'transform',
-            transitionDuration: reduceMotion ? 0 : motion.base,
-            transitionTimingFunction: EASE_OUT,
-          }}
+          style={[
+            styles.chevron,
+            {
+              transform: [{ rotate: open ? '180deg' : '0deg' }],
+              transitionProperty: 'transform',
+              transitionDuration: reduceMotion ? 0 : motion.base,
+              transitionTimingFunction: EASE_OUT,
+            },
+          ]}
         >
-          <Icon name="chevron-down" size={22} color={colors.textSecondary} />
+          <Icon name="chevron-down" size={18} color={colors.text} />
         </Animated.View>
       </PressableScale>
 
@@ -75,10 +78,13 @@ export function AccordionSection({ row, leading, defaultOpen = false, onPressIte
               accessibilityLabel={item.label}
               style={styles.item}
             >
-              <Icon name={item.icon} size={24} color={colors.text} />
+              <View style={styles.itemIcon}>
+                <Icon name={item.icon} size={22} color={colors.text} />
+              </View>
               <Text style={styles.itemLabel} numberOfLines={1}>
                 {item.label}
               </Text>
+              <Icon name="chevron-right" size={18} color={colors.placeholder} />
             </PressableScale>
           ))}
         </Animated.View>
@@ -98,18 +104,36 @@ const styles = StyleSheet.create({
   },
   headerIcon: { width: HEADER_ICON, height: HEADER_ICON, alignItems: 'center', justifyContent: 'center' },
   title: { ...typeScale.row, fontWeight: fontWeights.semibold, flex: 1 },
-  items: { gap: spacing.sm, paddingBottom: spacing.md },
+  chevron: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.buttonSecondary,
+  },
+  items: { gap: spacing.sm, paddingBottom: spacing.lg },
   item: {
     height: SUB_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.lg,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.lg,
+    borderRadius: radius.lg,
+    borderCurve: 'continuous',
     backgroundColor: colors.white,
     ...shadows.card,
   },
-  itemLabel: { ...typeScale.name, flex: 1 },
+  itemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  itemLabel: { ...typeScale.row, fontWeight: fontWeights.medium, flex: 1 },
 });
 
 export default AccordionSection;

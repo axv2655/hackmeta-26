@@ -168,9 +168,21 @@ const GLYPHS = {
   'chevron-down': [{ p: 'M5 9.25l7 7 7-7', s: 2.2 }],
   'chevron-up': [{ p: 'M5 14.75l7-7 7 7', s: 2.2 }],
   plus: [{ p: 'M12 4.5v15M4.5 12h15', s: 2 }],
+  /** Plus inside a rounded square: the Home header "create" button. */
+  'plus-square': [
+    { r: [3, 3, 18, 18, 5], s: 1.9 },
+    { p: 'M12 8v8M8 12h8', s: 1.9 },
+  ],
+  /** Three dots inside a thin outline circle: the header "more" button. */
+  'more-circle': [
+    { c: [12, 12, 10], s: 1.6 },
+    { c: [7.6, 12, 1.45], f: 1 },
+    { c: [12, 12, 1.45], f: 1 },
+    { c: [16.4, 12, 1.45], f: 1 },
+  ],
   search: [
-    { c: [10, 10, 5.6], s: 2.8 },
-    { p: 'M14.8 14.8l4.7 4.7', s: 3.6 },
+    { c: [10.75, 10.75, 7.25], s: 2.1 },
+    { p: 'M16.1 16.1l4.65 4.65', s: 2.1 },
   ],
 } as const satisfies Record<string, readonly Prim[]>;
 
@@ -218,6 +230,7 @@ const LUCIDE = {
   logout: LLogOut,
   map: LMap,
   'map-pin': LMapPin,
+  location: LMapPin,
   message: LMessageCircle,
   mic: LMic,
   moon: LMoon,

@@ -24,6 +24,8 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" />
+          {/* Opened from the hamburger at the left of every tab-root header. */}
+          <Stack.Screen name="menu" />
           {/* The composer slides up over the whole app, like Facebook's. */}
           <Stack.Screen
             name="post/new"

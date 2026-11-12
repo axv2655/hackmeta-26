@@ -1,6 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { Image } from 'expo-image';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -9,19 +8,24 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import BookmarkGlyph from 'lucide-react-native/icons/bookmark';
 
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { tap } from '@/lib/haptics';
+import { selection, tap } from '@/lib/haptics';
 import { formatCount, type Reel } from '@/lib/mock';
-import { colors, fontWeights, radii, spacing } from '@/lib/theme';
+import { colors, fontWeights } from '@/lib/theme';
 
 import { EASE_OUT, RAIL_COLUMN_WIDTH, textShadow } from './constants';
-import { likeCountFor, useReelsStore, type ReelReaction } from './store';
+import { likeCountFor, saveCountFor, useReelsStore, type ReelReaction } from './store';
 
-const ICON_SIZE = 30;
-const BUTTON_WIDTH = 56;
-const AUDIO_TILE = 30;
+const ICON_SIZE = 32;
+const BUTTON_WIDTH = 60;
+
+/** Rail counts read "102K" / "5.4K", capitalized like the iOS app. */
+function railCount(n: number): string {
+  return formatCount(n).toUpperCase();
+}
 
 type RailButtonProps = {
   icon: IconName;
@@ -30,7 +34,7 @@ type RailButtonProps = {
   onPress?: () => void;
 };
 
-/** Icon over an optional count. The whole column is the touch target. */
+/** Outline icon over an optional count. The whole column is the touch target. */
 function RailButton({ icon, label, accessibilityLabel, onPress }: RailButtonProps) {
   return (
     <PressableScale
@@ -96,7 +100,37 @@ function LikeButton({ reaction, count, onPress }: LikeButtonProps) {
         <Icon name={icon} filled={reaction != null} size={ICON_SIZE} color={color} />
       </Animated.View>
       <Text style={styles.count} numberOfLines={1} allowFontScaling={false}>
-        {formatCount(count)}
+        {railCount(count)}
+      </Text>
+    </PressableScale>
+  );
+}
+
+type SaveButtonProps = {
+  saved: boolean;
+  count: number;
+  onPress: () => void;
+};
+
+/** Bookmark toggle: outline at rest, filled white once saved. */
+function SaveButton({ saved, count, onPress }: SaveButtonProps) {
+  return (
+    <PressableScale
+      onPress={onPress}
+      scaleTo={0.9}
+      pressedOpacity={0.6}
+      accessibilityLabel={saved ? 'Remove from saved' : `Save, ${railCount(count)} saves`}
+      accessibilityState={{ selected: saved }}
+      style={styles.button}
+    >
+      <BookmarkGlyph
+        size={ICON_SIZE - 2}
+        color={colors.darkText}
+        fill={saved ? colors.darkText : 'none'}
+        strokeWidth={1.9}
+      />
+      <Text style={styles.count} numberOfLines={1} allowFontScaling={false}>
+        {railCount(count)}
       </Text>
     </PressableScale>
   );
@@ -110,10 +144,17 @@ export type ReelActionRailProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Right-hand column of a reel: like, comment, share, more, and the audio tile. */
+/** Right-hand column of a reel: like, comment, share and save with counts, then "more" at the bottom. */
 function ReelActionRailBase({ reel, onPressComment, onPressShare, onPressMore, style }: ReelActionRailProps) {
   const reaction = useReelsStore((s) => s.reactions[reel.id] ?? null);
   const setReaction = useReelsStore((s) => s.setReaction);
+  const saved = useReelsStore((s) => s.saved[reel.id] ?? false);
+  const toggleSave = useReelsStore((s) => s.toggleSave);
+
+  const onToggleSave = () => {
+    selection();
+    toggleSave(reel.id);
+  };
 
   const toggleLike = () => {
     tap();
@@ -125,20 +166,26 @@ function ReelActionRailBase({ reel, onPressComment, onPressShare, onPressMore, s
       <LikeButton reaction={reaction} count={likeCountFor(reel, reaction)} onPress={toggleLike} />
       <RailButton
         icon="comment"
-        label={formatCount(reel.commentCount)}
+        label={railCount(reel.commentCount)}
         accessibilityLabel={`${formatCount(reel.commentCount)} comments`}
         onPress={onPressComment}
       />
       <RailButton
         icon="share"
-        label={formatCount(reel.shareCount)}
+        label={railCount(reel.shareCount)}
         accessibilityLabel={`Share, ${formatCount(reel.shareCount)} shares`}
         onPress={onPressShare}
       />
-      <RailButton icon="more" accessibilityLabel="More options" onPress={onPressMore} />
-      <View style={styles.audioTile} accessible={false}>
-        <Image source={reel.author.avatar} style={styles.audioImage} contentFit="cover" transition={0} />
-      </View>
+      <SaveButton saved={saved} count={saveCountFor(reel, saved)} onPress={onToggleSave} />
+      <PressableScale
+        onPress={onPressMore}
+        scaleTo={0.9}
+        pressedOpacity={0.6}
+        accessibilityLabel="More options"
+        style={styles.moreButton}
+      >
+        <Icon name="more" size={28} color={colors.darkText} />
+      </PressableScale>
     </View>
   );
 }
@@ -149,33 +196,28 @@ const styles = StyleSheet.create({
   rail: {
     width: RAIL_COLUMN_WIDTH,
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 18,
   },
   button: {
     width: BUTTON_WIDTH,
-    minHeight: 48,
+    minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 4,
   },
   count: {
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 15,
+    lineHeight: 19,
     fontWeight: fontWeights.semibold,
     color: colors.darkText,
     ...textShadow,
   },
-  audioTile: {
-    width: AUDIO_TILE,
-    height: AUDIO_TILE,
-    marginTop: spacing.xs,
-    borderRadius: radii.sm,
-    borderWidth: 1.5,
-    borderColor: colors.darkText,
-    overflow: 'hidden',
-    backgroundColor: colors.darkBg,
+  moreButton: {
+    width: BUTTON_WIDTH,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  audioImage: { flex: 1 },
 });
 
 export default ReelActionRail;

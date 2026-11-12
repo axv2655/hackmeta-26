@@ -47,7 +47,6 @@ export function MovesIllustration({ width = VIEW_W, style }: MovesIllustrationPr
     <View
       style={[{ width, height }, style]}
       accessible={false}
-      importantForAccessibility="no"
       aria-hidden
     >
       <Svg width={width} height={height} viewBox={`${VIEW_X} ${VIEW_Y} ${VIEW_W} ${VIEW_H}`}>

@@ -15,7 +15,7 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { aspect, images, type ImageRef } from '@/lib/mock';
-import { colors, motion, radii, shadows, spacing, type as typeScale } from '@/lib/theme';
+import { colors, layout, motion, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
 
 export type PhotoPickerSheetProps = {
   visible: boolean;
@@ -42,6 +42,8 @@ const ROWS: readonly (readonly PickerPhoto[])[] = [PHOTOS.slice(0, 3), PHOTOS.sl
 const EASE_SHEET = Easing.bezier(0.32, 0.72, 0, 1);
 const EASE_OUT = Easing.bezier(motion.easeOut[0], motion.easeOut[1], motion.easeOut[2], motion.easeOut[3]);
 const OPEN_MS = 280;
+/** iOS 26 sheets have very round top corners. */
+const SHEET_RADIUS = 32;
 const CLOSE_MS = motion.base;
 
 /**
@@ -116,6 +118,7 @@ export function PhotoPickerSheet({ visible, selected, onSelect, onClose }: Photo
             size={18}
             background
             backgroundSize={32}
+            backgroundColor={colors.buttonSecondary}
             accessibilityLabel="Close"
             onPress={onClose}
           />
@@ -173,15 +176,16 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: colors.white,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
+    borderTopLeftRadius: SHEET_RADIUS,
+    borderTopRightRadius: SHEET_RADIUS,
+    borderCurve: 'continuous',
     ...shadows.sheet,
   },
   grabber: {
     alignSelf: 'center',
     width: 36,
-    height: 4,
-    borderRadius: 2,
+    height: 5,
+    borderRadius: radius.pill,
     marginTop: spacing.sm,
     backgroundColor: colors.hairline,
   },
@@ -189,18 +193,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: spacing.lg,
+    paddingLeft: spacing.xl,
     paddingRight: spacing.sm,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
   },
-  title: { ...typeScale.sectionTitle },
-  subtitle: { ...typeScale.meta },
-  grid: { gap: 2 },
-  gridRow: { flexDirection: 'row', gap: 2 },
+  title: { ...typeScale.sectionTitle, fontSize: 20, lineHeight: 25, fontWeight: '700' },
+  subtitle: { ...typeScale.rowSub },
+  grid: { gap: spacing.xs, paddingHorizontal: layout.gutter },
+  gridRow: { flexDirection: 'row', gap: spacing.xs },
   tile: {
     flex: 1,
     aspectRatio: 1,
+    borderRadius: radius.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },

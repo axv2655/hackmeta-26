@@ -7,27 +7,31 @@ import { PressableScale } from '@/components/ui/PressableScale';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { selection } from '@/lib/haptics';
 import type { Reel } from '@/lib/mock';
-import { colors, fontWeights, layout, spacing } from '@/lib/theme';
+import { colors, fontWeights, radius, spacing } from '@/lib/theme';
 
 import { textShadow } from './constants';
 import { PlaceChip } from './PlaceChip';
 import { useReelsStore } from './store';
 
-const AVATAR_SIZE = 36;
-const CAPTION_FONT_SIZE = 15;
-const CAPTION_LINE_HEIGHT = 20;
-/** Average glyph advance of the system font at 15pt, rounded up so the estimate stays on the safe side. */
-const AVG_CHAR_WIDTH = 7.6;
-/** Characters held back on the second line for the trailing "... more". */
-const MORE_RESERVE = 8;
+/** Photo diameter. The blue ring and its gap bring the avatar to about 51pt. */
+const AVATAR_SIZE = 42;
+const RING_WIDTH = 2.5;
+const RING_GAP = 2;
+const FOLLOW_HEIGHT = 30;
+const CAPTION_FONT_SIZE = 16;
+const CAPTION_LINE_HEIGHT = 21;
+/** Average glyph advance of the system font at 16pt, rounded up so the estimate stays on the safe side. */
+const AVG_CHAR_WIDTH = 8.1;
+/** Characters held back on the line for the trailing "... more". */
+const MORE_RESERVE = 7;
 
 /**
- * Cut a caption so that it and a trailing "... more" fit in two lines of
+ * Cut a caption so that it and a trailing "... more" fit on one line of
  * `columnWidth`. Text cannot be measured before layout on web, so this is an
- * estimate; `numberOfLines={2}` on the Text is the hard clamp behind it.
+ * estimate; `numberOfLines={1}` on the Text is the hard clamp behind it.
  */
 function clampCaption(caption: string, columnWidth: number): { text: string; truncated: boolean } {
-  const maxChars = Math.max(24, Math.floor((columnWidth / AVG_CHAR_WIDTH) * 2) - MORE_RESERVE);
+  const maxChars = Math.max(16, Math.floor(columnWidth / AVG_CHAR_WIDTH) - MORE_RESERVE);
   if (caption.length <= maxChars) return { text: caption, truncated: false };
 
   const cut = caption.slice(0, maxChars);
@@ -48,7 +52,7 @@ export type ReelInfoProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Bottom-left block of a reel: author row with Follow, place chip, caption, audio line. */
+/** Bottom-left block of a reel: ringed avatar, name + globe, Follow, place chip, caption, gray audio subline. */
 function ReelInfoBase({ reel, width, active, onPressAuthor, onPressPlace, onPressAudio, style }: ReelInfoProps) {
   const following = useReelsStore((s) => s.following[reel.author.id] ?? false);
   const toggleFollow = useReelsStore((s) => s.toggleFollow);
@@ -68,27 +72,32 @@ function ReelInfoBase({ reel, width, active, onPressAuthor, onPressPlace, onPres
   return (
     <View style={[styles.block, { width }, style]}>
       <View style={styles.authorRow}>
-        <Avatar
-          source={reel.author.avatar}
-          size={AVATAR_SIZE}
-          onPress={onPressAuthor ?? noop}
-          accessibilityLabel={`${reel.author.name}'s profile`}
-        />
+        <View style={styles.ring}>
+          <Avatar
+            source={reel.author.avatar}
+            size={AVATAR_SIZE}
+            onPress={onPressAuthor ?? noop}
+            accessibilityLabel={`${reel.author.name}'s profile`}
+          />
+        </View>
         <View style={styles.nameWrap}>
           <Text style={styles.name} numberOfLines={1}>
             {reel.author.name}
           </Text>
         </View>
         {reel.author.verified ? <VerifiedBadge size={14} /> : null}
-        <Text style={styles.dot}>·</Text>
+        <Icon name="globe" size={15} color={colors.darkText} accessibilityLabel="Public" />
         <PressableScale
           onPress={onToggleFollow}
           scaleTo={0.94}
-          hitSlop={{ top: 12, bottom: 12, left: 6, right: 12 }}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
           accessibilityLabel={following ? `Unfollow ${reel.author.name}` : `Follow ${reel.author.name}`}
           accessibilityState={{ selected: following }}
+          style={[styles.followButton, following && styles.followingButton]}
         >
-          <Text style={[styles.follow, following && styles.following]}>{following ? 'Following' : 'Follow'}</Text>
+          <Text style={[styles.follow, following && styles.following]} numberOfLines={1}>
+            {following ? 'Following' : 'Follow'}
+          </Text>
         </PressableScale>
       </View>
 
@@ -104,7 +113,7 @@ function ReelInfoBase({ reel, width, active, onPressAuthor, onPressPlace, onPres
           accessibilityLabel={reel.caption}
           accessibilityHint={expanded ? 'Collapses the caption' : 'Expands the caption'}
         >
-          <Text style={styles.caption} numberOfLines={expanded ? undefined : 2}>
+          <Text style={styles.caption} numberOfLines={expanded ? undefined : 1}>
             {expanded ? reel.caption : `${clamped.text}… `}
             {expanded ? null : <Text style={styles.more}>more</Text>}
           </Text>
@@ -123,7 +132,7 @@ function ReelInfoBase({ reel, width, active, onPressAuthor, onPressPlace, onPres
         accessibilityLabel={`Audio: ${reel.audio}`}
         style={styles.audioRow}
       >
-        <Icon name="music" size={13} color={colors.darkText} strokeWidth={2.25} />
+        <Icon name="music" size={13} color={colors.darkTextSecondary} strokeWidth={2.25} />
         <View style={styles.audioWrap}>
           <Text style={styles.audio} numberOfLines={1}>
             {reel.audio}
@@ -140,41 +149,51 @@ export const ReelInfo = memo(ReelInfoBase);
 
 const styles = StyleSheet.create({
   block: {
-    gap: spacing.sm,
+    gap: spacing.sm + 2,
   },
   authorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm - 2,
-    minHeight: layout.hitTarget,
+    gap: spacing.sm,
+    marginBottom: spacing.xxs,
+  },
+  ring: {
+    padding: RING_GAP,
+    borderRadius: (AVATAR_SIZE + (RING_GAP + RING_WIDTH) * 2) / 2,
+    borderWidth: RING_WIDTH,
+    borderColor: colors.blue,
   },
   nameWrap: {
     flexShrink: 1,
-    marginLeft: spacing.xxs,
+    marginLeft: spacing.xs,
   },
   name: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: fontWeights.semibold,
     color: colors.darkText,
     ...textShadow,
   },
-  dot: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: fontWeights.semibold,
-    color: colors.darkText,
-    ...textShadow,
+  followButton: {
+    height: FOLLOW_HEIGHT,
+    marginLeft: spacing.xs,
+    paddingHorizontal: spacing.md - 2,
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.7)',
+  },
+  followingButton: {
+    borderColor: colors.darkHairline,
+    backgroundColor: 'rgba(255,255,255,0.14)',
   },
   follow: {
-    fontSize: 15,
+    fontSize: 16,
     lineHeight: 20,
     fontWeight: fontWeights.semibold,
     color: colors.darkText,
-    ...textShadow,
   },
   following: {
-    fontWeight: fontWeights.regular,
     color: colors.darkTextSecondary,
   },
   chip: {
@@ -189,7 +208,7 @@ const styles = StyleSheet.create({
   },
   more: {
     fontWeight: fontWeights.semibold,
-    color: colors.darkTextSecondary,
+    color: colors.darkText,
   },
   audioRow: {
     flexDirection: 'row',
@@ -199,10 +218,10 @@ const styles = StyleSheet.create({
   },
   audioWrap: { flexShrink: 1 },
   audio: {
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: fontWeights.regular,
-    color: colors.darkText,
+    color: colors.darkTextSecondary,
     ...textShadow,
   },
 });

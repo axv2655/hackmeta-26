@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { Icon } from '@/components/ui/Icon';
 import type { ImageRef } from '@/lib/mock';
-import { colors, fontWeights, radii, shadows, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
 
 import { canvasTextSize, getBackground, GRADIENT_END, GRADIENT_START } from './backgrounds';
 
@@ -84,14 +84,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: CARD_WIDTH,
     paddingBottom: LIP,
-    borderRadius: radii.lg,
+    borderRadius: radius.xl,
+    borderCurve: 'continuous',
     backgroundColor: colors.white,
     ...shadows.raised,
   },
   media: {
     height: MEDIA_HEIGHT,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',

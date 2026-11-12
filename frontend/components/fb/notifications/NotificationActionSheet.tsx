@@ -8,11 +8,13 @@ import { Hairline } from '@/components/ui/Hairline';
 import { Icon, IconBadge, type IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import type { Notification, TextSegment } from '@/lib/mock';
-import { colors, fontWeights, layout, radii, shadows, spacing, type as typeScale } from '@/lib/theme';
+import { colors, fontWeights, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
 
 /** Distance the sheet rises on open. The Modal's own fade covers the rest. */
 const SHEET_TRAVEL = 320;
 const SHEET_DURATION = 280;
+/** iOS 26 sheets have deep, continuous corners. */
+const SHEET_RADIUS = radius.xl + 10;
 // iOS sheet curve.
 const EASE_SHEET = Easing.bezier(0.32, 0.72, 0, 1);
 
@@ -81,8 +83,8 @@ export function NotificationActionSheet({
             <View style={styles.summary}>
               <Avatar
                 source={notification.avatar}
-                size={layout.avatarLarge}
-                badge={<IconBadge name={notification.badgeIcon} color={notification.badgeColor} size={24} ring />}
+                size={64}
+                badge={<IconBadge name={notification.badgeIcon} color={notification.badgeColor} size={28} ring />}
               />
               <Text style={styles.summaryText} numberOfLines={3}>
                 {segments.map((segment, index) => (
@@ -126,8 +128,9 @@ const styles = StyleSheet.create({
   backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.scrim },
   sheet: {
     backgroundColor: colors.white,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
+    borderTopLeftRadius: SHEET_RADIUS,
+    borderTopRightRadius: SHEET_RADIUS,
+    borderCurve: 'continuous',
     ...shadows.sheet,
   },
   grabber: {
@@ -145,7 +148,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
   },
-  summaryText: { ...typeScale.rowSub, color: colors.text, textAlign: 'center' },
+  summaryText: { ...typeScale.row, textAlign: 'center' },
   bold: { fontWeight: fontWeights.semibold },
   options: { paddingTop: spacing.sm },
   option: {
@@ -161,7 +164,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.grayButton,
+    backgroundColor: colors.buttonSecondary,
   },
   optionLabel: { ...typeScale.row, fontWeight: fontWeights.medium, flex: 1 },
 });

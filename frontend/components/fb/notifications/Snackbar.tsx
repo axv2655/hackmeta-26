@@ -2,8 +2,9 @@ import { useEffect } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { useTabBarHeight } from '@/components/fb/TabBar';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { colors, fontWeights, layout, motion, radii, shadows, spacing } from '@/lib/theme';
+import { colors, fontWeights, layout, motion, radius, shadows, spacing } from '@/lib/theme';
 
 const EASE_OUT = Easing.bezier(motion.easeOut[0], motion.easeOut[1], motion.easeOut[2], motion.easeOut[3]);
 const RISE = 12;
@@ -20,11 +21,12 @@ export type SnackbarProps = {
 };
 
 /**
- * Dark confirmation bar pinned above the tab bar. Mount it with a fresh `key` per message so the
+ * Dark confirmation bar floating just above the liquid-glass tab bar. Mount it with a fresh `key` per message so the
  * timer restarts; it fades itself out and then calls `onDismiss`.
  */
 export function Snackbar({ message, actionLabel, onAction, onDismiss, duration = 4000 }: SnackbarProps) {
   const reduceMotion = useReducedMotion();
+  const tabBarHeight = useTabBarHeight();
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function Snackbar({ message, actionLabel, onAction, onDismiss, duration =
   }));
 
   return (
-    <Animated.View style={[styles.bar, style]} accessibilityRole="alert" accessibilityLiveRegion="polite">
+    <Animated.View style={[styles.bar, { bottom: tabBarHeight + spacing.sm }, style]} accessibilityRole="alert" accessibilityLiveRegion="polite">
       <Text style={styles.message} numberOfLines={2}>
         {message}
       </Text>
@@ -64,12 +66,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: layout.gutter,
     right: layout.gutter,
-    bottom: layout.gutter,
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: spacing.lg,
-    borderRadius: radii.md,
+    borderRadius: radius.lg,
     backgroundColor: colors.text,
     ...shadows.raised,
   },

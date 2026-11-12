@@ -8,28 +8,44 @@ export const profile = {
   bio: 'CS @ UT Dallas. Building things, climbing things, drinking too much matcha.',
 } as const;
 
+/** Prompt shown in the speech-bubble note above the profile picture. */
+export const profileNotePrompt = 'Thinking about...';
+
+/** Copy for the dismissible Muse (our AI agent) promo card. */
+export const museCard = {
+  title: 'Meet Muse, your personal AI agent',
+  body: 'Hand off everyday tasks like finding things to do, planning moves with friends and catching up on your feed.',
+  cta: 'Try Muse',
+} as const;
+
+/** `IconName` plus the two-ring gender glyph, which is drawn locally. */
+export type DetailIcon = IconName | 'gender';
+
 export type ProfileDetail = {
   id: string;
-  icon: IconName;
-  /** Plain lead-in, e.g. "Lives in". */
-  prefix: string;
-  /** Bold part, e.g. "Richardson, Texas". */
+  icon: DetailIcon;
+  /** Plain lead-in, e.g. "Lives in". Omit for rows that are just a value ("Male"). */
+  prefix?: string;
+  /** Value, e.g. "Richardson, Texas". Bold when there is a prefix. */
   value: string;
 };
 
+/** "At a glance" rows. */
 export const profileDetails: ProfileDetail[] = [
+  { id: 'lives', icon: 'map-pin', prefix: 'Lives in', value: 'Richardson, Texas' },
+  { id: 'from', icon: 'home', prefix: 'From', value: 'Plano, Texas' },
+  { id: 'gender', icon: 'gender', value: 'Male' },
   { id: 'school', icon: 'graduation', prefix: 'Studies Computer Science at', value: 'UT Dallas' },
-  { id: 'lives', icon: 'home', prefix: 'Lives in', value: 'Richardson, Texas' },
-  { id: 'from', icon: 'map-pin', prefix: 'From', value: 'Plano, Texas' },
   { id: 'joined', icon: 'clock', prefix: 'Joined', value: 'August 2019' },
 ];
 
-export type ProfileTabKey = 'posts' | 'photos' | 'reels';
+export type ProfileTabKey = 'all' | 'photos' | 'reels' | 'memories';
 
 export const profileTabs: { key: ProfileTabKey; label: string }[] = [
-  { key: 'posts', label: 'Posts' },
+  { key: 'all', label: 'All' },
   { key: 'photos', label: 'Photos' },
   { key: 'reels', label: 'Reels' },
+  { key: 'memories', label: 'Memories' },
 ];
 
 export type PostFilterKey = 'all' | 'photos' | 'text' | 'check-ins';

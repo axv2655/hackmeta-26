@@ -10,7 +10,7 @@ export type LifeEventPostProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-const DISC = 42;
+const DISC = 48;
 
 const HEART =
   'M12 20.7C5.6 16.4 3 13.1 3 9.6 3 6.9 5.1 4.8 7.7 4.8c1.7 0 3.3.9 4.3 2.4 1-1.5 2.6-2.4 4.3-2.4 2.6 0 4.7 2.1 4.7 4.8 0 3.5-2.6 6.8-9 11.1z';

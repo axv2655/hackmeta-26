@@ -13,3 +13,5 @@ export { ReelsUnit, type ReelsUnitProps } from './ReelsUnit';
 export { StoriesRow, type StoriesRowProps } from './StoriesRow';
 export { StoryCard, type StoryCardProps } from './StoryCard';
 export { UnitHeader, type UnitHeaderProps } from './UnitHeader';
+export { FeedSymbol, type FeedSymbolProps } from './FeedSymbol';
+export { STORY_CARD_HEIGHT, STORY_CARD_RADIUS, STORY_CARD_WIDTH } from './storyMetrics';

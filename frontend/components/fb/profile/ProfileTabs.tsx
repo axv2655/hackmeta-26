@@ -1,8 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection } from '@/lib/haptics';
-import { colors, hairline, layout, radii, spacing, type as typeScale } from '@/lib/theme';
+import { colors, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 import { profileTabs, type ProfileTabKey } from './data';
 
@@ -11,10 +11,16 @@ export type ProfileTabsProps = {
   onChange: (key: ProfileTabKey) => void;
 };
 
-/** Posts / Photos / Reels pills. The active pill is tinted light blue. */
+/** All / Photos / Reels / Memories chips. Selected = light-blue capsule, others plain text. */
 export function ProfileTabs({ active, onChange }: ProfileTabsProps) {
   return (
-    <View style={styles.row} accessibilityRole="tablist">
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.row}
+      accessibilityRole="tablist"
+      style={styles.scroll}
+    >
       {profileTabs.map((tab) => {
         const selected = tab.key === active;
         return (
@@ -24,41 +30,42 @@ export function ProfileTabs({ active, onChange }: ProfileTabsProps) {
               if (!selected) selection();
               onChange(tab.key);
             }}
+            scaleTo={0.96}
             pressedOpacity={0.7}
             hitSlop={{ top: 4, bottom: 4 }}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             accessibilityLabel={tab.label}
-            style={[styles.pill, selected && styles.pillActive]}
+            style={[styles.chip, selected && styles.chipSelected]}
           >
-            <Text style={[styles.label, selected && styles.labelActive]}>{tab.label}</Text>
+            <Text style={[styles.label, selected && styles.labelSelected]}>{tab.label}</Text>
           </PressableScale>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 0, backgroundColor: colors.white },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingHorizontal: layout.gutter,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.white,
-    ...hairline('Bottom'),
+    paddingHorizontal: layout.gutter - spacing.xxs,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xs,
   },
-  pill: {
-    height: 36,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
+  chip: {
+    height: 40,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pillActive: { backgroundColor: colors.tintBg },
-  label: { ...typeScale.button, color: colors.textSecondary },
-  labelActive: { color: colors.tintText },
+  chipSelected: { backgroundColor: colors.chipSelectedBg },
+  label: { ...typeScale.buttonLarge },
+  labelSelected: { color: colors.chipSelectedText },
 });
 
 export default ProfileTabs;

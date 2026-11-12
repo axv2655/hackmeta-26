@@ -11,7 +11,7 @@ import PlayGlyph from 'lucide-react-native/icons/play';
 
 import { tap } from '@/lib/haptics';
 import type { Reel } from '@/lib/mock';
-import { colors, layout, motion } from '@/lib/theme';
+import { colors, motion } from '@/lib/theme';
 
 import {
   DOUBLE_TAP_MS,
@@ -20,6 +20,7 @@ import {
   PROGRESS_BAR_HEIGHT,
   PROGRESS_BOTTOM_INSET,
   RAIL_COLUMN_WIDTH,
+  SIDE_INSET,
 } from './constants';
 import { HeartBurst } from './HeartBurst';
 import { ReelActionRail } from './ReelActionRail';
@@ -86,6 +87,11 @@ export type ReelItemProps = {
   /** Page size: the pager's viewport. */
   width: number;
   height: number;
+  /**
+   * Bottom space covered by the floating glass tab bar (useTabBarHeight()). The page
+   * runs under the bar; the progress bar, caption and rail all sit above it.
+   */
+  bottomInset?: number;
   /** This reel is the visible page and the Reels tab is focused. */
   active: boolean;
   /** Place chip tap. The Moves feature hooks in here; a no-op until then. */
@@ -98,14 +104,17 @@ export type ReelItemProps = {
 
 /**
  * One full-page reel: media, gradients, author/caption block, action rail and
- * progress bar. A single tap on the media pauses or resumes it; a double tap
- * loves it and bursts a heart at the tap point.
+ * progress bar. The page fills the screen (the floating tab bar sits over its
+ * bottom edge), so every overlay is lifted by `bottomInset`. A single tap on
+ * the media pauses or resumes it; a double tap loves it and bursts a heart at
+ * the tap point.
  */
 function ReelItemBase({
   reel,
   index,
   width,
   height,
+  bottomInset = 0,
   active,
   onPressPlace,
   onPressAuthor,
@@ -187,7 +196,8 @@ function ReelItemBase({
   const handlePressMore = useCallback(() => onPressMore?.(reel), [onPressMore, reel]);
 
   const playing = active && !paused;
-  const infoWidth = Math.max(0, width - layout.gutter - RAIL_COLUMN_WIDTH - 4);
+  const infoWidth = Math.max(0, width - SIDE_INSET - RAIL_COLUMN_WIDTH - 4);
+  const progressBottom = bottomInset + PROGRESS_BOTTOM_INSET;
 
   return (
     <View style={[styles.page, { width, height }]}>
@@ -217,7 +227,7 @@ function ReelItemBase({
         </View>
       ) : null}
 
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, { bottom: progressBottom + PROGRESS_BAR_HEIGHT + OVERLAY_BOTTOM_INSET }]}>
         <ReelInfo
           reel={reel}
           width={infoWidth}
@@ -234,10 +244,10 @@ function ReelItemBase({
       </View>
 
       <ReelProgressBar
-        width={Math.max(0, width - layout.gutter * 2)}
+        width={Math.max(0, width - SIDE_INSET * 2)}
         active={active}
         playing={playing}
-        style={styles.progress}
+        style={[styles.progress, { bottom: progressBottom }]}
       />
     </View>
   );
@@ -289,8 +299,7 @@ const styles = StyleSheet.create({
   overlay: {
     position: 'absolute',
     right: 0,
-    bottom: PROGRESS_BOTTOM_INSET + PROGRESS_BAR_HEIGHT + OVERLAY_BOTTOM_INSET,
-    left: layout.gutter,
+    left: SIDE_INSET,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
@@ -298,8 +307,7 @@ const styles = StyleSheet.create({
   },
   progress: {
     position: 'absolute',
-    bottom: PROGRESS_BOTTOM_INSET,
-    left: layout.gutter,
+    left: SIDE_INSET,
   },
 });
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as L from 'lucide-react'
 
 // drop-in icons: src/assets/icons/<name>.svg overrides the bundled Lucide fallback
@@ -55,7 +55,91 @@ const Avatar = ({ name, size = 40 }) => (
   </span>
 )
 
+// demo notifications; text is plain JSX parts so nothing is injected as HTML
+const NOTIFS = [
+  { id: 1, who: ME, badge: ['#0866ff', L.Shield], text: ['Someone tried to log in, but we stopped them.'], time: '1h', unread: true, isNew: true },
+  { id: 2, who: ME, badge: ['#0866ff', L.Shield], text: ['You approved a login.'], time: '14h', unread: true },
+  { id: 3, who: 'Priya Shah', badge: ['#0866ff', L.MessageSquare], text: [<b key="b">Priya Shah</b>, ' posted a link: "Sunrise hike photos"'], time: '1d', unread: true },
+  { id: 4, who: 'Sofia Gomez', badge: ['#0866ff', L.Image], text: [<b key="b">Sofia Gomez</b>, ' added a new photo: "Miso caramel brownies".'], time: '1d', meta: '27 reactions · 11 comments', unread: true },
+  { id: 5, who: 'Omar Haddad', badge: ['#65676b', L.UserPlus], text: ['You have a new friend suggestion: ', <b key="b">Omar Haddad</b>, '.'], time: '2d', unread: false },
+]
+const PAGES = ['Rivera Studio', 'Hackmeta Team']
+const MENU = [['Settings & privacy', L.Settings, true], ['Help & support', L.CircleHelp, true], ['Report a problem', L.MessageSquareWarning, false, 'CTRL B'], ['Display & accessibility', L.Moon, true], ['Log out', L.LogOut, false]]
+
+function ProfileMenu() {
+  return (
+    <div className="dropdown" role="menu">
+      <div className="profiles">
+        <a className="menu-row"><Avatar name={ME} size={36} /><b>{ME}</b></a>
+        <div className="divider" />
+        {PAGES.map((pg) => <a key={pg} className="menu-row"><span className="switch-ring"><Avatar name={pg} size={28} /></span><b>{pg}</b></a>)}
+        <div className="divider" />
+        <button className="btn-gray wide"><L.CircleUserRound size={18} /> See all profiles</button>
+      </div>
+      {MENU.map(([label, I, more, sub]) => (
+        <a key={label} className="menu-row" role="menuitem">
+          <span className="menu-icon"><I size={20} /></span>
+          <span className="grow">{label}{sub && <span className="muted sub">{sub}</span>}</span>
+          {more && <L.ChevronRight size={24} className="muted" />}
+        </a>
+      ))}
+      <p className="menu-footer">Privacy · Consumer Health Privacy · Terms · Advertising · Ad Choices · Cookies · More</p>
+    </div>
+  )
+}
+
+function NotifRow({ n, onRead }) {
+  const B = n.badge[1]
+  return (
+    <a className="notif" onClick={() => onRead(n.id)}>
+      <span className="notif-pic"><Avatar name={n.who} size={56} /><span className="notif-badge" style={{ background: n.badge[0] }}><B size={14} color="#fff" /></span></span>
+      <span className="grow">
+        {n.text}
+        <span className={`notif-time ${n.unread ? 'blue' : 'muted'}`}>{n.time}{n.meta && ` · ${n.meta}`}</span>
+      </span>
+      {n.unread && <span className="dot" aria-label="Unread" />}
+    </a>
+  )
+}
+
+function NotifPanel({ notifs, setNotifs }) {
+  const [tab, setTab] = useState('All')
+  const [push, setPush] = useState(true)
+  const shown = tab === 'All' ? notifs : notifs.filter((n) => n.unread)
+  const read = (id) => setNotifs((ns) => ns.map((n) => (n.id === id ? { ...n, unread: false } : n)))
+  return (
+    <div className="dropdown notifs" role="dialog" aria-label="Notifications">
+      <div className="row between"><h2>Notifications</h2><button className="icon-btn" aria-label="Options"><L.Ellipsis size={20} /></button></div>
+      <div className="row">{['All', 'Unread'].map((t) => <button key={t} className={`pill ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t}</button>)}</div>
+      {push && (
+        <div className="push">
+          <button className="icon-btn push-x" aria-label="Dismiss" onClick={() => setPush(false)}><L.X size={20} /></button>
+          <b>Your push notifications are off</b>
+          <span className="muted">Turn on notifications to stay connected</span>
+          <div className="row"><button className="btn-blue" onClick={() => setPush(false)}>Turn on</button><button className="btn-gray" onClick={() => setPush(false)}>Not now</button></div>
+        </div>
+      )}
+      <div className="row between"><h3>New</h3><a className="blue">See all</a></div>
+      {shown.filter((n) => n.isNew).map((n) => <NotifRow key={n.id} n={n} onRead={read} />)}
+      <h3>Earlier</h3>
+      {shown.filter((n) => !n.isNew).map((n) => <NotifRow key={n.id} n={n} onRead={read} />)}
+    </div>
+  )
+}
+
 function TopNav() {
+  const [open, setOpen] = useState(null)
+  const [notifs, setNotifs] = useState(NOTIFS)
+  const ref = useRef(null)
+  const toggle = (k) => setOpen((o) => (o === k ? null : k))
+  const unread = notifs.filter((n) => n.unread).length
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => { if (e.key === 'Escape' || (e.type === 'mousedown' && !ref.current.contains(e.target))) setOpen(null) }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', close)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close) }
+  }, [open])
   return (
     <header className="topnav">
       <div className="topnav-left">
@@ -67,9 +151,17 @@ function TopNav() {
           <button key={t} className={`tab ${i === 0 ? 'active' : ''}`} aria-label={t} title={t}><I size={24} /></button>
         ))}
       </nav>
-      <div className="topnav-right">
-        {[['Menu', Menu], ['Messages', MessageCircle], ['Notifications', Bell]].map(([t, I]) => <button key={t} className="circle-btn" aria-label={t} title={t}><I size={20} /></button>)}
-        <Avatar name={ME} size={40} />
+      <div className="topnav-right" ref={ref}>
+        <button className="circle-btn" aria-label="Menu" title="Menu"><Menu size={20} /></button>
+        <button className="circle-btn" aria-label="Messenger" title="Messenger"><MessageCircle size={20} /></button>
+        <button className={`circle-btn ${open === 'notifs' ? 'on' : ''}`} aria-label="Notifications" aria-expanded={open === 'notifs'} onClick={() => toggle('notifs')}>
+          <Bell size={20} />{unread > 0 && <span className="badge">{unread}</span>}
+        </button>
+        <button className="me-btn" aria-label="Your profile" aria-expanded={open === 'profile'} onClick={() => toggle('profile')}>
+          <Avatar name={ME} size={40} /><span className="me-chev"><L.ChevronDown size={12} strokeWidth={3} /></span>
+        </button>
+        {open === 'profile' && <ProfileMenu />}
+        {open === 'notifs' && <NotifPanel notifs={notifs} setNotifs={setNotifs} />}
       </div>
     </header>
   )

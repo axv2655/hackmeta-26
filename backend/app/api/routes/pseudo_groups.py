@@ -17,7 +17,7 @@ from app.core.db import SessionDep
 from app.muse.agents.revive import ReviveService
 from app.muse.http import CurrentUser, LaneDep
 from app.muse.pseudo_groups import PseudoGroupService
-from app.muse.schemas import MoveDraftRead, UserLite
+from app.muse.schemas import MoveDraftRead, MuseUserLite
 from app.tables import PseudoGroup, User
 
 router = APIRouter(tags=["pseudo-groups"])
@@ -26,7 +26,7 @@ router = APIRouter(tags=["pseudo-groups"])
 class PseudoGroupOut(BaseModel):
     id: str
     label: str
-    members: list[UserLite]
+    members: list[MuseUserLite]
     pattern: dict[str, list[Any]]
     strength: float
     fading: bool
@@ -43,7 +43,7 @@ def list_groups(
     out = []
     for g in svc.owned(user.id):
         members = [
-            UserLite.of(u) for uid in g.member_ids if (u := session.get(User, uid))
+            MuseUserLite.of(u) for uid in g.member_ids if (u := session.get(User, uid))
         ]
         out.append(
             PseudoGroupOut(

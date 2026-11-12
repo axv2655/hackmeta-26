@@ -16,7 +16,7 @@ from app.ports import Category, MarkSnapshot, MoveDraftOut, NotifyPickOut
 from app.tables import Mark, Notification, User
 
 
-class UserLite(BaseModel):
+class MuseUserLite(BaseModel):
     id: str
     name: str
     first_name: str
@@ -25,7 +25,7 @@ class UserLite(BaseModel):
     fb_verified: bool = False
 
     @classmethod
-    def of(cls, user: User) -> UserLite:
+    def of(cls, user: User) -> MuseUserLite:
         return cls(
             id=user.id,
             name=user.name,
@@ -68,7 +68,7 @@ def picks_out(session: Session, picks: list[NotifyPickOut]) -> list[dict[str, An
         if user is not None:
             out.append(
                 {
-                    "user": UserLite.of(user).model_dump(),
+                    "user": MuseUserLite.of(user).model_dump(),
                     "copy": p.copy,
                     "reason": p.reason,
                 }

@@ -112,12 +112,18 @@ class MoveService:
         return self.moves.list_live_visible(viewer_id)
 
     def audience_ids(self, move_id: str) -> frozenset[str]:
-        return self.moves.audience_ids(move_id)
+        """The stored audience minus anyone the creator has blocked since
+        posting: exactly the audience members `can_see` still admits, so the
+        notify pipeline never reaches someone who cannot open the Move."""
+        vis = self._audience_repo.move_visibility(move_id)
+        if vis is None:
+            return frozenset()
+        return vis.audience_ids - vis.hidden_from_ids
 
     def audience_preview(self, move_id: str) -> AudiencePreview:
-        """The stored audience as an AudienceLine (7.2). Show it to the
-        Move's creator only."""
-        ids = self.moves.audience_ids(move_id)
+        """The audience as an AudienceLine (7.2), without later blocks. Show
+        it to the Move's creator only."""
+        ids = self.audience_ids(move_id)
         return AudiencePreview(
             count=len(ids),
             circles=tuple(

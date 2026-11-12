@@ -288,6 +288,21 @@ def test_everyone_left_ends_the_move(
     assert service.get("ana", move_id).status == "ended"
 
 
+def test_later_block_leaves_audience_and_audience_line(
+    service: MoveService, world: Session
+) -> None:
+    move_id = create(service, user_ids=("dee",))
+    assert service.audience_ids(move_id) == {"bo", "cy", "dee"}
+
+    world.add(Block(user_id="ana", hidden_from_user_id="cy"))
+    world.commit()
+    assert service.audience_ids(move_id) == {"bo", "dee"}
+    preview = service.audience_preview(move_id)
+    assert preview.count == 2
+    assert [u.id for u in preview.people] == ["bo", "dee"]
+    assert service.audience_ids("nope") == frozenset()
+
+
 def test_open_ble_join_widens_audience(service: MoveService, log: HookLog) -> None:
     move_id = create(service, open=True)
     move = run(service.join("zed", move_id, "there", "open_ble"))

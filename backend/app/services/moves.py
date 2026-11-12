@@ -33,7 +33,7 @@ opens one short session per call on the engine it was given.
 
 import logging
 from collections.abc import Awaitable, Callable, Collection, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import Any
 
@@ -42,6 +42,7 @@ from sqlmodel import Session
 
 from app.domain import moves as rules
 from app.domain.errors import IllegalTransition, MoveNotFound
+from app.domain.privacy import within_audience
 from app.hooks import Hook, Hooks
 from app.ports import (
     Clock,
@@ -149,13 +150,16 @@ class MoveService:
         """Validate, resolve the audience (C2), store the Move with its creator
         participant and audience (C3), then announce it. Raises `InvalidMove`,
         `MarkNotFound`, or `UnverifiedOpenMove` for an open Move by an
-        unverified user (12.3)."""
+        unverified user (12.3). The notify list keeps only audience members."""
         creator = self.session.get(User, creator_id)
         rules.require_may_post(
             draft, creator_verified=creator is not None and creator.fb_verified
         )
         new = rules.plan_move(creator_id, draft, self.clock.now())
         audience = self.audience.resolve(creator_id, draft.circle_ids, draft.user_ids)
+        new = replace(
+            new, notify_user_ids=within_audience(new.notify_user_ids, audience)
+        )
         move = self.moves.create(new, audience)
         outbox = _Outbox()
         outbox.publish(

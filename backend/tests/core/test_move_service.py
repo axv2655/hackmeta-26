@@ -288,6 +288,13 @@ def test_everyone_left_ends_the_move(
     assert service.get("ana", move_id).status == "ended"
 
 
+def test_notify_list_is_limited_to_the_audience(service: MoveService) -> None:
+    picks = ("cy", "mom", "dee", "ana", "zed", "cy")
+    move = run(service.create("ana", draft(user_ids=("dee",), notify_user_ids=picks)))
+    assert move.notify_user_ids == ("cy", "dee")
+    assert run(service.create("ana", draft())).notify_user_ids is None
+
+
 def test_later_block_leaves_audience_and_audience_line(
     service: MoveService, world: Session
 ) -> None:

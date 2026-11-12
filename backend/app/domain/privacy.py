@@ -83,3 +83,14 @@ def resolve_audience(
     for user_id in (creator_id, *hidden_from):
         via.pop(user_id, None)
     return ResolvedAudience(via=via, circle_ids=tuple(circles))
+
+
+def within_audience(
+    user_ids: Iterable[str] | None, audience: ResolvedAudience
+) -> tuple[str, ...] | None:
+    """`user_ids` limited to the audience, deduplicated, order kept; None
+    stays None. Used on a creator's edited notify list, so nobody outside the
+    audience (blocked, never picked, the creator) is ever notified."""
+    if user_ids is None:
+        return None
+    return tuple(u for u in dict.fromkeys(user_ids) if u in audience.via)

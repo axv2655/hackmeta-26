@@ -16,8 +16,9 @@ from pydantic import BaseModel
 from app.core.db import SessionDep
 from app.muse.compose import ComposeService
 from app.muse.http import CurrentUser, LaneDep
-from app.muse.schemas import MoveDraftRead, picks_out
+from app.muse.schemas import MarkOut, MoveDraftRead, picks_out
 from app.services.notify import NotifyService
+from app.services.taste import TasteService
 
 router = APIRouter(tags=["muse"])
 
@@ -80,3 +81,31 @@ async def compose_move(
         confirm_place=composed.confirm_place,
         source=composed.source,
     )
+
+
+class SuggestSpotsBody(BaseModel):
+    user_ids: list[str] = []
+    category: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+
+
+class SpotOut(BaseModel):
+    mark: MarkOut
+    reason: str
+
+
+@router.post("/muse/suggest-spots", response_model=list[SpotOut])
+async def suggest_spots(
+    body: SuggestSpotsBody, session: SessionDep, user: CurrentUser, lane: LaneDep
+) -> list[SpotOut]:
+    """3 Marks for the caller plus `user_ids`, with a reason each."""
+    coarse = (
+        (round(body.lat, 3), round(body.lng, 3))
+        if body.lat is not None and body.lng is not None
+        else None
+    )
+    spots = await TasteService(session, lane).suggest_spots(
+        user.id, body.user_ids, category=body.category, coarse=coarse
+    )
+    return [SpotOut(mark=MarkOut.of(m), reason=reason) for m, reason in spots]

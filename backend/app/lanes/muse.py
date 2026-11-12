@@ -21,6 +21,7 @@ from app.muse.lane import MuseLane
 from app.scheduler.loop import Scheduler
 from app.services.notify import MuseNotifier, NotifyService
 from app.services.suggestions import SuggestionService
+from app.services.taste import TasteService
 
 
 def register(
@@ -91,5 +92,11 @@ def register(
         return await lane.call(SuggestionService, "expire")
 
     scheduler.register("muse_expire_suggestions", expire_suggestions, interval_s=60)
+
+    # M8: taste profiles learn from ratings
+    async def on_rating_submitted(move_id: str, user_id: str) -> None:
+        await lane.call(TasteService, "on_rating_submitted", move_id, user_id)
+
+    hooks.on_rating_submitted.register(on_rating_submitted)
 
     return lane

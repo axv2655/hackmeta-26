@@ -1,6 +1,7 @@
 # hackmeta-26
 
-Hackathon starter: an Expo (React Native) app in `frontend/mobile/` and a FastAPI
+Hackathon starter: an Expo (React Native) app in `frontend/mobile/`, a
+Vite + React web feed in `frontend/web/`, and a FastAPI
 backend in `backend/`.
 
 - `frontend/mobile/` is a bare Expo app that renders "Hello world". It runs on iOS,
@@ -27,6 +28,14 @@ Frontend (Node 20+):
 cd frontend/mobile
 npm ci
 npx expo start        # press i / a / w, or scan the QR code with Expo Go
+```
+
+Web feed UI (Vite + React):
+
+```sh
+cd frontend/web
+npm ci
+npm run dev           # http://localhost:5173
 ```
 
 `lib/backend.js` finds the backend on port 8000 of the machine serving the

@@ -88,6 +88,8 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
 .ad:hover { background: var(--hover); }
 .ad-img { width: 130px; aspect-ratio: 1; flex-shrink: 0; border-radius: 8px; object-fit: cover; }
 .ad-title { display: block; font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+.sprite20 { width: 20px; height: 20px; background-repeat: no-repeat; }
+.side-item.on .sprite20 { filter: brightness(0) invert(1); }
 .sprite { width: 36px; height: 36px; flex-shrink: 0; background-repeat: no-repeat; }
 
 /* top-right dropdowns */

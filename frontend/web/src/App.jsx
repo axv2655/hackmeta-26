@@ -18,6 +18,9 @@ const MessageCircle = pick('messages', L.MessageCircle)
 const Bell = pick('notifications', L.Bell)
 const Globe = pick('globe', L.Globe)
 const Plus = pick('plus', L.Plus)
+const mp = (n) => pick(`mp-${n}`, L.Circle)
+// 20px icon cropped from a Facebook sprite sheet in public/fb
+const spr = (sheet, y) => function Sprite() { return <i className="sprite20" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `0 ${y}px` }} /> }
 
 const ME = 'Alex Rivera'
 const FRIENDS = ['Priya Shah', 'Marcus Lee', 'Sofia Gomez', 'Jordan Kim', 'Ava Chen', 'Noah Patel', 'Lena Novak', 'Omar Haddad']
@@ -299,13 +302,14 @@ function SideNav({ title, items, gear = true, search, children }) {
 }
 
 const LISTINGS = [['$360', 'Vintage film camera', 'Grapevine, TX'], ['$1', 'Box of paperback books', 'Irving, TX'], ['$2,500', '2012 sport motorcycle', 'Euless, TX'], ['$80', 'Fly fishing gear', 'Durant, OK'], ['$900', 'Upright piano', 'Lewisville, TX'], ['$150', 'Leather sofa', 'Denton, TX'], ['$120', 'Ping pong table', 'Flower Mound, TX'], ['$450', 'Laptop, like new', 'Plano, TX']]
-const MARKET_CATEGORIES = [['Vehicles', L.Car], ['Property Rentals', L.House], ['Apparel', L.Shirt], ['Classifieds', L.Tag], ['Electronics', L.Smartphone], ['Entertainment', L.Clapperboard], ['Family', L.Users], ['Free Stuff', L.Gift], ['Garden & Outdoor', L.Sprout], ['Hobbies', L.Puzzle], ['Home Goods', L.Sofa], ['Home Improvement Supplies', L.Hammer], ['Home Sales', L.Building], ['Musical Instruments', L.Guitar], ['Office Supplies', L.Printer], ['Pet Supplies', L.PawPrint], ['Sporting Goods', L.Dumbbell], ['Toys & Games', L.ToyBrick]]
+const CreateListing = mp('create-new-listing')
+const MARKET_CATEGORIES = [['Vehicles', mp('vehicles')], ['Property Rentals', mp('property-rentals')], ['Apparel', spr('market', -260)], ['Classifieds', mp('classifieds')], ['Electronics', mp('electronics')], ['Entertainment', mp('entertainment')], ['Family', mp('family')], ['Free Stuff', mp('free-stuff')], ['Garden & Outdoor', mp('garden-outdoor')], ['Hobbies', spr('market', -134)], ['Home Goods', mp('home-goods')], ['Home Improvement Supplies', mp('home-improvement-supplies')], ['Home Sales', mp('home-sales')], ['Musical Instruments', mp('musical-instruments')], ['Office Supplies', mp('office-supplies')], ['Pet Supplies', mp('pet-supplies')], ['Sporting Goods', mp('sporting-goods')], ['Toys & Games', spr('market', -176)]]
 
 function Marketplace() {
   return (
     <div className="page">
-      <SideNav title="Marketplace" search="Search Marketplace" items={[['Browse all', L.Store], ['Jobs', L.Briefcase], ['Notifications', L.Bell], ['Inbox', L.Inbox], ['Marketplace status', L.ShieldCheck], ['Buying', L.ShoppingBag, true], ['Selling', L.Tag, true]]}>
-        <button className="btn-blue wide-btn"><L.Plus size={18} /> Create new listing</button>
+      <SideNav title="Marketplace" search="Search Marketplace" items={[['Browse all', mp('browse-all')], ['Jobs', mp('jobs')], ['Notifications', spr('notif', -146)], ['Inbox', mp('inbox')], ['Marketplace status', mp('marketplace-status')], ['Buying', mp('buying'), true], ['Selling', mp('selling'), true]]}>
+        <button className="btn-blue wide-btn"><CreateListing size={16} /> Create new listing</button>
         <button className="btn-gray wide-btn">Create multiple listings</button>
         <div className="divider" />
         <h3 className="side-h">Location</h3>

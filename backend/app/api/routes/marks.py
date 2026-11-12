@@ -8,19 +8,16 @@ Coordinates in a response are always a Mark's, never a user's (12.1); the
 `lat/lng` a client sends to `/marks/nearby` is used for that query only.
 """
 
-from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
 
 from app.api.deps import ContainerDep
-from app.api.deps_core import CoreRoute, CurrentUserDep
+from app.api.deps_core import CurrentUserDep
 from app.api.routes.users import UserLite
 from app.core.db import SessionDep
-from app.domain.errors import Conflict, DomainError, Forbidden, Invalid, NotFound
 from app.ports import Category, MediaType, SaveSource
 from app.repositories.marks import SqlMarkRepository
 from app.services.marks import (
@@ -34,34 +31,7 @@ from app.services.marks import (
     SavedItems,
 )
 
-DOMAIN_STATUS: tuple[tuple[type[DomainError], int], ...] = (
-    (NotFound, status.HTTP_404_NOT_FOUND),
-    (Forbidden, status.HTTP_403_FORBIDDEN),
-    (Conflict, status.HTTP_409_CONFLICT),
-    (Invalid, status.HTTP_422_UNPROCESSABLE_CONTENT),
-)
-
-
-class MarkRoute(CoreRoute):
-    """`CoreRoute` plus the core domain error kinds (`app.domain.errors`)."""
-
-    def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
-        handler = super().get_route_handler()
-
-        async def handle(request: Request) -> Response:
-            try:
-                return await handler(request)
-            except DomainError as exc:
-                code = next(
-                    (c for kind, c in DOMAIN_STATUS if isinstance(exc, kind)),
-                    status.HTTP_400_BAD_REQUEST,
-                )
-                return JSONResponse(status_code=code, content={"detail": str(exc)})
-
-        return handle
-
-
-router = APIRouter(tags=["marks"], route_class=MarkRoute)
+router = APIRouter(tags=["marks"])
 
 
 def get_mark_service(session: SessionDep, container: ContainerDep) -> MarkService:

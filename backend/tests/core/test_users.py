@@ -10,13 +10,13 @@ from sqlmodel import Session, select
 
 from app.container import Container
 from app.core import db
+from app.domain.errors import Invalid
 from app.hooks import Hooks
 from app.lanes import core as core_lane
 from app.main import create_app
 from app.scheduler.loop import Scheduler
 from app.services.circles import CircleNotFound, CircleService, NotCircleOwner
 from app.services.users import (
-    InvalidRequest,
     SqlUserGateway,
     UserNotFound,
     UserService,
@@ -214,7 +214,7 @@ def test_default_circles_must_be_owned(users: UserService, world: Session) -> No
     theirs = Circle(owner_id="tony", name="Tony's")
     world.add(theirs)
     world.commit()
-    with pytest.raises(InvalidRequest):
+    with pytest.raises(Invalid):
         users.update_settings("anish", {"default_circle_ids": [theirs.id]})
 
 
@@ -321,7 +321,7 @@ def test_user_gateway_adds_autojoin_idempotently(
     assert [(r.user_id, r.other_user_id) for r in rows] == [("tony", "anish")]
     with pytest.raises(UserNotFound):
         gateway.add_autojoin("tony", "ghost")
-    with pytest.raises(InvalidRequest):
+    with pytest.raises(Invalid):
         gateway.add_autojoin("tony", "tony")
 
 

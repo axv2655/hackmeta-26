@@ -14,12 +14,12 @@ from datetime import datetime
 from fastapi import APIRouter, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.deps_core import CoreRoute, CurrentUserDep, UserServiceDep
+from app.api.deps_core import CurrentUserDep, UserServiceDep
 from app.ports import Category
 from app.services.users import FriendTier
 from app.tables import User
 
-router = APIRouter(tags=["users"], route_class=CoreRoute)
+router = APIRouter(tags=["users"])
 
 
 class UserLite(BaseModel):

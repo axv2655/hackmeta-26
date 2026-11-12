@@ -14,24 +14,20 @@ from typing import Any
 
 from sqlmodel import Session, col, delete, select
 
-from app.services.users import (
-    ForbiddenError,
-    InvalidRequest,
-    NotFoundError,
-    require_users,
-)
+from app.domain.errors import Forbidden, Invalid, NotFound
+from app.services.users import require_users
 from app.tables import Circle, CircleMember, User, UserSettings
 
 MAX_NAME_LENGTH = 60
 EDITABLE = frozenset({"name", "emoji", "fb_group_name", "member_ids"})
 
 
-class CircleNotFound(NotFoundError):
+class CircleNotFound(NotFound):
     def __init__(self, circle_id: str) -> None:
         super().__init__(f"Circle {circle_id!r} not found")
 
 
-class NotCircleOwner(ForbiddenError):
+class NotCircleOwner(Forbidden):
     def __init__(self, circle_id: str) -> None:
         super().__init__(f"Only the owner can change Circle {circle_id!r}")
 
@@ -45,9 +41,9 @@ class CircleView:
 def clean_name(name: str) -> str:
     cleaned = name.strip()
     if not cleaned:
-        raise InvalidRequest("A Circle needs a name")
+        raise Invalid("A Circle needs a name")
     if len(cleaned) > MAX_NAME_LENGTH:
-        raise InvalidRequest(f"Circle names are at most {MAX_NAME_LENGTH} characters")
+        raise Invalid(f"Circle names are at most {MAX_NAME_LENGTH} characters")
     return cleaned
 
 
@@ -88,9 +84,9 @@ class CircleService:
         """Apply only the keys present in `changes` (any of `EDITABLE`);
         `member_ids` replaces the whole member set."""
         if unknown := set(changes) - EDITABLE:
-            raise InvalidRequest(f"Cannot change: {', '.join(sorted(unknown))}")
+            raise Invalid(f"Cannot change: {', '.join(sorted(unknown))}")
         if nulled := {k for k, v in changes.items() if v is None} - {"fb_group_name"}:
-            raise InvalidRequest(f"Cannot clear: {', '.join(sorted(nulled))}")
+            raise Invalid(f"Cannot clear: {', '.join(sorted(nulled))}")
         circle = self._owned(owner_id, circle_id)
         if "name" in changes:
             circle.name = clean_name(changes["name"])

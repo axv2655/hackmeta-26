@@ -1,4 +1,5 @@
-"""Errors raised by the core domain and services (Moves, Marks, participants).
+"""Errors raised by the core domain and services (Moves, Marks, participants,
+people, Circles).
 
 Each concrete error derives from exactly one *kind*, and the kind alone decides
 the HTTP status, so `app/api/errors.py` needs one handler per kind, not per

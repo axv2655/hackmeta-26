@@ -29,6 +29,10 @@ const ME = 'Alex Rivera'
 const FRIENDS = ['Priya Shah', 'Marcus Lee', 'Sofia Gomez', 'Jordan Kim', 'Ava Chen', 'Noah Patel', 'Lena Novak', 'Omar Haddad']
 // Facebook sidebar sprites (Meta-provided assets): [label, sheet, y-offset]
 const SHORTCUTS = [['Meta AI', 'meta-ai', 0], ['Friends', 'sidebar', -851], ['Pages', 'sidebar', -333], ['Groups', 'sidebar', -185], ['Memories', 'sidebar', -1221], ['Saved', 'sidebar', -518], ['Reels', 'sidebar', -111], ['Marketplace', 'sidebar', -999]]
+const ADS = [
+  { title: 'Download Claude Code for desktop', domain: 'claude.com/product/claude-code', img: '/fb/ad-claude-code.jpg' },
+  { title: 'Eleven v4 Turbo: the API for expressive real-time voice', domain: 'elevenlabs.io', img: '/fb/ad-elevenlabs.jpg' },
+]
 const INITIAL_POSTS = [
   { id: 1, author: 'Priya Shah', time: '2h', text: 'Sunrise hike this morning. Worth the 5am alarm.', image: 200, likes: 128, comments: [{ author: 'Marcus Lee', text: 'Unreal view!' }], shares: 4 },
   { id: 2, author: 'Marcus Lee', time: '5h', text: 'Shipped our hackathon project at 3am. Sleep is for the weak. 🚀', likes: 54, comments: [], shares: 1 },
@@ -88,6 +92,14 @@ function RightRail() {
       <h3>Contacts</h3>
       {FRIENDS.map((f) => (
         <a key={f} className="rail-item"><span className="online"><Avatar name={f} size={36} /></span>{f}</a>
+      ))}
+      <div className="divider" />
+      <h3>Sponsored</h3>
+      {ADS.map((ad) => (
+        <a key={ad.title} className="ad">
+          <img className="ad-img" src={ad.img} alt="" />
+          <span><span className="ad-title">{ad.title}</span><span className="muted">{ad.domain}</span></span>
+        </a>
       ))}
     </aside>
   )

@@ -14,8 +14,9 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.db import SessionDep
+from app.muse.compose import ComposeService
 from app.muse.http import CurrentUser, LaneDep
-from app.muse.schemas import picks_out
+from app.muse.schemas import MoveDraftRead, picks_out
 from app.services.notify import NotifyService
 
 router = APIRouter(tags=["muse"])
@@ -43,3 +44,39 @@ async def notify_preview(
         user_ids=body.user_ids,
     )
     return picks_out(session, picks)
+
+
+class ComposeBody(BaseModel):
+    lat: float | None = None
+    lng: float | None = None
+    mark_id: str | None = None
+    seed_text: str | None = None
+    heuristic: bool = False
+    """True: templates only, instant. Call again without it for Muse's draft."""
+
+
+@router.post("/muse/compose-move", response_model=MoveDraftRead)
+async def compose_move(
+    body: ComposeBody, session: SessionDep, user: CurrentUser, lane: LaneDep
+) -> MoveDraftRead:
+    """`MoveDraft` for the composer. `lat/lng` are used for this query only and
+    never stored. `confirm_place` asks the UI to show "Is this X?"."""
+    coarse = (
+        (round(body.lat, 3), round(body.lng, 3))
+        if body.lat is not None and body.lng is not None
+        else None
+    )
+    composed = await ComposeService(session, lane).compose(
+        user.id,
+        mark_id=body.mark_id,
+        seed_text=body.seed_text,
+        coarse=coarse,
+        heuristic=body.heuristic,
+    )
+    return MoveDraftRead.of(
+        session,
+        composed.draft,
+        mark=composed.mark,
+        confirm_place=composed.confirm_place,
+        source=composed.source,
+    )

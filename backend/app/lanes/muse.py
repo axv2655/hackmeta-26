@@ -14,6 +14,7 @@ from app.container import Container
 from app.core import db
 from app.hooks import Hooks
 from app.muse.client import MuseClient, client_from_settings
+from app.muse.compose import ComposeService
 from app.muse.lane import MuseLane
 from app.scheduler.loop import Scheduler
 from app.services.notify import MuseNotifier, NotifyService
@@ -55,5 +56,23 @@ def register(
     gateway.bind("notify_preview", notify_preview)
     hooks.on_move_created.register(on_move_created)
     hooks.on_move_joined.register(on_move_joined)
+
+    # M5: Move writer + place resolver behind compose_move / resolve_place
+    async def compose_move(user_id, *, mark_id=None, seed_text=None, coarse=None):
+        composed = await lane.call(
+            ComposeService,
+            "compose",
+            user_id,
+            mark_id=mark_id,
+            seed_text=seed_text,
+            coarse=coarse,
+        )
+        return composed.draft
+
+    async def resolve_place(user_id, **kw):
+        return await lane.call(ComposeService, "resolve_place", user_id, **kw)
+
+    gateway.bind("compose_move", compose_move)
+    gateway.bind("resolve_place", resolve_place)
 
     return lane

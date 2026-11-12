@@ -16,6 +16,7 @@ from app.core import db
 from app.hooks import Hooks
 from app.muse.agents.flare import FlareScanner
 from app.muse.agents.move_ranker import MoveRanker
+from app.muse.agents.nobody_bit import NobodyBitService
 from app.muse.agents.revive import ReviveService
 from app.muse.client import MuseClient, client_from_settings
 from app.muse.compose import ComposeService
@@ -118,5 +119,15 @@ def register(
 
     gateway.bind("run_revive_scan", run_revive_scan)
     scheduler.register("muse_pseudo_groups", daily_pseudo_groups, interval_s=86400)
+
+    # M10: nobody-bit path for quiet Moves
+    async def run_nobody_bit(move_id: str):
+        return await lane.call(NobodyBitService, "run", move_id)
+
+    async def nobody_bit_scan() -> int:
+        return await lane.call(NobodyBitService, "scan")
+
+    gateway.bind("run_nobody_bit", run_nobody_bit)
+    scheduler.register("muse_nobody_bit", nobody_bit_scan, interval_s=60)
 
     return lane

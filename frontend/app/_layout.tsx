@@ -1,0 +1,43 @@
+import { StyleSheet } from 'react-native';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import { SplashOverlay } from '@/components/fb/SplashOverlay';
+import { colors } from '@/lib/theme';
+
+// Keeps the tabs underneath when a deep link opens /post/new or /post/share directly.
+export const unstable_settings = {
+  initialRouteName: '(tabs)',
+};
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.white },
+          }}
+        >
+          <Stack.Screen name="(tabs)" />
+          {/* The composer slides up over the whole app, like Facebook's. */}
+          <Stack.Screen
+            name="post/new"
+            options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen name="post/share" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <SplashOverlay />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.white },
+});

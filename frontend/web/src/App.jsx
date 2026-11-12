@@ -2,10 +2,11 @@ import { useState } from 'react'
 import * as L from 'lucide-react'
 
 // drop-in icons: src/assets/icons/<name>.svg overrides the bundled Lucide fallback
-const FILES = import.meta.glob('./assets/icons/*.svg', { eager: true, query: '?url', import: 'default' })
+const FILES = import.meta.glob('./assets/icons/*.svg', { eager: true, query: '?raw', import: 'default' })
 const pick = (name, Fallback) => {
-  const url = FILES[`./assets/icons/${name}.svg`]
-  return url ? ({ size = 24 }) => <img src={url} width={size} height={size} alt="" /> : Fallback
+  const svg = FILES[`./assets/icons/${name}.svg`]
+  // inline markup (local trusted files) so fill="currentColor" follows CSS color
+  return svg ? ({ size = 24 }) => <span aria-hidden="true" style={{ display: 'inline-flex' }} dangerouslySetInnerHTML={{ __html: svg.replace('<svg', `<svg width="${size}" height="${size}"`) }} /> : Fallback
 }
 const Home = pick('home', L.Home)
 const MonitorPlay = pick('video', L.MonitorPlay)

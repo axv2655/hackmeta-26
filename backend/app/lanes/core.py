@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.hooks import Hooks
 from app.realtime import ConnectionHub
 from app.scheduler.loop import Scheduler
+from app.services.users import SqlUserGateway
 
 
 def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:
@@ -24,3 +25,6 @@ def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:
 
     # C9: realtime hub
     container.events = ConnectionHub(container.clock)
+
+    # C7: users
+    container.users = SqlUserGateway(db.engine, container.clock)

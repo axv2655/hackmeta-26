@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import HttpUrl
+from pydantic import HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str = "http://localhost:8081"
     FASTAPI_ENV: Literal["development", "staging", "production"] = "development"
     SENTRY_DSN: HttpUrl | None = None
+    # Held as a secret so the password never shows up in a repr or a log line.
+    # Read it with `settings.DATABASE_URL.get_secret_value()`.
+    DATABASE_URL: SecretStr | None = None
 
 
 settings = Settings()

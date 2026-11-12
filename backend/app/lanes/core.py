@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.hooks import Hooks
 from app.realtime import ConnectionHub
 from app.scheduler.loop import Scheduler
+from app.services.moves import SqlMoveGateway
 from app.services.users import SqlUserGateway
 
 
@@ -28,3 +29,8 @@ def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:
 
     # C7: users
     container.users = SqlUserGateway(db.engine, container.clock)
+
+    # C4: moves, and the stale-Move job (ARCHITECTURE.md 7.3)
+    moves = SqlMoveGateway(db.engine, container.clock, container.events, hooks)
+    container.moves = moves
+    scheduler.register("end_stale_moves", moves.end_stale, interval_s=60)

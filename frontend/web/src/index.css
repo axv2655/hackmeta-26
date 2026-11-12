@@ -189,7 +189,7 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
 .grid { display: grid; gap: 12px; }
 .listings { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 .listing { display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
-.listing-img { aspect-ratio: 1; border-radius: 8px; background-size: cover; margin-bottom: 6px; }
+.listing-img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; margin-bottom: 6px; background: var(--hover); }
 .listing b { font-size: 17px; }
 .clip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .group-pic { width: 60px; height: 60px; border-radius: 8px; flex-shrink: 0; }

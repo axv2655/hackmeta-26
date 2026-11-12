@@ -388,7 +388,9 @@ function SideNav({ title, items, gear = true, search, children }) {
   )
 }
 
-const LISTINGS = [['$360', 'Vintage film camera', 'Grapevine, TX'], ['$1', 'Box of paperback books', 'Irving, TX'], ['$2,500', '2012 sport motorcycle', 'Euless, TX'], ['$80', 'Fly fishing gear', 'Durant, OK'], ['$900', 'Upright piano', 'Lewisville, TX'], ['$150', 'Leather sofa', 'Denton, TX'], ['$120', 'Ping pong table', 'Flower Mound, TX'], ['$450', 'Laptop, like new', 'Plano, TX']]
+// photos: public Marketplace listings saved for the demo; titles/cities are our own
+const LISTINGS = [['$360', 'Camera sculpture, one of a kind', 'Grapevine, TX', 'camera'], ['$200', 'Steel watch collection', 'McKinney, TX', 'watches'], ['$2,500', '2012 sport motorcycle', 'Euless, TX', 'motorcycle'], ['$80', 'Fly fishing gear', 'Durant, OK', 'fishing'], ['$900', 'Baby grand piano', 'Lewisville, TX', 'piano'], ['$150', 'Leather sofa', 'Denton, TX', 'sofa'], ['$120', 'Ping pong table', 'Flower Mound, TX', 'pingpong'], ['$450', 'Laptop, like new', 'Plano, TX', 'laptop']]
+
 const CreateListing = mp('create-new-listing')
 const MARKET_CATEGORIES = [['Vehicles', mp('vehicles')], ['Property Rentals', mp('property-rentals')], ['Apparel', spr('market', -260)], ['Classifieds', mp('classifieds')], ['Electronics', mp('electronics')], ['Entertainment', mp('entertainment')], ['Family', mp('family')], ['Free Stuff', mp('free-stuff')], ['Garden & Outdoor', mp('garden-outdoor')], ['Hobbies', spr('market', -134)], ['Home Goods', mp('home-goods')], ['Home Improvement Supplies', mp('home-improvement-supplies')], ['Home Sales', mp('home-sales')], ['Musical Instruments', mp('musical-instruments')], ['Office Supplies', mp('office-supplies')], ['Pet Supplies', mp('pet-supplies')], ['Sporting Goods', mp('sporting-goods')], ['Toys & Games', spr('market', -176)]]
 
@@ -408,9 +410,9 @@ function Marketplace() {
       <main className="page-main">
         <div className="row between"><h2>Today&apos;s picks</h2><a className="blue row"><L.MapPin size={16} /> Lewisville · 40 mi</a></div>
         <div className="grid listings">
-          {LISTINGS.map(([price, title, city], i) => (
+          {LISTINGS.map(([price, title, city, img]) => (
             <a key={title} className="listing">
-              <span className="listing-img" style={{ backgroundImage: art(i * 47) }} />
+              <img className="listing-img" src={`/fb/listings/${img}.jpg`} alt={title} loading="lazy" />
               <b>{price}</b><span className="clip">{title}</span><span className="muted">{city}</span>
             </a>
           ))}

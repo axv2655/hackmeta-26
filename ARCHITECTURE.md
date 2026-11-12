@@ -230,7 +230,8 @@ hackmeta-26/
     │   │   ├── index.tsx           Feed (mock, with Move cards and Muse cards)
     │   │   ├── reels.tsx           Reels feed with place chip
     │   │   ├── moves.tsx           Map of Marks (the core surface)
-        │   │   ├── notifications.tsx
+    │   │   ├── profile.tsx         mock Facebook profile
+    │   │   ├── notifications.tsx
     │   │   └── menu.tsx            profile, Circles, privacy, saved, leaderboards, demo
     │   ├── move/new.tsx            composer (modal)
     │   ├── move/[id].tsx           Move detail
@@ -448,10 +449,18 @@ saved_reels        user_id, reel_id, saved_at
 
 The app must read as "this is Facebook with a new tab", not as a separate app.
 
-- Bottom tab bar in Facebook's order and style: **Home · Reels · Moves · Notifications ·
-  Menu** (a Marketplace icon may sit in the bar as a non-functional mock). Moves takes the slot where Friends/Groups would be.
-- Header: wordmark-style title on the left, search and Messenger-style icons on the right.
-  Use our own drawn assets and a similar blue; do not ship Meta's actual logo files.
+- Bottom tab bar in Facebook's order and style: **Home · Reels · Moves · Profile ·
+  Notifications · Menu** (six tabs, matching the current Facebook iOS bar). Moves takes
+  the slot where Friends would be.
+- Header: the Facebook wordmark on the left; plus, search and Messenger icons on the right
+  (flat black, no gray circles).
+- Logos (team decision): the mock uses the real Facebook wordmark, f logo and Meta logo,
+  as SVG path data in `frontend/assets/brand/` and `components/fb/brand/`. Generic icons
+  come from `lucide-react-native`; Facebook-specific glyphs are drawn in
+  `components/ui/Icon.tsx`.
+- Mock content uses the seeded cast and invented pages ("Kumo Matcha", "UTD Climbing",
+  "Richardson Now"), never real brands or news outlets. Placeholder photos are bundled
+  under `frontend/assets/mock/` (Unsplash photos, randomuser.me portraits).
 - Home feed is a static list of mock posts with two live inserts: **Move cards** from
   friends ("Tony is at Kumo Matcha with 2 others · I'm going") and **Muse cards**
   (pending `suggestions`).

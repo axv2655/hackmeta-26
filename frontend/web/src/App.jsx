@@ -23,17 +23,12 @@ const Share2 = pick('share', L.Share2)
 const Video = pick('live', L.Video)
 const Image = pick('photo', L.Image)
 const Smile = pick('feeling', L.Smile)
-const UserRound = pick('friends', L.UserRound)
-const Clock = pick('memories', L.Clock)
-const Bookmark = pick('saved', L.Bookmark)
-const LayoutGrid = pick('more', L.LayoutGrid)
-const Rss = pick('feeds', L.Rss)
-const CalendarDays = pick('events', L.CalendarDays)
 const Plus = pick('plus', L.Plus)
 
 const ME = 'Alex Rivera'
 const FRIENDS = ['Priya Shah', 'Marcus Lee', 'Sofia Gomez', 'Jordan Kim', 'Ava Chen', 'Noah Patel', 'Lena Novak', 'Omar Haddad']
-const SHORTCUTS = [['Friends', UserRound], ['Memories', Clock], ['Saved', Bookmark], ['Groups', Users], ['Video', MonitorPlay], ['Marketplace', Store], ['Feeds', Rss], ['Events', CalendarDays], ['More', LayoutGrid]]
+// Facebook sidebar sprites (Meta-provided assets): [label, sheet, y-offset]
+const SHORTCUTS = [['Meta AI', 'meta-ai', 0], ['Friends', 'sidebar', -851], ['Pages', 'sidebar', -333], ['Groups', 'sidebar', -185], ['Memories', 'sidebar', -1221], ['Saved', 'sidebar', -518], ['Reels', 'sidebar', -111], ['Marketplace', 'sidebar', -999]]
 const INITIAL_POSTS = [
   { id: 1, author: 'Priya Shah', time: '2h', text: 'Sunrise hike this morning. Worth the 5am alarm.', image: 200, likes: 128, comments: [{ author: 'Marcus Lee', text: 'Unreal view!' }], shares: 4 },
   { id: 2, author: 'Marcus Lee', time: '5h', text: 'Shipped our hackathon project at 3am. Sleep is for the weak. 🚀', likes: 54, comments: [], shares: 1 },
@@ -80,7 +75,8 @@ function LeftRail() {
   return (
     <aside className="left-rail">
       <a className="rail-item"><Avatar name={ME} size={36} /> {ME}</a>
-      {SHORTCUTS.map(([s, I]) => <a key={s} className="rail-item"><span className="rail-icon"><I size={20} /></span>{s}</a>)}
+      {SHORTCUTS.map(([s, sheet, y]) => <a key={s} className="rail-item"><i className="sprite" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `0 ${y}px` }} />{s}</a>)}
+      <a className="rail-item"><span className="rail-icon see-more"><L.ChevronDown size={20} /></span>See more</a>
       <footer className="rail-footer">Hackathon demo, not affiliated with Meta. Third-party icons © their respective owners, used with permission.</footer>
     </aside>
   )

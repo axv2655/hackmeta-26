@@ -121,19 +121,25 @@ function NotifPanel({ notifs, setNotifs }) {
   )
 }
 
-function TopNav() {
-  const [open, setOpen] = useState(null)
-  const [notifs, setNotifs] = useState(NOTIFS)
+// closes a popover on outside click or Esc
+function useDismiss(open, setOpen) {
   const ref = useRef(null)
-  const toggle = (k) => setOpen((o) => (o === k ? null : k))
-  const unread = notifs.filter((n) => n.unread).length
   useEffect(() => {
     if (!open) return
-    const close = (e) => { if (e.key === 'Escape' || (e.type === 'mousedown' && !ref.current.contains(e.target))) setOpen(null) }
+    const close = (e) => { if (e.key === 'Escape' || (e.type === 'mousedown' && !ref.current?.contains(e.target))) setOpen(null) }
     document.addEventListener('mousedown', close)
     document.addEventListener('keydown', close)
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close) }
-  }, [open])
+  }, [open, setOpen])
+  return ref
+}
+
+function TopNav() {
+  const [open, setOpen] = useState(null)
+  const [notifs, setNotifs] = useState(NOTIFS)
+  const ref = useDismiss(open, setOpen)
+  const toggle = (k) => setOpen((o) => (o === k ? null : k))
+  const unread = notifs.filter((n) => n.unread).length
   return (
     <header className="topnav">
       <div className="topnav-left">
@@ -172,7 +178,34 @@ function LeftRail() {
   )
 }
 
+const AD_MENU = [['Hide Ad', L.SquareX, 'Never see this ad again.'], ['Report ad', L.MessageSquareWarning, 'Tell us about a problem with this ad.'], ['Why am I seeing this ad?', L.Info], ['About this ad', L.FileText]]
+
+function Ad({ ad, onHide }) {
+  const [open, setOpen] = useState(null)
+  const ref = useDismiss(open, setOpen)
+  return (
+    <div className={`ad ${open ? 'menu-open' : ''}`} ref={ref}>
+      <img className="ad-img" src={ad.img} alt="" />
+      <span><span className="ad-title">{ad.title}</span><span className="muted">{ad.domain}</span></span>
+      <span className="ad-tools">
+        <button className="ad-tool" aria-label="Ad options" aria-expanded={!!open} onClick={() => setOpen(open ? null : 'menu')}><L.Ellipsis size={20} /></button>
+        <button className="ad-tool" aria-label="Hide ad" onClick={onHide}><L.X size={20} /></button>
+      </span>
+      {open && (
+        <div className="dropdown ad-menu" role="menu">
+          {AD_MENU.map(([label, I, sub]) => (
+            <button key={label} className="menu-row" role="menuitem" onClick={() => { setOpen(null); if (label === 'Hide Ad') onHide() }}>
+              <I size={20} /><span className="grow">{label}{sub && <span className="muted sub">{sub}</span>}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RightRail() {
+  const [ads, setAds] = useState(ADS)
   return (
     <aside className="right-rail">
       <h3>Contacts</h3>
@@ -181,12 +214,7 @@ function RightRail() {
       ))}
       <div className="divider" />
       <h3>Sponsored</h3>
-      {ADS.map((ad) => (
-        <a key={ad.title} className="ad">
-          <img className="ad-img" src={ad.img} alt="" />
-          <span><span className="ad-title">{ad.title}</span><span className="muted">{ad.domain}</span></span>
-        </a>
-      ))}
+      {ads.map((ad) => <Ad key={ad.title} ad={ad} onHide={() => setAds((a) => a.filter((x) => x !== ad))} />)}
     </aside>
   )
 }

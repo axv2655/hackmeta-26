@@ -10,6 +10,7 @@ from app.core.clock import DemoClock, SystemClock
 from app.core.config import settings
 from app.hooks import Hooks
 from app.scheduler.loop import Scheduler
+from app.services.users import SqlUserGateway
 
 
 def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:
@@ -20,3 +21,6 @@ def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:
         container.time_control = clock
     else:
         container.clock = SystemClock()
+
+    # C7: users
+    container.users = SqlUserGateway(db.engine, container.clock)

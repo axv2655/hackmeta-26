@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection, success } from '@/lib/haptics';
+import { shareMove } from '@/lib/invites';
+import { currentUser } from '@/lib/mock';
 import { bitmojiFor } from '@/lib/mock/bitmoji';
 import { CATEGORY_META, me, type MapMove } from '@/lib/mock/moves';
 import { colors, spacing } from '@/lib/theme';
@@ -316,7 +318,21 @@ function MoveCard({
             style={styles.flex}
           />
         )}
-        <Button title="Message" icon="message" variant="secondary" style={styles.flex} />
+        {/* Friends outside the group get a no-login link, sent from your own phone (9.4). */}
+        <Button
+          title="Share"
+          icon="share-external"
+          variant="secondary"
+          style={styles.flex}
+          onPress={() =>
+            shareMove({
+              moveId: move.id,
+              markName: move.mark.name,
+              creatorFirst: move.user.firstName,
+              inviterFirst: currentUser.firstName,
+            })
+          }
+        />
       </View>
     </BottomSheetScrollView>
   );

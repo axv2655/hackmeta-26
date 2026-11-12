@@ -15,6 +15,7 @@ from app.domain.errors import (
     MoveNotFound,
     MoveNotLive,
     NotMoveCreator,
+    UnverifiedOpenMove,
 )
 from app.hooks import Hooks
 from app.ports import MoveCreate, MoveGateway
@@ -58,13 +59,13 @@ class HookLog:
 @pytest.fixture
 def world(session: Session) -> Session:
     """ana owns Circle "crew" (bo, cy); dee is a stranger; ana blocks mom;
-    zed is verified for open Moves."""
+    ana and zed are verified for open Moves."""
     session.add_all(
         User(
             id=u,
             name=u.title(),
             first_name=u.title(),
-            fb_verified=u in {"zed", "mom"},
+            fb_verified=u in {"ana", "zed", "mom"},
             created_at=T0,
         )
         for u in USERS
@@ -157,6 +158,18 @@ def test_create_persists_move_creator_and_audience(
             },
         )
     ]
+
+
+def test_unverified_user_cannot_post_open_move(
+    service: MoveService, world: Session, events: RecordingPublisher
+) -> None:
+    with pytest.raises(UnverifiedOpenMove):
+        run(service.create("bo", draft(circle_ids=(), user_ids=("ana",), open=True)))
+    assert world.exec(select(MoveRow)).all() == []
+    assert events.published == []
+
+    closed = run(service.create("bo", draft(circle_ids=(), user_ids=("ana",))))
+    assert not closed.open
 
 
 def test_create_with_creator_there(service: MoveService) -> None:
@@ -273,6 +286,28 @@ def test_everyone_left_ends_the_move(
     )
     assert log.calls[-1] == ("on_move_ended", (move_id,))
     assert service.get("ana", move_id).status == "ended"
+
+
+def test_notify_list_is_limited_to_the_audience(service: MoveService) -> None:
+    picks = ("cy", "mom", "dee", "ana", "zed", "cy")
+    move = run(service.create("ana", draft(user_ids=("dee",), notify_user_ids=picks)))
+    assert move.notify_user_ids == ("cy", "dee")
+    assert run(service.create("ana", draft())).notify_user_ids is None
+
+
+def test_later_block_leaves_audience_and_audience_line(
+    service: MoveService, world: Session
+) -> None:
+    move_id = create(service, user_ids=("dee",))
+    assert service.audience_ids(move_id) == {"bo", "cy", "dee"}
+
+    world.add(Block(user_id="ana", hidden_from_user_id="cy"))
+    world.commit()
+    assert service.audience_ids(move_id) == {"bo", "dee"}
+    preview = service.audience_preview(move_id)
+    assert preview.count == 2
+    assert [u.id for u in preview.people] == ["bo", "dee"]
+    assert service.audience_ids("nope") == frozenset()
 
 
 def test_open_ble_join_widens_audience(service: MoveService, log: HookLog) -> None:

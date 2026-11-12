@@ -33,7 +33,7 @@ opens one short session per call on the engine it was given.
 
 import logging
 from collections.abc import Awaitable, Callable, Collection, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import Any
 
@@ -42,6 +42,7 @@ from sqlmodel import Session
 
 from app.domain import moves as rules
 from app.domain.errors import IllegalTransition, MoveNotFound
+from app.domain.privacy import within_audience
 from app.hooks import Hook, Hooks
 from app.ports import (
     Clock,
@@ -112,12 +113,18 @@ class MoveService:
         return self.moves.list_live_visible(viewer_id)
 
     def audience_ids(self, move_id: str) -> frozenset[str]:
-        return self.moves.audience_ids(move_id)
+        """The stored audience minus anyone the creator has blocked since
+        posting: exactly the audience members `can_see` still admits, so the
+        notify pipeline never reaches someone who cannot open the Move."""
+        vis = self._audience_repo.move_visibility(move_id)
+        if vis is None:
+            return frozenset()
+        return vis.audience_ids - vis.hidden_from_ids
 
     def audience_preview(self, move_id: str) -> AudiencePreview:
-        """The stored audience as an AudienceLine (7.2). Show it to the
-        Move's creator only."""
-        ids = self.moves.audience_ids(move_id)
+        """The audience as an AudienceLine (7.2), without later blocks. Show
+        it to the Move's creator only."""
+        ids = self.audience_ids(move_id)
         return AudiencePreview(
             count=len(ids),
             circles=tuple(
@@ -141,10 +148,18 @@ class MoveService:
 
     async def create(self, creator_id: str, draft: MoveCreate) -> MoveSnapshot:
         """Validate, resolve the audience (C2), store the Move with its creator
-        participant and audience (C3), then announce it. Raises `InvalidMove`
-        or `MarkNotFound`."""
+        participant and audience (C3), then announce it. Raises `InvalidMove`,
+        `MarkNotFound`, or `UnverifiedOpenMove` for an open Move by an
+        unverified user (12.3). The notify list keeps only audience members."""
+        creator = self.session.get(User, creator_id)
+        rules.require_may_post(
+            draft, creator_verified=creator is not None and creator.fb_verified
+        )
         new = rules.plan_move(creator_id, draft, self.clock.now())
         audience = self.audience.resolve(creator_id, draft.circle_ids, draft.user_ids)
+        new = replace(
+            new, notify_user_ids=within_audience(new.notify_user_ids, audience)
+        )
         move = self.moves.create(new, audience)
         outbox = _Outbox()
         outbox.publish(

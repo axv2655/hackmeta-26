@@ -9,7 +9,12 @@ from sqlalchemy import Engine
 from sqlmodel import Session, col, select
 
 from app.core.db import get_session
-from app.domain.privacy import MoveVisibility, can_see, resolve_audience
+from app.domain.privacy import (
+    MoveVisibility,
+    can_see,
+    resolve_audience,
+    within_audience,
+)
 from app.main import create_app
 from app.repositories.audience import SqlAudienceRepository, visible_to
 from app.services.audience import AudienceService
@@ -137,6 +142,13 @@ class TestResolveAudience:
 
     def test_blocked_direct_pick_is_dropped(self) -> None:
         assert len(resolve_audience("ana", {}, ["mom"], {"mom"})) == 0
+
+    def test_within_audience_limits_dedupes_and_keeps_none(self) -> None:
+        resolved = resolve_audience("ana", {"c1": ["bo", "cy"]}, [], {"mom"})
+        picks = ["cy", "mom", "ana", "dee", "bo", "cy"]
+        assert within_audience(picks, resolved) == ("cy", "bo")
+        assert within_audience(None, resolved) is None
+        assert within_audience([], resolved) == ()
 
 
 # --- Service and repository --------------------------------------------------

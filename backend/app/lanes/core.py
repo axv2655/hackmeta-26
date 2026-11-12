@@ -9,6 +9,7 @@ from app.core import db
 from app.core.clock import DemoClock, SystemClock
 from app.core.config import settings
 from app.hooks import Hooks
+from app.realtime import ConnectionHub
 from app.scheduler.loop import Scheduler
 
 
@@ -20,3 +21,6 @@ def register(container: Container, hooks: Hooks, scheduler: Scheduler) -> None:
         container.time_control = clock
     else:
         container.clock = SystemClock()
+
+    # C9: realtime hub
+    container.events = ConnectionHub(container.clock)

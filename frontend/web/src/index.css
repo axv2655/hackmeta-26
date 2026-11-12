@@ -145,6 +145,14 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
 .react-stack img { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--card); box-sizing: content-box; }
 .react-stack img + img { margin-left: -4px; }
 .react-stack img:first-child { position: relative; z-index: 2; }
+/* hover tooltip: dark pill centered under the control */
+[data-tip] { position: relative; }
+[data-tip]::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 30; padding: 8px 12px; border-radius: 8px; background: rgba(51, 51, 51, .9); color: #fff; font-size: 15px; font-weight: 400; line-height: 1.2; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .1s; }
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transition-delay: .3s; }
+[data-tip][aria-expanded="true"]::after { display: none; }
+.circle-btn:focus-visible, .me-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.me-btn[data-tip]::after { left: auto; right: 0; transform: none; } /* keep the rightmost tip on screen */
+
 /* ad hover tools + options menu */
 .ad { position: relative; }
 .ad-tools { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: none; gap: 8px; }

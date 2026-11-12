@@ -152,12 +152,12 @@ function TopNav() {
         ))}
       </nav>
       <div className="topnav-right" ref={ref}>
-        <button className="circle-btn" aria-label="Menu" title="Menu"><Menu size={20} /></button>
-        <button className="circle-btn" aria-label="Messenger" title="Messenger"><MessageCircle size={20} /></button>
-        <button className={`circle-btn ${open === 'notifs' ? 'on' : ''}`} aria-label="Notifications" aria-expanded={open === 'notifs'} onClick={() => toggle('notifs')}>
+        <button className="circle-btn" aria-label="Menu" data-tip="Menu"><Menu size={20} /></button>
+        <button className="circle-btn" aria-label="Messenger" data-tip="Messenger"><MessageCircle size={20} /></button>
+        <button className={`circle-btn ${open === 'notifs' ? 'on' : ''}`} aria-label="Notifications" data-tip="Notifications" aria-expanded={open === 'notifs'} onClick={() => toggle('notifs')}>
           <Bell size={20} />{unread > 0 && <span className="badge">{unread}</span>}
         </button>
-        <button className="me-btn" aria-label="Your profile" aria-expanded={open === 'profile'} onClick={() => toggle('profile')}>
+        <button className="me-btn" aria-label="Your profile" data-tip="Account" aria-expanded={open === 'profile'} onClick={() => toggle('profile')}>
           <Avatar name={ME} size={40} /><span className="me-chev"><L.ChevronDown size={12} strokeWidth={3} /></span>
         </button>
         {open === 'profile' && <ProfileMenu />}
@@ -246,9 +246,9 @@ function Composer({ onPost }) {
       <div className="row">
         <Avatar name={ME} />
         <input className="pill-input" value={text} onChange={(e) => setText(e.target.value)} placeholder={`What's on your mind, ${ME.split(' ')[0]}?`} aria-label="Create post" />
-        <button type="button" className="icon-btn" aria-label="Live video" title="Live video"><img src="/fb/live.webp" width="24" height="24" alt="" /></button>
-        <button type="button" className="icon-btn" aria-label="Photo/video" title="Photo/video"><img src="/fb/photo.webp" width="24" height="24" alt="" /></button>
-        <button type="button" className="icon-btn" aria-label="Feeling/activity" title="Feeling/activity"><img src="/fb/feeling.webp" width="24" height="24" alt="" /></button>
+        <button type="button" className="icon-btn" aria-label="Live video" data-tip="Live video"><img src="/fb/live.webp" width="24" height="24" alt="" /></button>
+        <button type="button" className="icon-btn" aria-label="Photo/video" data-tip="Photo/video"><img src="/fb/photo.webp" width="24" height="24" alt="" /></button>
+        <button type="button" className="icon-btn" aria-label="Feeling/activity" data-tip="Feeling/activity"><img src="/fb/feeling.webp" width="24" height="24" alt="" /></button>
       </div>
     </form>
   )

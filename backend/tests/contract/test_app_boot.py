@@ -47,7 +47,7 @@ def test_default_app_boots_with_all_lanes_registered() -> None:
 
 def test_every_route_module_is_included_in_api_router() -> None:
     modules = {path.stem for path in ROUTES_DIR.glob("*.py")} - {"__init__"}
-    tree = ast.parse(API_MAIN.read_text())
+    tree = ast.parse(API_MAIN.read_text(encoding="utf-8"))
     included = {
         node.args[0].value.id
         for node in ast.walk(tree)

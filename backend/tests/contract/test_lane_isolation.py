@@ -149,7 +149,7 @@ def test_no_lane_imports_another_lane() -> None:
         problem
         for module, path in _source_files()
         for problem in violations(
-            path.read_text(), module, is_package=path.name == "__init__.py"
+            path.read_text(encoding="utf-8"), module, is_package=path.name == "__init__.py"
         )
     ]
     assert found == []

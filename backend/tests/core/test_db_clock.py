@@ -112,7 +112,9 @@ def test_only_the_clock_reads_the_wall_clock() -> None:
         f"{path.relative_to(APP_DIR)}:{number}"
         for path in sorted(APP_DIR.rglob("*.py"))
         if path.resolve() != allowed
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        for number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        )
         if WALL_CLOCK.search(line)
     ]
     assert offenders == []

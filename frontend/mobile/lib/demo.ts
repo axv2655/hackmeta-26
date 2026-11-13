@@ -1,8 +1,9 @@
 import { isOffline } from './backend';
 
 /**
- * Demo build switch (`EXPO_PUBLIC_DEMO=1`): shows Demo Control and lets
- * screens fill in with bundled sample data.
+ * Demo build switch (`EXPO_PUBLIC_DEMO=1`): lets screens fill in with
+ * bundled sample data. Demo Control itself is hidden behind the Settings
+ * version line in every build (app/settings/index.tsx).
  */
 export const DEMO: boolean = process.env.EXPO_PUBLIC_DEMO === '1';
 

@@ -593,7 +593,7 @@ export type DemoState = {
   demo_mode: 'on' | 'offline';
   now: string;
   offset_minutes: number;
-  muse: Pick<MuseStatus, 'client' | 'live'>;
+  muse: Pick<MuseStatus, 'client' | 'live'> & { deterministic?: boolean };
   user_id: string;
 };
 
@@ -618,6 +618,11 @@ export type DemoFriendMoveBody = {
 };
 export type DemoFriendJoinBody = { user_id: string; move_id: string; status?: 'going' | 'there' };
 export type DemoFriendLeaveBody = { user_id: string; move_id: string; quiet?: boolean };
+export type DemoFriendRequestResult = { user_id: string; relation: Relation };
+export type DemoMomentResult = { moment_id: string; move_id: string };
+export type DemoRouteBody = { user_id: string; mark_id?: string; companion_id?: string };
+export type DemoRouteResult = { move_id: string; companion_id: string; suggestion: Suggestion | null };
+export type DemoJobRun = { name: string; result: string | null };
 
 export type DemoMuseStats = {
   calls: number;

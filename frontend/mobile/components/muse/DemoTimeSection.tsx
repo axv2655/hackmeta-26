@@ -76,7 +76,8 @@ export function DemoTimeSection({ now, offsetMinutes, onTime }: DemoTimeSectionP
           <Text style={styles.clockText}>{clockLabel(now)}</Text>
           <Text style={styles.offset}>{offsetLabel(offsetMinutes)}</Text>
         </View>
-        <DemoButton label="+15 min" sub="Fill windows close, Flares fill" icon="clock" run={() => shift(15)} />
+        <DemoButton label="+10 min" sub="A Flare's fill window closes" icon="clock" run={() => shift(10)} />
+        <DemoButton label="+30 min" sub="Moves age, Muse cards expire" icon="clock" run={() => shift(30)} />
         <DemoButton label="+60 min" sub="Jump to the next part of the day" icon="clock" run={() => shift(60)} />
         <DemoButton label="Reset time" icon="history" run={resetTime} />
       </DemoSection>

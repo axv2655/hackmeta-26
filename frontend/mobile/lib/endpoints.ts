@@ -17,6 +17,11 @@ import type {
   DemoFriendJoinBody,
   DemoFriendLeaveBody,
   DemoFriendMoveBody,
+  DemoFriendRequestResult,
+  DemoJobRun,
+  DemoMomentResult,
+  DemoRouteBody,
+  DemoRouteResult,
   DemoMuseStats,
   DemoResetResult,
   DemoState,
@@ -279,6 +284,18 @@ const demo = {
     api<CopresenceResult>('/demo/copresence', postJson({ user_ids: userIds, on })),
   museStats: () => api<DemoMuseStats>('/demo/muse-stats'),
   users: () => api<UserLite[]>('/auth/users'),
+  /** `userId` (else someone who isn't your friend yet) sends you a friend request. */
+  friendRequest: (userId?: string) =>
+    api<DemoFriendRequestResult>('/demo/friend-request', postJson(userId ? { user_id: userId } : {})),
+  /** A friend at your newest live Move posts a photo Moment tagging you. */
+  moment: (userId: string, moveId?: string) =>
+    api<DemoMomentResult>('/demo/moment', postJson({ user_id: userId, move_id: moveId })),
+  /** A friend posts a far Move; you and a shared friend head there: Muse's route card. */
+  route: (body: DemoRouteBody) => api<DemoRouteResult>('/demo/route', postJson(body)),
+  museMode: (live: boolean) => api<{ deterministic: boolean }>('/demo/muse-mode', postJson({ live })),
+  notifyTest: () => api<{ notification_id: string }>('/demo/notify-test', postJson()),
+  jobs: () => api<{ jobs: string[] }>('/demo/jobs'),
+  runJob: (name: string) => api<DemoJobRun>(`/demo/jobs/${encodeURIComponent(name)}`, postJson()),
 };
 
 /**

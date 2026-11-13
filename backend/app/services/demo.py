@@ -20,6 +20,7 @@ from sqlmodel import Session, col, or_, select
 from app.container import Container
 from app.core.clock import SystemClock
 from app.core.composition import build_move_service
+from app.core.config import settings
 from app.domain.errors import MarkNotFound, NotFound
 from app.hooks import Hooks
 from app.ports import (
@@ -113,8 +114,13 @@ class DemoService:
     def muse_status(self) -> dict[str, Any]:
         stats = _safe_stats(self.container)
         client = "http" if stats.get("client") == "HttpMuseClient" else "fake"
-        live = client == "http" and not stats.get("budget_exhausted", False)
-        return {"client": client, "live": live}
+        deterministic = is_deterministic(self.container)
+        live = (
+            client == "http"
+            and not stats.get("budget_exhausted", False)
+            and not deterministic
+        )
+        return {"client": client, "live": live, "deterministic": deterministic}
 
     # --- reset ----------------------------------------------------------------
 
@@ -123,6 +129,7 @@ class DemoService:
         pending cast suggestions, no demo calendar blocks or co-presence."""
         examples.release_all()
         self.container.time_control.reset()
+        restore_muse_mode(self.container)
         expired = self._expire_cast_suggestions()
         cleared = self._delete_demo_blocks(None)
         self.session.exec(delete(Copresence))
@@ -336,6 +343,19 @@ async def _run_scan(scan: Scan | None, arg: str) -> SuggestionSnapshot | None:
     except Exception:
         log.warning("demo scan failed", exc_info=True)
         return None
+
+
+def is_deterministic(container: Container) -> bool:
+    """True while Muse answers from its rule-based fallbacks only."""
+    runner = getattr(container.muse, "runner", None)
+    return bool(getattr(runner, "deterministic", settings.MUSE_DETERMINISTIC))
+
+
+def restore_muse_mode(container: Container) -> None:
+    """Back to `MUSE_DETERMINISTIC` after a Demo Control live/heuristic flip."""
+    runner = getattr(container.muse, "runner", None)
+    if runner is not None and hasattr(runner, "deterministic"):
+        runner.deterministic = settings.MUSE_DETERMINISTIC
 
 
 def _safe_stats(container: Container) -> dict[str, Any]:

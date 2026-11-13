@@ -14,7 +14,6 @@ import { ComingSoonSheet } from '@/components/shell/ComingSoonSheet';
 import type { IconName } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
-import { DEMO } from '@/lib/demo';
 import { useFriends } from '@/lib/friends';
 import { warning } from '@/lib/haptics';
 import { logoutRow, type MenuRow, type MenuShortcut } from '@/lib/mock';
@@ -121,7 +120,6 @@ export default function MenuScreen() {
         <ShortcutGrid
           onPressShortcut={openShortcut}
           badges={{ 'shortcut-friends': requestsBadge(incoming) }}
-          showDemo={DEMO}
         />
 
         {/* "Hey Meta, start a Move": the voice screen for phone mic or paired glasses. */}

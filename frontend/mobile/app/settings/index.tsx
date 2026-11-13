@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { useRouter, type Href } from 'expo-router';
-import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MuseBadge } from '@/components/common/MuseBadge';
 import { SettingsPage } from '@/components/settings/SettingsPage';
@@ -14,6 +14,31 @@ import { toast } from '@/lib/toast';
 import type { Me } from '@/lib/types';
 
 const VERSION = Constants.expoConfig?.version ?? '1.0.0';
+
+/** Taps on the version line, inside this window, that open Demo Control. */
+const SECRET_TAPS = 5;
+const SECRET_WINDOW_MS = 2500;
+
+/**
+ * The version footer. Hidden way into Demo Control for the presenter: tap it
+ * five times quickly, or long-press it. Looks and reads like plain text.
+ */
+function VersionLine({ onUnlock }: { onUnlock: () => void }) {
+  const taps = useRef<number[]>([]);
+  const onPress = () => {
+    const now = Date.now();
+    taps.current = [...taps.current.filter((t) => now - t < SECRET_WINDOW_MS), now];
+    if (taps.current.length >= SECRET_TAPS) {
+      taps.current = [];
+      onUnlock();
+    }
+  };
+  return (
+    <Pressable onPress={onPress} onLongPress={onUnlock} delayLongPress={800} accessibilityRole="text">
+      <Text style={styles.version}>Moves {VERSION}</Text>
+    </Pressable>
+  );
+}
 
 function MuseRow() {
   const status = useMuseStatus((s) => s.status);
@@ -123,7 +148,7 @@ function SettingsBody({ me }: { me: Me }) {
           onPress={() => go('/settings/muse')}
         />
       </SettingsGroup>
-      <Text style={styles.version}>Moves {VERSION}</Text>
+      <VersionLine onUnlock={() => go('/demo')} />
     </>
   );
 }

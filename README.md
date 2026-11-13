@@ -136,7 +136,7 @@ password `moves`.
 - **iOS dev build** adds real Bluetooth proximity through the native `moves-ble` module:
   `npx expo run:ios`, or `scripts/install-ios.sh` to build and install on connected phones,
   with `EXPO_PUBLIC_PROXIMITY=ble`.
-- `EXPO_PUBLIC_DEMO=1` adds Demo Control to the Menu.
+- `EXPO_PUBLIC_DEMO=1` lets screens fall back to bundled sample data.
 
 ## Deployment
 
@@ -167,11 +167,21 @@ Server settings live in `backend/.env` (see [backend/.env.example](backend/.env.
 
 ## Demo Control
 
-With `DEMO_MODE=on` on the server and `EXPO_PUBLIC_DEMO=1` in the app, Demo Control (in the
-Menu) puts every timed or multi-person moment one tap away: shift time, fire a Flare scan,
-put friends together for a proximity prompt, have friends post, join or leave, end a Move,
-and trigger the "nobody bit" path. Reset restores the world without dropping data. Full list
-in [ARCHITECTURE.md](ARCHITECTURE.md) section 15.2.
+Demo Control is hidden in every build: open **Settings** and tap the version line ("Moves
+1.0.0") five times quickly, or long-press it. It needs `DEMO_MODE=on` on the server. It puts
+every timed or multi-person moment one tap away:
+
+- **Scenes**: whole beats in one tap (friends fill my Move, a friend is nearby, after the Move).
+- **Time**: +10, +30, +60 minutes, back to real time, soft world reset.
+- **Muse**: Flare scan, free time, revive scan, nobody bit, route ("go together?").
+- **People**: friends post, pull up, arrive, leave, post a Moment tagging you, send or accept
+  friend requests, and meet you over simulated Bluetooth.
+- **System**: Muse live vs heuristic, a test notification for push, and every background job
+  (auto-end, expiry, example Moves) on demand.
+
+Every trigger runs the real code path, so the notifications, pushes and banners are the real
+ones. Reset restores the world without dropping data. Full list in
+[ARCHITECTURE.md](ARCHITECTURE.md) section 15.2.
 
 ## Muse in Meta AI (MCP connector)
 

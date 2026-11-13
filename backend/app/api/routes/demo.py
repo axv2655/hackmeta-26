@@ -15,6 +15,9 @@ POST /demo/friend-accept  a seeded user accepts the caller's request
 POST /demo/end-move       end a Move as its creator
 POST /demo/nobody-bit     nobody-bit suggestion for a quiet Move
 GET  /demo/muse-stats     Muse call stats
+
+More triggers (friend request, Moment, route, Muse mode, jobs, test push)
+live in `routes/demo_stage.py`.
 """
 
 from datetime import datetime
@@ -51,6 +54,7 @@ DemoServiceDep = Annotated[DemoService, Depends(get_demo_service)]
 class MuseClientOut(BaseModel):
     client: Literal["http", "fake"]
     live: bool
+    deterministic: bool = False
 
 
 class DemoStateOut(BaseModel):

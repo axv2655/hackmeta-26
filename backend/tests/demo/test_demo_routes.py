@@ -37,6 +37,13 @@ ROUTES = (
     ("POST", "/end-move"),
     ("POST", "/nobody-bit"),
     ("GET", "/muse-stats"),
+    ("POST", "/friend-request"),
+    ("POST", "/moment"),
+    ("POST", "/route"),
+    ("POST", "/muse-mode"),
+    ("POST", "/notify-test"),
+    ("GET", "/jobs"),
+    ("POST", "/jobs/end_stale_moves"),
 )
 
 Client = tuple[TestClient, dict[str, Any]]
@@ -85,7 +92,7 @@ def test_state_reports_demo_mode_and_fake_muse(demo_client: Client):
     client, _ = demo_client
     body = client.get(f"{API}/state").json()
     assert body["demo_mode"] == "on" and body["user_id"] == "ana"
-    assert body["muse"] == {"client": "fake", "live": False}
+    assert body["muse"] == {"client": "fake", "live": False, "deterministic": False}
 
 
 def test_end_move_fires_the_hook_and_holds_examples(

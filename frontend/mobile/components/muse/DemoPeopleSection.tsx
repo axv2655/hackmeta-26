@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 
-import { errorMessage } from '@/lib/backend';
 import { endpoints } from '@/lib/endpoints';
 import { appEvents } from '@/lib/events';
 import { useSession } from '@/lib/session';
@@ -10,10 +9,10 @@ import type { UserLite } from '@/lib/types';
 
 import { CastPicker } from './CastPicker';
 import { DemoButton } from './DemoButton';
+import { useOpenSuggestion } from './DemoMuseSection';
 import { DemoSection } from './DemoSection';
 import { FRIEND_MOVE_PRESETS, latestMoveOf, type FriendMovePreset } from './demoActions';
-
-type Cast = { users: UserLite[]; loading: boolean; error: string | null };
+import { useDemoCast } from './useDemoCast';
 
 const DEFAULT_PICK = 'u_tony';
 
@@ -21,23 +20,10 @@ const DEFAULT_PICK = 'u_tony';
 export function DemoPeopleSection() {
   const router = useRouter();
   const meId = useSession((s) => s.userId);
-  const [cast, setCast] = useState<Cast>({ users: [], loading: true, error: null });
-  const [pickedId, setPickedId] = useState<string | null>(null);
-
-  const loadCast = useCallback(async () => {
-    setCast((c) => ({ ...c, loading: true, error: null }));
-    try {
-      const users = (await endpoints.demo.users()).filter((u) => u.id !== meId);
-      setCast({ users, loading: false, error: null });
-      setPickedId((cur) => cur ?? (users.find((u) => u.id === DEFAULT_PICK) ?? users[0])?.id ?? null);
-    } catch (e) {
-      setCast((c) => ({ ...c, loading: false, error: errorMessage(e) }));
-    }
-  }, [meId]);
-
-  useEffect(() => {
-    void loadCast();
-  }, [loadCast]);
+  const openSuggestion = useOpenSuggestion();
+  const cast = useDemoCast();
+  const [chosenId, setPickedId] = useState<string | null>(null);
+  const pickedId = chosenId ?? (cast.users.find((u) => u.id === DEFAULT_PICK) ?? cast.users[0])?.id ?? null;
 
   const picked = cast.users.find((u) => u.id === pickedId) ?? null;
   const name = picked?.first_name ?? 'Friend';
@@ -80,6 +66,27 @@ export function DemoPeopleSection() {
     return res.relation === 'friend' ? `${name} accepted your friend request` : `${name}: ${res.relation}`;
   };
 
+  const request = async (anyone: boolean) => {
+    const res = await endpoints.demo.friendRequest(anyone ? undefined : need().id);
+    const who = cast.users.find((u) => u.id === res.user_id)?.first_name ?? 'Someone';
+    return `${who} sent you a friend request`;
+  };
+
+  const moment = async () => {
+    const res = await endpoints.demo.moment(need().id);
+    appEvents.emit('moves.changed');
+    toast(`${name} posted a Moment and tagged you`, {
+      label: 'Review',
+      onPress: () => router.push(`/move/${encodeURIComponent(res.move_id)}/moments` as Href),
+    });
+  };
+
+  const route = async () => {
+    const res = await endpoints.demo.route({ user_id: need().id });
+    appEvents.emit('moves.changed');
+    return openSuggestion(res, 'Muse already offered this ride');
+  };
+
   const together = async (on: boolean) => {
     const res = await endpoints.demo.copresence([meId, need().id], on);
     appEvents.emit('moves.changed');
@@ -100,7 +107,7 @@ export function DemoPeopleSection() {
         error={cast.error}
         pickedId={pickedId}
         onPick={setPickedId}
-        onRetry={() => void loadCast()}
+        onRetry={() => void cast.reload()}
       />
       {FRIEND_MOVE_PRESETS.map((p) => (
         <DemoButton
@@ -128,7 +135,28 @@ export function DemoPeopleSection() {
         disabled={off}
         run={() => leave(true)}
       />
+      <DemoButton
+        label={`${name} posts a Moment and tags you`}
+        sub="At your Move · you get the approval request"
+        icon="camera"
+        disabled={off}
+        run={moment}
+      />
+      <DemoButton
+        label={`Ride with ${name}'s crew`}
+        sub={`${name} posts at Kumo; you and a friend head there from the same area`}
+        icon="route"
+        disabled={off}
+        run={route}
+      />
       <DemoButton label={`${name} accepts your friend request`} icon="user-check" disabled={off} run={accept} />
+      <DemoButton label={`${name} sends you a friend request`} icon="user-plus" disabled={off} run={() => request(false)} />
+      <DemoButton
+        label="Someone new sends you a request"
+        sub="The first person who isn't your friend yet"
+        icon="user-plus"
+        run={() => request(true)}
+      />
       <DemoButton
         label="Put us together"
         sub="Simulated Bluetooth: we're in the same place"

@@ -27,11 +27,6 @@ export const movesShortcut: MenuShortcut = {
 
 export const MOVES_TAGLINE = 'See what your friends are up to right now';
 
-/** Shown full width under Moves when the build has `EXPO_PUBLIC_DEMO=1`. */
-export const demoShortcut: MenuShortcut = tile('shortcut-demo', 'Demo Control', 'zap', accent.teal, '/demo');
-
-export const DEMO_TAGLINE = 'Fire Muse scans, shift time, act as friends';
-
 /** Always-visible tiles, in display order (two columns). */
 export const primaryShortcuts: MenuShortcut[] = [
   { ...seeded(tile('shortcut-friends', 'Friends', 'friends', colors.blue)), href: '/friends' },

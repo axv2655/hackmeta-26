@@ -11,8 +11,8 @@ NOT_YET_LAYERED = {
     'friends.py', 'examples.py',
     # Demo Control and the surfaces services built on mobile/facebook-shell
     # (lane ownership waived) read their tables directly, like the ones above.
-    'demo.py', 'calendar.py', 'calendar_gateway.py', 'hangouts.py', 'leaderboards.py',
-    'proximity_sweep.py', 'ratings.py', 'reels.py',
+    'demo.py', 'demo_stage.py', 'calendar.py', 'calendar_gateway.py', 'hangouts.py',
+    'leaderboards.py', 'proximity_sweep.py', 'ratings.py', 'reels.py',
 }
 
 

@@ -9,9 +9,10 @@ import { StackScreen } from '@/components/common/StackScreen';
 import { DemoMovesSection } from '@/components/muse/DemoMovesSection';
 import { DemoMuseSection } from '@/components/muse/DemoMuseSection';
 import { DemoPeopleSection } from '@/components/muse/DemoPeopleSection';
+import { DemoScenesSection } from '@/components/muse/DemoScenesSection';
+import { DemoSystemSection } from '@/components/muse/DemoSystemSection';
 import { DemoTimeSection } from '@/components/muse/DemoTimeSection';
 import { ApiError, errorMessage } from '@/lib/backend';
-import { DEMO } from '@/lib/demo';
 import { endpoints } from '@/lib/endpoints';
 import { setServerNow } from '@/lib/format';
 import { colors, spacing, type as typeScale } from '@/lib/theme';
@@ -22,8 +23,9 @@ type Screen =
 
 /**
  * Demo Control: buttons for every step that depends on time, hardware or
- * another person, so the live demo never waits on any of them. Only in a
- * build with EXPO_PUBLIC_DEMO=1, and only when the server runs DEMO_MODE.
+ * another person, so the live demo never waits on any of them. Hidden: open
+ * it by tapping the version line in Settings five times (or long-pressing
+ * it). Works only when the server runs DEMO_MODE.
  */
 export default function DemoScreen() {
   const [screen, setScreen] = useState<Screen>({ kind: 'loading' });
@@ -45,8 +47,22 @@ export default function DemoScreen() {
   }, []);
 
   useEffect(() => {
-    if (DEMO) void load();
+    void load();
   }, [load]);
+
+  const onDeterministic = useCallback((deterministic: boolean) => {
+    setScreen((s) =>
+      s.kind === 'ready'
+        ? {
+            kind: 'ready',
+            state: {
+              ...s.state,
+              muse: { ...s.state.muse, deterministic, live: s.state.muse.client === 'http' && !deterministic },
+            },
+          }
+        : s,
+    );
+  }, []);
 
   const onTime = useCallback((now: string, offsetMinutes: number) => {
     setServerNow(now);
@@ -54,14 +70,6 @@ export default function DemoScreen() {
       s.kind === 'ready' ? { kind: 'ready', state: { ...s.state, now, offset_minutes: offsetMinutes } } : s,
     );
   }, []);
-
-  if (!DEMO) {
-    return (
-      <StackScreen title="Demo Control">
-        <EmptyState icon="lock" title="Demo Control is off in this build" body="Set EXPO_PUBLIC_DEMO=1 and restart." />
-      </StackScreen>
-    );
-  }
 
   return (
     <StackScreen title="Demo Control">
@@ -86,10 +94,16 @@ export default function DemoScreen() {
               {screen.state.muse.live ? 'Muse is live' : 'Muse is on its heuristic (no key or budget spent)'}
             </Text>
           </View>
+          <DemoScenesSection />
           <DemoTimeSection now={screen.state.now} offsetMinutes={screen.state.offset_minutes} onTime={onTime} />
           <DemoMuseSection />
           <DemoPeopleSection />
           <DemoMovesSection />
+          <DemoSystemSection
+            client={screen.state.muse.client}
+            deterministic={screen.state.muse.deterministic ?? !screen.state.muse.live}
+            onDeterministic={onDeterministic}
+          />
         </ScrollView>
       ) : null}
     </StackScreen>

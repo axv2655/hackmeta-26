@@ -3951,6 +3951,10 @@
                         ],
                         "type": "string"
                       },
+                      "deterministic": {
+                        "default": false,
+                        "type": "boolean"
+                      },
                       "live": {
                         "type": "boolean"
                       }

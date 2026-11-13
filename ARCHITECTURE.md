@@ -176,7 +176,7 @@ What exists today. "Partial" means the backend path works but something listed i
 | Proximity: sim co-presence and real BLE on iOS dev builds | Built | 8 |
 | Glasses: MCP connector and in-app voice screen | Built | 11.4 |
 | Demo Control | Built | 15.2 |
-| Route and ride suggestion | Partial: agent exists, no demo trigger | 10.10 |
+| Route and ride suggestion | Built (agent + Demo Control trigger, no automatic trigger) | 10.10 |
 | Open Moves discovered over BLE | Not built: join path exists, beacon discovery does not | 8.5 |
 
 **Demo-safety rule:** anything that depends on hardware, timing or another person has a
@@ -1012,7 +1012,11 @@ a calendar with a 2:10 to 3:00 gap. Seed steps are split by lane (`core.py`, `hi
 ### 15.2 Demo Control (`app/demo.tsx`, `/demo/*`, only when `DEMO_MODE` is set)
 
 `DEMO_MODE=on` gives a shiftable clock and these routes; `offline` also swaps in the fake Muse
-client. The app shows the panel when `EXPO_PUBLIC_DEMO=1`.
+client. The panel is hidden in every build: in Settings, tap the version line ("Moves 1.0.0")
+five times quickly, or long-press it. Nothing else links to it. Without `DEMO_MODE` on the server
+the panel says demo mode is off. The panel's sections are Scenes (whole demo beats in one tap,
+chained client-side from the triggers below, a couple of seconds apart), Time, Muse, People,
+Moves and System.
 
 | Control | Endpoint | Effect |
 | --- | --- | --- |
@@ -1027,6 +1031,12 @@ client. The app shows the panel when `EXPO_PUBLIC_DEMO=1`.
 | End Move | `POST /demo/end-move` | ghosts, hangouts, rating prompt; holds example Moves ended |
 | Nobody bit | `POST /demo/nobody-bit` | expires a fill window with no joiners (10.9) |
 | Muse stats | `GET /demo/muse-stats` | calls, tokens, budget, fallback rate |
+| Friend request | `POST /demo/friend-request` `{user_id?}` | someone (default: first non-friend, Jordan in the seed) sends you a request |
+| Moment | `POST /demo/moment` `{user_id, move_id?}` | that friend arrives at your newest live Move and posts a photo Moment tagging you (approval request) |
+| Route | `POST /demo/route` `{user_id, mark_id?, companion_id?}` | they post a Move at a far Mark (default Kumo); you and a shared friend pull up from the same coarse area; runs 10.10 |
+| Muse mode | `POST /demo/muse-mode` `{live}` | live model vs heuristics at runtime (shows the fallback story); reset restores `MUSE_DETERMINISTIC` |
+| Test notification | `POST /demo/notify-test` | a notification (and push) to you, to check the phone before going on |
+| Jobs | `GET /demo/jobs`, `POST /demo/jobs/{name}` | run a registered scheduler job now (auto-end, expiry, example Moves, purge) |
 
 In `DEMO_MODE` the autonomous Muse jobs are not scheduled; Demo Control is the deterministic
 path. **All backend time reads go through `core/clock.py`**; never `datetime.now()` in services.
@@ -1101,7 +1111,7 @@ All routes sit under the signed-in guard in `app/_layout.tsx`.
 | `/circles`, `/circles/[id]` | `circles/*.tsx` | Menu Groups, Privacy, composer |
 | `/settings/*` | `settings/{index,privacy,hidden,autojoin,notifications,muse}.tsx` | Menu gear |
 | `/glasses` | `glasses.tsx` | fallback voice screen |
-| `/demo` | `demo.tsx` | Menu, only with `EXPO_PUBLIC_DEMO=1` |
+| `/demo` | `demo.tsx` | Hidden: tap the Settings version line 5 times (or long-press it) |
 
 Menu tiles with no feature (Marketplace, Feeds, Pages, Gaming, ...) open a "Coming soon" sheet.
 

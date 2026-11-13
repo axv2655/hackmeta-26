@@ -10,6 +10,7 @@ from app.api.routes import (
     calendar,
     circles,
     demo,
+    demo_stage,
     friends,
     glasses,
     home,
@@ -63,6 +64,7 @@ api_router.include_router(leaderboards.router)
 api_router.include_router(glasses.router)
 api_router.include_router(mcp_tokens.router)  # per-user tokens for /mcp
 api_router.include_router(demo.router)
+api_router.include_router(demo_stage.router)
 
 # messages (ARCHITECTURE.md 9.4, 9.5)
 api_router.include_router(invites.router)

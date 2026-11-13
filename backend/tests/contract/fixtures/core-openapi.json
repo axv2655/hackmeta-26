@@ -9439,6 +9439,49 @@
                     ],
                     "type": "string"
                   },
+                  "tendency": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "basis": {
+                            "enum": [
+                              "mark",
+                              "category",
+                              "all"
+                            ],
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "string"
+                          },
+                          "sample_size": {
+                            "type": "integer"
+                          },
+                          "source": {
+                            "enum": [
+                              "muse",
+                              "heuristic"
+                            ],
+                            "type": "string"
+                          },
+                          "typical_minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "line",
+                          "typical_minutes",
+                          "basis",
+                          "sample_size",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "text": {
                     "type": "string"
                   }
@@ -9894,6 +9937,49 @@
                         "cancelled"
                       ],
                       "type": "string"
+                    },
+                    "tendency": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "basis": {
+                              "enum": [
+                                "mark",
+                                "category",
+                                "all"
+                              ],
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": "string"
+                            },
+                            "sample_size": {
+                              "type": "integer"
+                            },
+                            "source": {
+                              "enum": [
+                                "muse",
+                                "heuristic"
+                              ],
+                              "type": "string"
+                            },
+                            "typical_minutes": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "line",
+                            "typical_minutes",
+                            "basis",
+                            "sample_size",
+                            "source"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "text": {
                       "type": "string"
@@ -10384,6 +10470,49 @@
                       ],
                       "type": "string"
                     },
+                    "tendency": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "basis": {
+                              "enum": [
+                                "mark",
+                                "category",
+                                "all"
+                              ],
+                              "type": "string"
+                            },
+                            "line": {
+                              "type": "string"
+                            },
+                            "sample_size": {
+                              "type": "integer"
+                            },
+                            "source": {
+                              "enum": [
+                                "muse",
+                                "heuristic"
+                              ],
+                              "type": "string"
+                            },
+                            "typical_minutes": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "line",
+                            "typical_minutes",
+                            "basis",
+                            "sample_size",
+                            "source"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "text": {
                       "type": "string"
                     }
@@ -10849,6 +10978,49 @@
                     ],
                     "type": "string"
                   },
+                  "tendency": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "basis": {
+                            "enum": [
+                              "mark",
+                              "category",
+                              "all"
+                            ],
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "string"
+                          },
+                          "sample_size": {
+                            "type": "integer"
+                          },
+                          "source": {
+                            "enum": [
+                              "muse",
+                              "heuristic"
+                            ],
+                            "type": "string"
+                          },
+                          "typical_minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "line",
+                          "typical_minutes",
+                          "basis",
+                          "sample_size",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "text": {
                     "type": "string"
                   }
@@ -11312,6 +11484,49 @@
                     ],
                     "type": "string"
                   },
+                  "tendency": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "basis": {
+                            "enum": [
+                              "mark",
+                              "category",
+                              "all"
+                            ],
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "string"
+                          },
+                          "sample_size": {
+                            "type": "integer"
+                          },
+                          "source": {
+                            "enum": [
+                              "muse",
+                              "heuristic"
+                            ],
+                            "type": "string"
+                          },
+                          "typical_minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "line",
+                          "typical_minutes",
+                          "basis",
+                          "sample_size",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "text": {
                     "type": "string"
                   }
@@ -11774,6 +11989,49 @@
                       "cancelled"
                     ],
                     "type": "string"
+                  },
+                  "tendency": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "basis": {
+                            "enum": [
+                              "mark",
+                              "category",
+                              "all"
+                            ],
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "string"
+                          },
+                          "sample_size": {
+                            "type": "integer"
+                          },
+                          "source": {
+                            "enum": [
+                              "muse",
+                              "heuristic"
+                            ],
+                            "type": "string"
+                          },
+                          "typical_minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "line",
+                          "typical_minutes",
+                          "basis",
+                          "sample_size",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "text": {
                     "type": "string"
@@ -12569,6 +12827,49 @@
                     ],
                     "type": "string"
                   },
+                  "tendency": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "basis": {
+                            "enum": [
+                              "mark",
+                              "category",
+                              "all"
+                            ],
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "string"
+                          },
+                          "sample_size": {
+                            "type": "integer"
+                          },
+                          "source": {
+                            "enum": [
+                              "muse",
+                              "heuristic"
+                            ],
+                            "type": "string"
+                          },
+                          "typical_minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "line",
+                          "typical_minutes",
+                          "basis",
+                          "sample_size",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "text": {
                     "type": "string"
                   }
@@ -13053,6 +13354,49 @@
                       "cancelled"
                     ],
                     "type": "string"
+                  },
+                  "tendency": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "basis": {
+                            "enum": [
+                              "mark",
+                              "category",
+                              "all"
+                            ],
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "string"
+                          },
+                          "sample_size": {
+                            "type": "integer"
+                          },
+                          "source": {
+                            "enum": [
+                              "muse",
+                              "heuristic"
+                            ],
+                            "type": "string"
+                          },
+                          "typical_minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "line",
+                          "typical_minutes",
+                          "basis",
+                          "sample_size",
+                          "source"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "text": {
                     "type": "string"

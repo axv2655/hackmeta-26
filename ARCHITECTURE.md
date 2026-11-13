@@ -797,6 +797,29 @@ I want to go on a run"), **people**, **places** or a **clarify** question. Nothi
 a tap. Endpoints: `POST /muse/search`, `/muse/search/draft`, `/muse/search/confirm`.
 Details in [docs/MUSE_SEARCH.md](docs/MUSE_SEARCH.md).
 
+### 10.14 Tendency tab — `agents/move_tendency.py`, `domain/move_tendency.py`
+
+People skip a Move that started 40 minutes ago because it looks over. Every live
+Move gets a small tab: **"Started 7:00, Tony's Kumo Moves usually last ~2h"**. The
+viewer works out that there is still time.
+
+- **Facts (Python)**: the median length of the creator's last 30 ended Moves at the
+  same Mark; else in the same category; else all of them. A level needs at least 2
+  Moves. Moves under 10 min or at least `STALE_AFTER` (3 h, auto-ended) do not count.
+  No level qualifies: no tab, never a guess.
+- **Words (Muse)**: the template "{Name}'s {Mark|category|} Moves usually last ~2h"
+  is returned at once (`source: heuristic`). With the model on, one batched call in
+  the background rewrites the lines; the check rejects a line that changes the
+  length, is over 70 characters or has "!". The next read shows Muse's line.
+- **Wire**: `MoveRead.tendency` on every Move route, live Moves only. The route
+  waits at most 1 s for `MuseGateway.move_tendencies` (a gateway extra), else null.
+  The client adds "Started 7:00, " from `starts_at` in the viewer's time zone.
+- **Privacy**: reads only Move times, Mark ids and categories of the creator's own
+  past Moves. No coordinates, no other people.
+- **Demo**: Tony posts the seeded Kumo Matcha runs in the history (15.1), so his
+  live Kumo Move shows "Started {time}, Tony's Kumo Matcha Moves usually last ~1.5h".
+  Shift the clock (`/demo/time`) to show that it still holds 40 minutes in.
+
 ---
 
 ## 11. Mocked Facebook surfaces
@@ -941,6 +964,8 @@ change them together. Rules that hold for every schema:
 - `source: 'muse' | 'heuristic'` is honest: `muse` only when the agent answered without falling back.
 - `audience` on a Move is present for the creator only.
 - No user `lat`/`lng` anywhere.
+- `MoveRead.tendency` (`{line, typical_minutes, basis, sample_size, source}`) is set on live
+  Moves with enough history only, else null (10.14).
 
 ### 14.2 Endpoints
 

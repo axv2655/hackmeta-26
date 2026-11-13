@@ -72,6 +72,11 @@ function clock(d: Date): { text: string; period: 'AM' | 'PM' } {
   return { text: `${h12}:${m.toString().padStart(2, '0')}`, period: h < 12 ? 'AM' : 'PM' };
 }
 
+/** Wall-clock time without the period, in the device's zone: "7:00". */
+export function clockTime(iso: string): string {
+  return clock(new Date(toMs(iso))).text;
+}
+
 /** "2:10-3:00 PM", or "11:30 AM-12:15 PM" across noon. */
 export function timeRange(startIso: string, endIso: string): string {
   const a = clock(new Date(toMs(startIso)));

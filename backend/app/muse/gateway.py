@@ -9,8 +9,9 @@ and never edits this file. A method nobody has bound answers exactly like
 
 Extras beyond the port, used inside the muse lane and by Demo Control or the
 hangout recorder through `getattr`: `notify_preview`, `run_free_time_scan`,
-`demo_flare_scan`, `demo_free_time_scan` and `refresh_pseudo_groups`.
-Unbound, they answer `[]`, `None` or `0`.
+`demo_flare_scan`, `demo_free_time_scan`, `refresh_pseudo_groups` and
+`move_tendencies` (the Move routes' tendency tab). Unbound, they answer `[]`,
+`None`, `0` or `{}`.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Sequence
 from typing import Any
 
+from app.domain.move_tendency import TendencyNote
 from app.muse.runner import MuseRunner
 from app.ports import (
     Intent,
@@ -46,6 +48,7 @@ BINDABLE = frozenset(
         "demo_flare_scan",
         "demo_free_time_scan",
         "refresh_pseudo_groups",
+        "move_tendencies",
     }
 )
 
@@ -173,6 +176,14 @@ class MuseGatewayImpl:
         """Recompute these owners' Pseudo-groups; how many groups changed."""
         fn = self._bound.get("refresh_pseudo_groups")
         return 0 if fn is None else int(await fn(list(user_ids)) or 0)
+
+    async def move_tendencies(
+        self, moves: Sequence[MoveSnapshot]
+    ) -> dict[str, TendencyNote]:
+        """How long each live Move's creator's Moves usually last, by Move id.
+        Moves without enough history are left out."""
+        fn = self._bound.get("move_tendencies")
+        return {} if fn is None else await fn(moves)
 
     def muse_stats(self) -> dict[str, Any]:
         return self.runner.get_stats()

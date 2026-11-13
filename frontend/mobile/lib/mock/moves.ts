@@ -51,6 +51,8 @@ export type MapMove = {
   going?: boolean;
   /** Muse's ranking reason, when it gave one. */
   reason?: string;
+  /** "Started 7:00, Tony's Kumo Moves usually last ~2h" (live Moves with history). */
+  tendency?: string;
   /** The real Move id (also set on ghosts, whose `id` is a pin id). */
   moveId?: string;
   /** The backend category (10 values); `mark.category` is the pin pose group. */

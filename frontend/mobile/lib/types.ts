@@ -147,6 +147,18 @@ export type Move = {
   muse_reason: string | null;
   /** Creator only. */
   audience: AudienceSummary | null;
+  /** Live Moves only, when the creator has enough history (else null). */
+  tendency?: MoveTendency | null;
+};
+
+/** How long the creator's Moves usually last. `line`: "Tony's Kumo Moves usually last ~2h". */
+export type MoveTendency = {
+  line: string;
+  typical_minutes: number;
+  /** Which past Moves count: same Mark, same category, or all of them. */
+  basis: 'mark' | 'category' | 'all';
+  sample_size: number;
+  source: 'muse' | 'heuristic';
 };
 
 export type MoveOrigin =

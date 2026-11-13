@@ -1,9 +1,11 @@
 """HTTP schemas for moves."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
+from app.domain.move_tendency import TendencyNote
 from app.models.audience import AudienceSummary
 from app.models.marks import MarkRead
 from app.models.users import UserLite
@@ -69,6 +71,29 @@ class ParticipantRead(BaseModel):
     joined_via: JoinedVia
 
 
+class MoveTendencyRead(BaseModel):
+    """How long the creator's Moves usually last, on live Moves with enough
+    history. `line` is "Tony's Kumo Moves usually last ~2h"; the client adds
+    "Started 7:00, " from `starts_at` in the viewer's time zone. `basis` says
+    which past Moves count: same Mark, same category, or all of them."""
+
+    line: str
+    typical_minutes: int
+    basis: Literal["mark", "category", "all"]
+    sample_size: int
+    source: Literal["muse", "heuristic"]
+
+    @classmethod
+    def from_domain(cls, note: TendencyNote) -> "MoveTendencyRead":
+        return cls(
+            line=note.line,
+            typical_minutes=note.typical_minutes,
+            basis=note.basis,
+            sample_size=note.sample_size,
+            source=note.source,
+        )
+
+
 class MoveRead(BaseModel):
     """API `Move` (14.1)."""
 
@@ -88,3 +113,4 @@ class MoveRead(BaseModel):
     moments_count: int
     muse_reason: str | None
     audience: AudienceSummary | None
+    tendency: MoveTendencyRead | None = None

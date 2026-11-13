@@ -11,6 +11,7 @@ import { bitmojiPoseFor } from './mock/bitmoji';
 import { CAMPUS_CENTER, mapMoves, type Coordinate, type MapMove, type MoveCategory } from './mock/moves';
 import { toUser } from './people';
 import { onLogout, useSession } from './session';
+import { tendencyText } from './tendency';
 import { toast } from './toast';
 import type { Category, Move, NearbyMark, ParticipantStatus } from './types';
 
@@ -96,6 +97,7 @@ export function fromMove(m: Move, me: string): MapMove {
     going: m.my_status === 'going' || m.my_status === 'there',
     myStatus: m.my_status,
     reason: m.muse_reason ?? undefined,
+    tendency: tendencyText(m) ?? undefined,
     kind: m.kind,
     fillDeadline: m.fill_deadline,
     open: m.open,

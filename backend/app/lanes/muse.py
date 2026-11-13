@@ -25,6 +25,7 @@ from app.hooks import Hooks
 from app.muse.agents.flare import FlareScanner
 from app.muse.agents.intent import parse_intent
 from app.muse.agents.move_ranker import MoveRanker
+from app.muse.agents.move_tendency import MoveTendencies
 from app.muse.agents.nobody_bit import NobodyBitService
 from app.muse.agents.revive import ReviveService
 from app.muse.agents.route import RouteService
@@ -134,6 +135,9 @@ def register(
 
     # M6: Move ranker (deterministic pairwise, domain/move_ranking.py)
     gateway.bind("rank_moves", MoveRanker(lane).rank_moves)
+
+    # Tendency tab: how long the creator's Moves usually last (live Moves)
+    gateway.bind("move_tendencies", MoveTendencies(lane).move_tendencies)
 
     # M7: flare / free-time agent, suggestion expiry
     flares = FlareScanner(lane)

@@ -3,12 +3,14 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { MuseBadge } from '@/components/common/MuseBadge';
 import { ReasonLine } from '@/components/common/ReasonLine';
+import { TendencyTab } from '@/components/common/TendencyTab';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { ago, untilLabel } from '@/lib/format';
 import { toUser } from '@/lib/people';
+import { tendencyText } from '@/lib/tendency';
 import { colors, hairline, radius, spacing, type as typeScale } from '@/lib/theme';
 import type { Move } from '@/lib/types';
 
@@ -45,6 +47,7 @@ function MoveFeedCardImpl({ move, meId, busy, onOpen, onPullUp }: MoveFeedCardPr
   const presence = presenceLine(move);
   const action = actionFor(move, meId);
   const isFlare = move.kind === 'flare' && move.fill_deadline;
+  const tendency = tendencyText(move);
 
   return (
     <PressableScale
@@ -86,6 +89,8 @@ function MoveFeedCardImpl({ move, meId, busy, onOpen, onPullUp }: MoveFeedCardPr
           </Text>
         </View>
       ) : null}
+
+      {tendency ? <TendencyTab text={tendency} /> : null}
 
       {isFlare ? (
         <View style={styles.row}>

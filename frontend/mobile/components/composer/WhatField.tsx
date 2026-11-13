@@ -22,7 +22,7 @@ type Props = {
 
 function museLine(muse: MuseState): string | null {
   if (muse === 'writing') return 'Muse is writing…';
-  if (muse === 'failed') return "Muse couldn't write a draft, so this is the quick one";
+  if (muse === 'failed') return "Muse couldn't write a draft. You can keep writing.";
   return null;
 }
 

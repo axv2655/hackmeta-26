@@ -77,6 +77,7 @@ export type MuseMark = {
 };
 
 export type Ghost = { user: UserLite; move_id: string; at: string; text: string };
+export type Memory = { move_id: string; mark_id: string; mark_name: string; category: Category; at: string; text: string };
 export type NearbyMark = Mark & { distance_km: number; ghosts: Ghost[] };
 
 export type MediaType = 'photo' | 'clip';

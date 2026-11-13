@@ -12,7 +12,7 @@ export const menuShortcuts: MenuShortcut[] = [
   { id: 'shortcut-moves', label: 'Moves', icon: 'moves-filled', color: '#F7923B', href: '/moves' },
   { id: 'shortcut-groups', label: 'Groups', icon: 'users', color: colors.blue, href: '/circles' },
   { id: 'shortcut-reels', label: 'Reels', icon: 'reels-filled', color: '#F5428D', href: '/reels' },
-  { id: 'shortcut-memories', label: 'Memories', icon: 'history', color: colors.blue },
+  { id: 'shortcut-memories', label: 'Memories', icon: 'history', color: colors.blue, href: '/memories' },
   { id: 'shortcut-saved', label: 'Saved', icon: 'bookmark', color: '#A033FF', href: '/saved' },
   { id: 'shortcut-marketplace', label: 'Marketplace', icon: 'store', color: colors.blue },
   { id: 'shortcut-events', label: 'Events', icon: 'calendar', color: colors.badgeRed, href: '/calendar' },

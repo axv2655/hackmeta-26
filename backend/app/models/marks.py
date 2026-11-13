@@ -10,6 +10,7 @@ from app.services.marks import (
     Ghost,
     MarkDetail,
     MarkView,
+    Memory,
     MomentView,
     NearbyMark,
     SavedItems,
@@ -64,6 +65,26 @@ class GhostRead(BaseModel):
             move_id=ghost.move_id,
             at=ghost.at,
             text=ghost.text,
+        )
+
+
+class MemoryRead(BaseModel):
+    move_id: str
+    mark_id: str
+    mark_name: str
+    category: Category
+    at: datetime
+    text: str
+
+    @classmethod
+    def from_memory(cls, memory: Memory) -> "MemoryRead":
+        return cls(
+            move_id=memory.move_id,
+            mark_id=memory.mark.id,
+            mark_name=memory.mark.name,
+            category=memory.mark.category,
+            at=memory.at,
+            text=memory.text,
         )
 
 

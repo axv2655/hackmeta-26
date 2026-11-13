@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/ui/Icon';
+import { isMetaShortcut, MetaShortcutIcon } from '@/components/ui/MetaShortcutIcon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import type { MenuShortcut } from '@/lib/mock';
 import { colors, fontWeights, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
@@ -26,6 +27,7 @@ export type ShortcutTileProps = {
 /** White 16pt-rounded shortcut tile: colored icon on a soft tinted well top-left, label bottom-left. */
 export function ShortcutTile({ shortcut, onPress, isNew = false, tagline }: ShortcutTileProps) {
   const badge = isNew ? 'New' : shortcut.badge;
+  const metaName = shortcut.id.replace('shortcut-', '');
 
   return (
     <PressableScale
@@ -38,7 +40,9 @@ export function ShortcutTile({ shortcut, onPress, isNew = false, tagline }: Shor
       <View style={styles.top}>
         {/* Soft fill: the tile's accent at low opacity behind the glyph. */}
         <View style={[styles.iconWell, { backgroundColor: softFill(shortcut.color) }]}>
-          <Icon name={shortcut.icon} size={TILE_ICON} color={shortcut.color} />
+          {isMetaShortcut(metaName) ? (
+            <MetaShortcutIcon name={metaName} size={TILE_ICON} />
+          ) : <Icon name={shortcut.icon} size={TILE_ICON} color={shortcut.color} />}
         </View>
         {isNew ? (
           <View style={styles.newTag}>

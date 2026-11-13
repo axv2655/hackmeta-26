@@ -114,6 +114,10 @@ class MarkRepository(Protocol):
 
     def moments(self, viewer_id: str, mark_id: str, limit: int) -> list[Moment]: ...
 
+    def memories(
+        self, user_id: str, until: datetime, limit: int, offset: int
+    ) -> list[tuple[GhostCandidate, MarkSnapshot]]: ...
+
     def moves_count(self, viewer_id: str, mark_id: str) -> int: ...
 
     def friend_ids(self, user_id: str) -> frozenset[str]: ...
@@ -278,6 +282,52 @@ class SqlMarkRepository:
                 text=move.text,
             )
             for move, part in rows
+        ]
+
+    def memories(
+        self, user_id: str, until: datetime, limit: int, offset: int
+    ) -> list[tuple[GhostCandidate, MarkSnapshot]]:
+        """Only the viewer's arrived visits; the original Move must remain visible.
+
+        Ghost opt-out hides the public trace, not one's private visit history.
+        Use the departure time even when the Move ended later.
+        """
+        p = aliased(MoveParticipant)
+        at = case((p.status == "left", p.left_at), else_=Move.ends_at)
+        rows = self.session.exec(
+            select(Move, p, Mark)
+            .join(p, col(p.move_id) == col(Move.id))
+            .join(Mark, col(Mark.id) == col(Move.mark_id))
+            .where(
+                p.user_id == user_id,
+                col(p.arrived_at).is_not(None),
+                col(Move.status).in_(("live", "ended")),
+                or_(
+                    p.status == "left",
+                    and_(p.status == "there", Move.status == "ended"),
+                ),
+                at <= until,
+                visible_to(user_id),
+            )
+            .order_by(at.desc(), col(Move.id))
+            .offset(offset)
+            .limit(limit)
+        )
+        return [
+            (
+                GhostCandidate(
+                    move.mark_id,
+                    move.id,
+                    part.user_id,
+                    part.status,
+                    part.left_at,
+                    move.status,
+                    move.ends_at,
+                    move.text,
+                ),
+                mark_snapshot(mark),
+            )
+            for move, part, mark in rows
         ]
 
     def moments(self, viewer_id: str, mark_id: str, limit: int) -> list[Moment]:

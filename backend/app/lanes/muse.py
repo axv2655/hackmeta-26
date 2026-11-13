@@ -63,13 +63,20 @@ def register(
     client: MuseClient | None = None,
 ) -> MuseLane:
     # M1: runner, client and the MuseGateway port
-    client = client or client_from_settings()
+    fast_client = None
+    if client is None:
+        client = client_from_settings()
+        if settings.MUSE_FAST_MODEL:
+            fast_client = client_from_settings(
+                settings.model_copy(update={"MUSE_MODEL": settings.MUSE_FAST_MODEL})
+            )
     lane = MuseLane.build(
         engine or db.engine,
         container,
         client,
         token_budget=settings.MUSE_TOKEN_BUDGET,
         deterministic=settings.MUSE_DETERMINISTIC,
+        fast_client=fast_client,
     )
     container.muse = lane.gateway
     gateway = lane.gateway

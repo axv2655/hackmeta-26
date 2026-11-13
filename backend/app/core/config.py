@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     MUSE_BASE_URL: HttpUrl | None = None
     MUSE_API_KEY: SecretStr | None = None
     MUSE_MODEL: str | None = "muse-spark-1.3"
+    MUSE_FAST_MODEL: str | None = "muse-ember-1.0"
     MUSE_VISION_MODEL: str | None = None
     # Input + output tokens one backend process may spend on Muse. Once used,
     # every agent answers with its heuristic fallback (no network call).

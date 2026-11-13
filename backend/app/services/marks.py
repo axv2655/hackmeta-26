@@ -86,7 +86,7 @@ def ghost_at(c: GhostCandidate) -> datetime | None:
 
 
 def is_ghost(at: datetime | None, now: datetime) -> bool:
-    return at is not None and now - GHOST_WINDOW <= at <= now
+    return at is not None and now - GHOST_WINDOW < at <= now
 
 
 def normalize_tags(tags: Iterable[str]) -> tuple[str, ...]:
@@ -118,6 +118,14 @@ class Ghost:
     at: datetime
     text: str = ""
     """The Move's text, so a ghost reads "Maya was here: matcha after class"."""
+
+
+@dataclass(frozen=True, slots=True)
+class Memory:
+    move_id: str
+    mark: MarkSnapshot
+    at: datetime
+    text: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +253,21 @@ class MarkService:
             marks=tuple(SavedMarkView(v, row) for v, (row, _) in zip(views, rows)),
             reels=tuple(self.repo.saved_reels(user_id)),
         )
+
+    def memories(self, user_id: str, limit: int = 30, offset: int = 0) -> list[Memory]:
+        """Personal visits after their 24-hour Ghost window, newest first.
+
+        Existing participation is retained; no copy or destructive migration.
+        Quiet departures have no row and therefore never enter Memories.
+        """
+        rows = self.repo.memories(
+            user_id, self.clock.now() - GHOST_WINDOW, limit, offset
+        )
+        return [
+            Memory(c.move_id, mark, at, c.text)
+            for c, mark in rows
+            if (at := ghost_at(c)) is not None
+        ]
 
     def views(self, viewer_id: str, marks: Sequence[MarkSnapshot]) -> list[MarkView]:
         """Add the viewer's saved flag and scores, keeping the order."""

@@ -26,6 +26,7 @@ import type {
   MarkCreateBody,
   MarkDetail,
   Me,
+  Memory,
   Moment,
   Move,
   MoveCreateBody,
@@ -245,6 +246,7 @@ const demo = {
 };
 
 export const endpoints = {
+  memories: { list: (limit = 30, offset = 0) => api<Memory[]>(`/me/memories?limit=${limit}&offset=${offset}`) },
   moves,
   marks,
   moments,

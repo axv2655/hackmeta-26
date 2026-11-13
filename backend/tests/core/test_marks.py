@@ -256,7 +256,88 @@ def test_ghost_window_boundary(world: Session, marks: MarkService) -> None:
             ("priya", "left", NOW - GHOST_WINDOW),
         ],
     )
-    assert ghost_ids(marks, "anish", "kumo") == ["tony", "priya"]
+    assert ghost_ids(marks, "anish", "kumo") == ["tony"]
+
+
+def test_ghost_becomes_memory_at_exactly_one_day(world, marks, clock):
+    add_mark(world, "kumo")
+    add_move(world, "visit", "kumo", people=[("tony", "left", NOW)])
+    clock.at = NOW + GHOST_WINDOW - timedelta(microseconds=1)
+    assert ghost_ids(marks, "anish", "kumo") == ["tony"]
+    assert marks.memories("tony") == []
+    clock.at = NOW + GHOST_WINDOW
+    assert ghost_ids(marks, "anish", "kumo") == []
+    [memory] = marks.memories("tony")
+    assert (memory.move_id, memory.mark.id, memory.at) == ("visit", "kumo", NOW)
+    clock.at += timedelta(days=30)
+    assert [m.move_id for m in marks.memories("tony")] == ["visit"]
+    # The archive is personal, even when the viewer could see the original Ghost.
+    assert marks.memories("anish") == []
+
+
+def test_memories_departure_precedes_end_and_never_arrived_excluded(world, marks):
+    add_mark(world, "kumo")
+    add_move(
+        world,
+        "left",
+        "kumo",
+        status="ended",
+        ends_at=ago(1),
+        people=[("anish", "left", ago(25))],
+    )
+    add_move(
+        world,
+        "ended",
+        "kumo",
+        status="ended",
+        ends_at=ago(26),
+        people=[("anish", "there", None)],
+    )
+    add_move(
+        world,
+        "never-arrived",
+        "kumo",
+        status="ended",
+        ends_at=ago(30),
+        people=[("anish", "left", ago(29))],
+        never_arrived=["anish"],
+    )
+    add_move(world, "quiet", "kumo", status="ended", ends_at=ago(30))
+    add_move(
+        world,
+        "cancelled",
+        "kumo",
+        status="cancelled",
+        ends_at=ago(30),
+        people=[("anish", "left", ago(29))],
+    )
+    assert [m.move_id for m in marks.memories("anish")] == ["left", "ended"]
+    assert [m.move_id for m in marks.memories("anish", limit=1, offset=1)] == ["ended"]
+
+
+def test_memories_http_is_private_and_respects_block(world, client):
+    add_mark(world, "kumo")
+    add_move(
+        world,
+        "visit",
+        "kumo",
+        status="ended",
+        ends_at=ago(25),
+        people=[("anish", "there", None)],
+    )
+    response = client.get("/api/v1/me/memories")
+    assert response.status_code == 200
+    [memory] = response.json()
+    assert memory["move_id"] == "visit" and memory["mark_name"] == "Kumo"
+    assert not {"lat", "lng", "user"}.intersection(memory)
+    assert (
+        client.get("/api/v1/me/memories", headers={"X-User-Id": "stranger"}).json()
+        == []
+    )
+    assert client.get("/api/v1/me/memories?offset=-1").status_code == 422
+    world.add(Block(user_id="tony", hidden_from_user_id="anish", created_at=NOW))
+    world.commit()
+    assert client.get("/api/v1/me/memories").json() == []
 
 
 def test_ended_move_leaves_ghosts_of_those_still_there(

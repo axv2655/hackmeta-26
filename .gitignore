@@ -2,6 +2,7 @@
 .env
 .claude/settings.local.json
 .agents/
+.gstack/
 
 # Apple push keys and other deploy secrets
 /secrets/

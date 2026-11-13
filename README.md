@@ -1,9 +1,10 @@
 # hackmeta-26
 
-Hackathon starter: an Expo (React Native) app in `frontend/` and a FastAPI
+Hackathon starter: an Expo (React Native) app in `frontend/mobile/`, a
+Vite + React web feed in `frontend/web/`, and a FastAPI
 backend in `backend/`.
 
-- `frontend/` is a bare Expo app that renders "Hello world". It runs on iOS,
+- `frontend/mobile/` is a bare Expo app that renders "Hello world". It runs on iOS,
   Android and web. `lib/backend.js` is a small fetch helper for the API.
 - `backend/` is the layered FastAPI template from hackathon-template. No
   database or secrets needed to run. See [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md).
@@ -24,14 +25,22 @@ same Wi-Fi reach it.
 Frontend (Node 20+):
 
 ```sh
-cd frontend
+cd frontend/mobile
 npm ci
 npx expo start        # press i / a / w, or scan the QR code with Expo Go
 ```
 
+Web feed UI (Vite + React):
+
+```sh
+cd frontend/web
+npm ci
+npm run dev           # http://localhost:5173
+```
+
 `lib/backend.js` finds the backend on port 8000 of the machine serving the
-Expo bundle (e.g. `api.health()`). Set `EXPO_PUBLIC_BACKEND_URL` in `frontend/.env` to point at a
-deployed backend instead (see `frontend/.env.example`).
+Expo bundle (e.g. `api.health()`). Set `EXPO_PUBLIC_BACKEND_URL` in `frontend/mobile/.env` to point at a
+deployed backend instead (see `frontend/mobile/.env.example`).
 
 CORS only matters for the web build; `FRONTEND_HOST` in `backend/.env`
 defaults to Expo web's `http://localhost:8081`.
@@ -44,8 +53,8 @@ cd backend && uv run pytest && uv run ruff check . && uv run ruff format --check
 
 ## Starting a real project
 
-- Rename in `frontend/app.json` (name, slug, scheme, bundle IDs) and
-  `backend/pyproject.toml`. Add icons under `frontend/assets/` and reference
+- Rename in `frontend/mobile/app.json` (name, slug, scheme, bundle IDs) and
+  `backend/pyproject.toml`. Add icons under `frontend/mobile/assets/` and reference
   them from `app.json`.
 - Delete the backend's notes example when you no longer need it: in
   `backend/app/`: `domain/`, `repositories/`, `services/`,

@@ -10,7 +10,8 @@
  *
  * Env overrides for other machines or teams: APPLE_TEAM_ID,
  * APPLE_PROVISIONING_PROFILE, APPLE_SIGN_IDENTITY. With no team set, nothing
- * changes and Xcode's automatic signing applies.
+ * changes and Xcode's automatic signing applies. Skipped on EAS cloud builds
+ * (EAS_BUILD is set), which use EAS-managed credentials.
  */
 const { withXcodeProject } = require('expo/config-plugins');
 
@@ -19,6 +20,9 @@ module.exports = function withManualSigning(config, options = {}) {
   const profile = process.env.APPLE_PROVISIONING_PROFILE || options.profile;
   const identity = process.env.APPLE_SIGN_IDENTITY || options.identity || 'Apple Development';
   if (!teamId || !profile) return config;
+  // EAS cloud builds inject their own managed certificate and provisioning
+  // profile; a hardcoded local profile name would not exist there.
+  if (process.env.EAS_BUILD) return config;
 
   return withXcodeProject(config, (cfg) => {
     const project = cfg.modResults;

@@ -190,9 +190,12 @@ class MovesTools:
         if problems:
             return {"status": "needs_clarification", "problems": problems}
         mark = None
+        new_name = None
         if place and place.strip():
             mark = self.place_by_name(place)
-            if mark is None:
+            if mark is None and lat is not None:
+                new_name = place  # an event with no Mark: a new spot here
+            elif mark is None:
                 return {
                     "status": "needs_clarification",
                     "problems": [
@@ -210,6 +213,7 @@ class MovesTools:
             lat,
             lng,
             place=mark,
+            new_place_name=new_name,
             user_ids=tuple(p.id for p in recipients),
         )
         if result.needs_place or result.draft_id is None:
@@ -222,6 +226,7 @@ class MovesTools:
             "status": "draft",
             "draft_id": result.draft_id,
             "place": result.place,
+            "new_spot": result.new_place,
             "text": result.text,
             "recipients": self._recipient_names(result, recipients),
             "nudges": self._nudges(result, recipients),

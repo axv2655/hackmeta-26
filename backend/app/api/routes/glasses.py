@@ -16,7 +16,7 @@ from app.api.deps import ContainerDep
 from app.core.db import SessionDep
 from app.ports import Category
 from app.services import glasses
-from app.services.glasses import DraftExpired, PlaceSource
+from app.services.glasses import DraftExpired, PlaceFailed, PlaceSource
 from app.tables import User
 
 router = APIRouter(tags=["glasses"])
@@ -104,4 +104,6 @@ async def glasses_confirm(
         result = await glasses.service_for(container).confirm(user_id, body.draft_id)
     except DraftExpired as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except PlaceFailed as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
     return GlassesPosted(move_id=result.move_id, text=result.text, spoken=result.spoken)

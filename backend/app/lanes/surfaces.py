@@ -15,7 +15,11 @@ from app.container import Container
 from app.core import db
 from app.core.config import settings
 from app.hooks import Hooks
-from app.repositories.glasses_places import DEFAULT_DEMO_MARK_ID, SqlPlaceFinder
+from app.repositories.glasses_places import (
+    DEFAULT_DEMO_MARK_ID,
+    SqlPlaceCreator,
+    SqlPlaceFinder,
+)
 from app.scheduler.loop import Scheduler
 from app.services import glasses
 from app.services.calendar_gateway import SqlCalendarGateway
@@ -58,4 +62,5 @@ def register(
         glasses.DraftStore(lambda: container.clock.now()),
         places,
         demo_mode=lambda: settings.DEMO_MODE is not None,
+        creator=SqlPlaceCreator(eng, lambda: container.clock),
     )

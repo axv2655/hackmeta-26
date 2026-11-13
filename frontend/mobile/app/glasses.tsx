@@ -236,7 +236,7 @@ export default function GlassesScreen() {
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Draft Move</Text>
             <Text style={styles.cardTitle}>{draft.text}</Text>
-            <Text style={styles.cardSub}>{draft.place ? `at ${draft.place}${draft.place_source === 'usual' ? ' (your usual spot)' : ''}` : ''}</Text>
+            <Text style={styles.cardSub}>{draft.place ? `at ${draft.place}${draft.place_source === 'usual' ? ' (your usual spot)' : draft.place_source === 'new' ? ' (a new spot here)' : ''}` : ''}</Text>
             <Text style={styles.cardSub}>Say “confirm” or tap below. Expires in 5 minutes.</Text>
             <Button
               title={phase === 'posted' ? 'Posted' : 'Confirm'}

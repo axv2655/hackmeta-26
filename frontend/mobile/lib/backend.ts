@@ -15,7 +15,7 @@ export type GlassesDraft = {
   /** Name of the Mark the Move will go to, or null when `needs_place`. */
   place: string | null;
   /** How the place was chosen. 'usual' = their most-visited spot, 'demo' = the demo Mark. */
-  place_source: 'nearby' | 'muse' | 'named' | 'usual' | 'demo' | null;
+  place_source: 'nearby' | 'muse' | 'named' | 'usual' | 'demo' | 'new' | null;
   /** True when no place could be found: no draft is held, ask "where at?" and say it again. */
   needs_place: boolean;
   expires_at: string | null;

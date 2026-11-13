@@ -8,12 +8,16 @@ from the user: the Mark's pin is a public place, not a person's position.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
-from app.ports import MarkSnapshot
+from app.core.composition import build_mark_service
+from app.ports import Clock, MarkSnapshot
 from app.seed import ids
-from app.services.glasses import match_named, usual_mark_id
+from app.services.glasses import NewPlace, match_named, usual_mark_id
+from app.services.marks import MarkInput
 from app.tables import Mark, Move, MoveParticipant, SavedMark
 
 DEFAULT_DEMO_MARK_ID = ids.KUMO_MATCHA
@@ -70,3 +74,20 @@ class SqlPlaceFinder:
         with Session(self._engine) as session:
             row = session.get(Mark, self._demo_mark_id)
             return _snapshot(row) if row else None
+
+
+class SqlPlaceCreator:
+    """Creates a user Mark through core's own `MarkService.create` (same
+    validation and `source="user"` as `POST /marks`). Core exposes no port for
+    this yet, so it is a surfaces-side adapter; ask core for `MarkGateway.create`."""
+
+    def __init__(self, engine: Engine, clock: Callable[[], Clock]) -> None:
+        self._engine = engine
+        self._clock = clock
+
+    def create(self, user_id: str, place: NewPlace) -> MarkSnapshot:
+        data = MarkInput(
+            name=place.name, category=place.category, lat=place.lat, lng=place.lng
+        )
+        with Session(self._engine) as session:
+            return build_mark_service(session, self._clock()).create(user_id, data).mark

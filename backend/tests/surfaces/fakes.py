@@ -286,3 +286,17 @@ class HookSpy:
 
     async def __call__(self, *args: Any) -> None:
         self.calls.append(args)
+
+
+class FakeCreator:
+    """`PlaceCreator`: records the Marks it was asked to create."""
+
+    def __init__(self) -> None:
+        self.created: list[tuple[str, Any]] = []
+        self.fail = False
+
+    def create(self, user_id: str, place: Any) -> MarkSnapshot:
+        if self.fail:
+            raise RuntimeError("core down")
+        self.created.append((user_id, place))
+        return mark(f"new-{len(self.created)}", place.name)

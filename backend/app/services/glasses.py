@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 import uuid
 from collections import Counter
@@ -56,11 +57,21 @@ SAY_AGAIN = "That Move expired. Say it again."
 NO_START = "I can only start a Move. Try saying: start a Move, getting boba."
 WHERE_AT = "Where at? Say it again with a place."
 MIN_TOKEN = 4
+NEAR_M = 200.0  # a Mark farther than this from the caller is not "here"
+MAX_NEW_NAME = 60
+COARSE_DECIMALS = 3  # ~100 m, the same rounding the app sends
 
 
 class GlassesError(Exception):
     """Base of the glasses errors. This lane may not import core's domain error
     kinds, so the route maps these to statuses itself."""
+
+
+class PlaceFailed(GlassesError):
+    """The new spot could not be saved, so nothing was posted."""
+
+    def __init__(self) -> None:
+        super().__init__("Couldn't save that spot. Try again.")
 
 
 class DraftExpired(GlassesError):
@@ -89,7 +100,7 @@ def fallback_intent(utterance: str) -> Intent:
     return Intent(intent="start_move", text=text)
 
 
-PlaceSource = Literal["nearby", "muse", "named", "usual", "demo"]
+PlaceSource = Literal["nearby", "muse", "named", "usual", "demo", "new"]
 
 
 class PlaceFinder(Protocol):
@@ -116,6 +127,32 @@ class NoPlaces:
 
     def demo_mark(self) -> MarkSnapshot | None:
         return None
+
+
+def distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Great-circle distance in metres."""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lng2 - lng1)
+    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 12_742_000 * math.asin(math.sqrt(h))
+
+
+@dataclass(frozen=True, slots=True)
+class NewPlace:
+    """A Mark to create at confirm time for an event with no Mark on the map.
+    Coordinates are rounded to ~100 m before they are held."""
+
+    name: str
+    category: Category
+    lat: float
+    lng: float
+
+
+class PlaceCreator(Protocol):
+    """Creates a user Mark. Core owns Marks and exposes no port for this, so the
+    adapter calls core's own validated `MarkService.create`."""
+
+    def create(self, user_id: str, place: NewPlace) -> MarkSnapshot: ...
 
 
 def _words(text: str) -> str:
@@ -167,6 +204,7 @@ class Pending:
     draft: MoveDraftOut
     expires_at: datetime
     move_id: str | None = None
+    new_place: NewPlace | None = None
 
 
 class DraftStore:
@@ -177,9 +215,13 @@ class DraftStore:
         self._ttl = ttl
         self._items: dict[str, Pending] = {}
 
-    def put(self, user_id: str, draft: MoveDraftOut) -> Pending:
+    def put(
+        self, user_id: str, draft: MoveDraftOut, new_place: NewPlace | None = None
+    ) -> Pending:
         self.purge()  # no scheduler job: sweep expired drafts as new ones arrive
-        pending = Pending(uuid.uuid4().hex, user_id, draft, self._now() + self._ttl)
+        pending = Pending(
+            uuid.uuid4().hex, user_id, draft, self._now() + self._ttl, None, new_place
+        )
         self._items[user_id] = pending
         return pending
 
@@ -197,6 +239,17 @@ class DraftStore:
         if pending is None:
             return None
         updated = replace(pending, move_id=move_id)
+        self._items[user_id] = updated
+        return updated
+
+    def set_mark(self, user_id: str, mark_id: str) -> Pending | None:
+        """The pending new place became a real Mark: pin the draft to it."""
+        pending = self._items.get(user_id)
+        if pending is None:
+            return None
+        updated = replace(
+            pending, draft=replace(pending.draft, mark_id=mark_id), new_place=None
+        )
         self._items[user_id] = updated
         return updated
 
@@ -221,6 +274,7 @@ class CommandResult:
     place: str | None = None
     place_source: PlaceSource | None = None
     needs_place: bool = False
+    new_place: bool = False
     expires_at: datetime | None = None
     draft: MoveDraftOut | None = None  # for in-process callers; routes never echo it
 
@@ -244,6 +298,7 @@ class GlassesService:
         lock: asyncio.Lock,
         places: PlaceFinder | None = None,
         demo_mode: Callable[[], bool] = lambda: False,
+        creator: PlaceCreator | None = None,
     ) -> None:
         self._clock = clock
         self._muse = muse
@@ -253,6 +308,7 @@ class GlassesService:
         self._lock = lock
         self._places = places or NoPlaces()
         self._demo_mode = demo_mode
+        self._creator = creator
 
     async def command(
         self,
@@ -277,17 +333,25 @@ class GlassesService:
         lng: float | None = None,
         *,
         place: MarkSnapshot | None = None,
+        new_place_name: str | None = None,
         user_ids: tuple[str, ...] = (),
     ) -> CommandResult:
         """Hold a pending draft for already-understood Move text (no intent
         parsing). `place` is an explicit Mark and wins over coordinates;
-        `user_ids` replaces Muse's audience picks. Creates no Move."""
+        `user_ids` replaces Muse's audience picks. With coordinates and no Mark
+        within NEAR_M (or a `new_place_name` no Mark has), the draft is for a new
+        spot that is only created when confirmed. Creates no Move and no Mark."""
         text = clean(text, MAX_TEXT)
         nearest = None if place else self._nearest(lat, lng)
+        here = self._new_spot_here(place, nearest, lat, lng, new_place_name)
+        if here:
+            nearest = None
         pinned = place or nearest
         draft = await self._compose(user_id, text, pinned.id if pinned else None)
         if user_ids:
             draft = replace(draft, user_ids=user_ids, circle_ids=())
+        if here and lat is not None and lng is not None:
+            return self._hold_new_spot(user_id, draft, new_place_name, lat, lng)
         draft, mark, source = self._place(user_id, draft, pinned)
         if place is not None and mark is not None and source == "nearby":
             source = "named"
@@ -314,6 +378,53 @@ class GlassesService:
             draft=draft,
         )
 
+    def _new_spot_here(
+        self,
+        place: MarkSnapshot | None,
+        nearest: MarkSnapshot | None,
+        lat: float | None,
+        lng: float | None,
+        new_place_name: str | None,
+    ) -> bool:
+        if self._creator is None or place is not None:
+            return False
+        if lat is None or lng is None:
+            return False
+        if new_place_name or nearest is None:
+            return True
+        return distance_m(lat, lng, nearest.lat, nearest.lng) > NEAR_M
+
+    def _hold_new_spot(
+        self,
+        user_id: str,
+        draft: MoveDraftOut,
+        name: str | None,
+        lat: float,
+        lng: float,
+    ) -> CommandResult:
+        spot = NewPlace(
+            name=clean(name or draft.text, MAX_NEW_NAME) or "New spot",
+            category=draft.category,
+            lat=round(lat, COARSE_DECIMALS),
+            lng=round(lng, COARSE_DECIMALS),
+        )
+        draft = replace(draft, mark_id=None)
+        pending = self._drafts.put(user_id, draft, spot)
+        said = clean(draft.text, MAX_SPOKEN_TEXT)
+        return CommandResult(
+            understood=True,
+            spoken=f"{said} at {clean(spot.name, MAX_SPOKEN_TEXT)}, a new spot "
+            "here. Say confirm to post.",
+            draft_id=pending.id,
+            text=draft.text,
+            category=draft.category,
+            place=spot.name,
+            place_source="new",
+            new_place=True,
+            expires_at=pending.expires_at,
+            draft=draft,
+        )
+
     async def confirm(self, user_id: str, draft_id: str | None = None) -> ConfirmResult:
         """Post the pending draft exactly once. A repeat returns the same Move."""
         async with self._lock:
@@ -322,10 +433,25 @@ class GlassesService:
                 raise DraftExpired
             if pending.move_id is not None:
                 return self._result(pending.move_id, pending.draft)
-            move = await self._moves.create(user_id, self._to_create(pending.draft))
+            draft = self._with_real_mark(user_id, pending)
+            move = await self._moves.create(user_id, self._to_create(draft))
             self._drafts.mark_posted(user_id, move.id)
         await self._announce(move.id)
-        return self._result(move.id, pending.draft)
+        return self._result(move.id, draft)
+
+    def _with_real_mark(self, user_id: str, pending: Pending) -> MoveDraftOut:
+        """Create the pending new spot as a Mark (once), then pin the draft."""
+        if pending.new_place is None:
+            return pending.draft
+        if self._creator is None:
+            raise PlaceFailed
+        try:
+            made = self._creator.create(user_id, pending.new_place)
+        except Exception:
+            logger.warning("glasses: could not create the new spot")
+            raise PlaceFailed from None
+        updated = self._drafts.set_mark(user_id, made.id)
+        return updated.draft if updated else replace(pending.draft, mark_id=made.id)
 
     # -- steps ----------------------------------------------------------
 
@@ -428,16 +554,19 @@ _lock: asyncio.Lock | None = None
 
 _places: PlaceFinder | None = None
 _demo_mode: Callable[[], bool] | None = None
+_creator: PlaceCreator | None = None
 
 
 def install(
     drafts: DraftStore,
     places: PlaceFinder | None = None,
     demo_mode: Callable[[], bool] | None = None,
+    creator: PlaceCreator | None = None,
 ) -> DraftStore:
     """Called by `app/lanes/surfaces.py` at startup; replaces any earlier store."""
-    global _drafts, _lock, _places, _demo_mode
+    global _drafts, _lock, _places, _demo_mode, _creator
     _drafts, _lock, _places, _demo_mode = drafts, asyncio.Lock(), places, demo_mode
+    _creator = creator
     return drafts
 
 
@@ -459,4 +588,5 @@ def service_for(container: Container) -> GlassesService:
         lock=_lock,
         places=_places,
         demo_mode=_demo_mode or (lambda: False),
+        creator=_creator,
     )

@@ -24,6 +24,8 @@ import {
 import { selection, success } from '@/lib/haptics';
 import { shareMove } from '@/lib/invites';
 import { currentUser } from '@/lib/mock';
+import { myFirstName } from '@/lib/session';
+import { useLive } from '@/lib/live';
 import { useMyMoves } from '@/lib/store/moves';
 import { colors, radius, spacing, type as typeScale } from '@/lib/theme';
 
@@ -79,6 +81,7 @@ export default function NewMoveScreen() {
     try {
       const move = await postMove(input, data.online);
       useMyMoves.getState().add(toMapMove(move));
+      void useLive.getState().load();
       success();
       setPosted({ move, input });
     } catch (e) {
@@ -289,8 +292,8 @@ function SendStep({ move, input, onDone }: { move: PostedMove; input: MoveInput;
               shareMove({
                 moveId: move.id,
                 markName: move.place.name,
-                creatorFirst: currentUser.firstName,
-                inviterFirst: currentUser.firstName,
+                creatorFirst: myFirstName(currentUser.firstName),
+                inviterFirst: myFirstName(currentUser.firstName),
               })
             }
           />

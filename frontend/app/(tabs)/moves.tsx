@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type BottomSheet from '@gorhom/bottom-sheet';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, Extrapolation } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { MovesMap, type MovesMapHandle } from '@/components/moves/MovesMap';
 import { MovesSheet, SHEET_COLLAPSED, useSheetBottomInset } from '@/components/moves/MovesSheet';
@@ -11,6 +11,7 @@ import { GlassSurface } from '@/components/ui/Glass';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection, tap } from '@/lib/haptics';
+import { useLive } from '@/lib/live';
 import { mapMoves } from '@/lib/mock/moves';
 import { useMyMoves } from '@/lib/store/moves';
 import { colors } from '@/lib/theme';
@@ -33,8 +34,25 @@ export default function MovesScreen() {
   const router = useRouter();
   const mine = useMyMoves((s) => s.mine);
   const focusId = useMyMoves((s) => s.focusId);
-  // The user's own posted Moves sit on top of the (mock) world.
-  const moves = useMemo(() => [...mine, ...mapMoves], [mine]);
+  const live = useLive((s) => s.moves);
+  const online = useLive((s) => s.online);
+  // Backend Moves when reachable, else the mock world; Moves posted offline on
+  // top (once the backend has them, its copy wins).
+  const moves = useMemo(() => {
+    const world = live ?? mapMoves;
+    const ids = new Set(world.map((m) => m.id));
+    return [...(online ? [] : mine.filter((m) => !ids.has(m.id))), ...world];
+  }, [live, online, mine]);
+
+  // Load on focus and keep fresh while the tab is open; realtime events also
+  // trigger loads (lib/realtime.ts).
+  useFocusEffect(
+    useCallback(() => {
+      void useLive.getState().load();
+      const timer = setInterval(() => void useLive.getState().load(), 20000);
+      return () => clearInterval(timer);
+    }, []),
+  );
 
   const selected = selectedId ? moves.find((m) => m.id === selectedId) ?? null : null;
 
@@ -54,13 +72,13 @@ export default function MovesScreen() {
   // the request only when the timer fires; clearing it first would re-run this
   // effect and cancel the timer. The wait lets the composer finish dismissing.
   useEffect(() => {
-    if (!focusId) return;
+    if (!focusId || !moves.some((m) => m.id === focusId)) return;
     const timer = setTimeout(() => {
       useMyMoves.getState().focus(null);
       select(focusId);
     }, 700);
     return () => clearTimeout(timer);
-  }, [focusId, select]);
+  }, [focusId, moves, select]);
 
   const clear = useCallback(() => {
     setSelectedId((current) => {
@@ -92,7 +110,7 @@ export default function MovesScreen() {
 
       <Animated.View pointerEvents="box-none" style={[styles.top, { top: insets.top + 6 }, controlsStyle]}>
         <GlassSurface radius={22} style={styles.titlePill}>
-          <Text style={styles.title}>Richardson</Text>
+          <Text style={styles.title}>Menlo Park</Text>
           <Text style={styles.subtitle}>{moves.filter((m) => m.status !== 'ghost').length} friends out · 73°</Text>
         </GlassSurface>
 
@@ -140,6 +158,7 @@ export default function MovesScreen() {
         onSelect={select}
         onClose={clear}
         animatedIndex={sheetIndex}
+        onPull={(id) => void useLive.getState().toggleGoing(id)}
         onIndexChange={(index) => {
           setSettledIndex(index);
           // A Move card doesn't fit the pill detent: collapsing means "done".

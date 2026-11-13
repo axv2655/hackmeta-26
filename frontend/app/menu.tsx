@@ -8,6 +8,7 @@ import { ALSO_FROM_META_ID, menuSections } from '@/components/fb/menu/data';
 import { LogoutDialog } from '@/components/fb/menu/LogoutDialog';
 import { ProfileCard } from '@/components/fb/menu/ProfileCard';
 import { ShortcutGrid } from '@/components/fb/menu/ShortcutGrid';
+import { AccountSwitcher } from '@/components/moves/AccountSwitcher';
 import { MetaLogo } from '@/components/fb/brand/MetaLogo';
 import { ScreenHeader, type HeaderAction } from '@/components/fb/ScreenHeader';
 import { Button } from '@/components/ui/Button';
@@ -70,6 +71,7 @@ export default function MenuScreen() {
         showsVerticalScrollIndicator={false}
       >
         <ProfileCard user={currentUser} onPress={() => router.navigate('/profile')} />
+        <AccountSwitcher />
 
         <ShortcutGrid onPressShortcut={openShortcut} />
 

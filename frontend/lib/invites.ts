@@ -1,6 +1,6 @@
 import { Share } from 'react-native';
 
-import { backendFetch, type BackendFetchOptions } from './backend';
+import { api } from './session';
 
 /**
  * Share a Move with friends who aren't in the group or don't have the app
@@ -9,13 +9,6 @@ import { backendFetch, type BackendFetchOptions } from './backend';
  *
  * Mirrors backend/app/api/routes/invites.py.
  */
-
-/** Seeded user to act as until the login picker sets a session. */
-export const USER_ID: string = process.env.EXPO_PUBLIC_USER_ID || 'u_anish';
-
-function asUser(init: BackendFetchOptions = {}): BackendFetchOptions {
-  return { ...init, headers: { 'X-User-Id': USER_ID } };
-}
 
 export type Invite = {
   id: string;
@@ -33,11 +26,11 @@ export type Invite = {
 
 export const invitesApi = {
   create: (moveId: string, message?: string) =>
-    backendFetch<Invite>(
-      `/moves/${encodeURIComponent(moveId)}/invites`,
-      asUser({ method: 'POST', body: JSON.stringify({ message: message || null }) }),
-    ),
-  list: (moveId: string) => backendFetch<Invite[]>(`/moves/${encodeURIComponent(moveId)}/invites`, asUser()),
+    api<Invite>(`/moves/${encodeURIComponent(moveId)}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ message: message || null }),
+    }),
+  list: (moveId: string) => api<Invite[]>(`/moves/${encodeURIComponent(moveId)}/invites`),
 };
 
 /** The same first line the backend writes, for the offline fallback. */

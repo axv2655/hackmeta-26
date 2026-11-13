@@ -52,7 +52,11 @@ const byUser: Record<string, BitmojiSet> = {
 };
 
 export function bitmojiFor(userId: string, pose: BitmojiPose = 'walk'): ImageRef {
-  return (byUser[userId] ?? a)[pose];
+  // Backend ids use `_` (u_tony), the mock world `-` (u-tony).
+  const set = byUser[userId] ?? byUser[userId.replace(/_/g, '-')];
+  if (set) return set[pose];
+  const hash = [...userId].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  return (hash % 2 ? a : b)[pose];
 }
 
 /** The pose that fits a Move's category, for pins of newly posted Moves. */

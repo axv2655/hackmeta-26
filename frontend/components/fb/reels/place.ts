@@ -5,7 +5,7 @@
 const KNOWN_DISTANCES: Record<string, string> = {
   'Kumo Matcha': '1.2 mi',
   'Saffron Table': '0.8 mi',
-  'Richardson Farmers Market': '2.4 mi',
+  'Menlo Park Farmers Market': '2.4 mi',
 };
 
 /** Stable "x.y mi" label for a place name (same name, same distance). */

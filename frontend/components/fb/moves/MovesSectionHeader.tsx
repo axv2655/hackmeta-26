@@ -25,7 +25,7 @@ export type MovesSectionHeaderProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** "Happening now ............ (pin) Plano, TX" row above the Moves content. */
+/** "Happening now ............ (pin) Menlo Park, CA" row above the Moves content. */
 export function MovesSectionHeader({ title, location, onPressLocation, style }: MovesSectionHeaderProps) {
   return (
     <View style={[styles.root, style]}>

@@ -1,10 +1,14 @@
+import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { InAppBanner } from '@/components/InAppBanner';
 import { SplashOverlay } from '@/components/fb/SplashOverlay';
+import { useRealtime } from '@/lib/realtime';
+import { useSession } from '@/lib/session';
 import { colors } from '@/lib/theme';
 
 // Keeps the tabs underneath when a deep link opens /post/new or /post/share directly.
@@ -13,6 +17,13 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  // Live data: one socket for the signed-in user, and the seeded users list
+  // for names and the account switcher.
+  useRealtime();
+  useEffect(() => {
+    void useSession.getState().loadUsers();
+  }, []);
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
@@ -39,6 +50,7 @@ export default function RootLayout() {
           />
           <Stack.Screen name="+not-found" />
         </Stack>
+        <InAppBanner />
         <SplashOverlay />
       </SafeAreaProvider>
     </GestureHandlerRootView>

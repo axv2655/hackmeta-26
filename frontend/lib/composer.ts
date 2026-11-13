@@ -1,5 +1,4 @@
-import { backendFetch, type BackendFetchOptions } from './backend';
-import { USER_ID } from './invites';
+import { api as backendFetch, postJson as post, useSession } from './session';
 import { bitmojiPoseFor } from './mock/bitmoji';
 import { currentUser, friends as mockFriends, users as mockUsers } from './mock';
 import { mapMoves, myPosition, type MapMove, type MoveCategory } from './mock/moves';
@@ -30,7 +29,7 @@ export type Place = { id: string; name: string; category: Category; lat: number;
 
 export type Person = { id: string; name: string; firstName: string; avatar?: ImageRef; color?: string };
 
-/** A Circle. `groupName` is set when it's a Facebook Group ("UTD Climbing"). */
+/** A Circle. `groupName` is set when it's a Facebook Group ("MPK Climbing Club"). */
 export type Group = { id: string; name: string; groupName: string | null; memberIds: string[] };
 
 export type ComposerData = {
@@ -51,8 +50,6 @@ export type NotifyPick = { person: Person; copy: string; reason: string };
 
 export type PostedMove = { id: string; online: boolean; place: Place; text: string; audience: Person[] };
 
-const asUser = (init: BackendFetchOptions = {}): BackendFetchOptions => ({ ...init, headers: { 'X-User-Id': USER_ID } });
-const post = (body: unknown) => asUser({ method: 'POST', body: JSON.stringify(body) });
 
 // --- wire shapes (backend/app/models, app/muse/schemas.py) -----------------
 
@@ -90,11 +87,11 @@ export async function loadComposer(): Promise<ComposerData> {
   try {
     const [draft, friendRows, circles] = await Promise.all([
       backendFetch<DraftWire>('/muse/compose-move', post({ lat: myPosition.latitude, lng: myPosition.longitude, heuristic: true })),
-      backendFetch<{ user: UserLite }[]>('/friends', asUser()),
-      backendFetch<CircleWire[]>('/circles', asUser()),
+      backendFetch<{ user: UserLite }[]>('/friends'),
+      backendFetch<CircleWire[]>('/circles'),
     ]);
     const ids = [...new Set([draft.mark?.id, ...draft.nearby_mark_ids].filter(Boolean) as string[])].slice(0, 8);
-    const marks = await Promise.all(ids.map((id) => backendFetch<MarkWire>(`/marks/${id}`, asUser()).catch(() => null)));
+    const marks = await Promise.all(ids.map((id) => backendFetch<MarkWire>(`/marks/${id}`).catch(() => null)));
     const places = marks.filter((m): m is MarkWire => m !== null).map(place);
     if (places.length === 0) throw new Error('no places');
     return {
@@ -148,7 +145,7 @@ function offlineComposer(): ComposerData {
     text: nearest ? `at ${nearest.name} rn, pull up` : '',
     alternates: ['study sesh', 'grabbing food', 'just vibing'],
     groups: [
-      { id: 'g-climbing', name: 'Climbing', groupName: 'UTD Climbing', memberIds: ids('Tony', 'Maya', 'Dev') },
+      { id: 'g-climbing', name: 'Climbing', groupName: 'MPK Climbing Club', memberIds: ids('Tony', 'Maya', 'Dev') },
       { id: 'g-roommates', name: 'Roommates', groupName: null, memberIds: ids('Dhivyesh', 'Jordan') },
     ],
     defaultGroupIds: ['g-roommates'],
@@ -249,7 +246,7 @@ function km(lat: number, lng: number): number {
 export function audienceOf(data: ComposerData, groupIds: string[], friendIds: string[]): Person[] {
   const byId = new Map(data.friends.map((f) => [f.id, f]));
   const ids = new Set([...data.groups.filter((g) => groupIds.includes(g.id)).flatMap((g) => g.memberIds), ...friendIds]);
-  ids.delete(USER_ID);
+  ids.delete(useSession.getState().userId);
   ids.delete(currentUser.id);
   return [...ids].map((id) => byId.get(id) ?? { id, name: id, firstName: id.replace(/^u[_-]/, '') });
 }

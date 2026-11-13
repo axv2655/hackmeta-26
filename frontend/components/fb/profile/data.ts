@@ -26,13 +26,13 @@ export type ProfileDetail = {
   icon: DetailIcon;
   /** Plain lead-in, e.g. "Lives in". Omit for rows that are just a value ("Male"). */
   prefix?: string;
-  /** Value, e.g. "Richardson, Texas". Bold when there is a prefix. */
+  /** Value, e.g. "Menlo Park, California". Bold when there is a prefix. */
   value: string;
 };
 
 /** "At a glance" rows. */
 export const profileDetails: ProfileDetail[] = [
-  { id: 'lives', icon: 'map-pin', prefix: 'Lives in', value: 'Richardson, Texas' },
+  { id: 'lives', icon: 'map-pin', prefix: 'Lives in', value: 'Menlo Park, California' },
   { id: 'from', icon: 'home', prefix: 'From', value: 'Plano, Texas' },
   { id: 'gender', icon: 'gender', value: 'Male' },
   { id: 'school', icon: 'graduation', prefix: 'Studies Computer Science at', value: 'UT Dallas' },

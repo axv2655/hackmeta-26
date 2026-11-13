@@ -52,7 +52,7 @@ export const jordan = person('u-jordan', 'Jordan Lee', avatars.a7, 'Arts, Techno
 });
 
 // Not friends yet: "People you may know" and friend requests
-export const marcus = person('u-marcus', 'Marcus Johnson', avatars.a3, 'Lives in Richardson, Texas', {
+export const marcus = person('u-marcus', 'Marcus Johnson', avatars.a3, 'Lives in Menlo Park, California', {
   isFriend: false,
   mutualFriends: 9,
 });
@@ -64,11 +64,11 @@ export const hannah = person('u-hannah', 'Hannah Brooks', avatars.a4, 'Marketing
   isFriend: false,
   mutualFriends: 6,
 });
-export const grace = person('u-grace', 'Grace Kim', avatars.a8, 'Works at the UTD Student Union', {
+export const grace = person('u-grace', 'Grace Kim', avatars.a8, 'Works at Meta', {
   isFriend: false,
   mutualFriends: 11,
 });
-export const sofia = person('u-sofia', 'Sofia Ramirez', avatars.a12, 'Lives in Plano, Texas', {
+export const sofia = person('u-sofia', 'Sofia Ramirez', avatars.a12, 'Lives in Palo Alto, California', {
   isFriend: false,
   mutualFriends: 3,
 });
@@ -84,15 +84,15 @@ export const kumoMatcha: User = {
   mutualFriends: 0,
   isFriend: false,
   online: false,
-  subtitle: 'Cafe · Richardson, Texas',
+  subtitle: 'Cafe · Menlo Park, California',
   audienceCount: 12400,
 };
 
 export const utdClimbing: User = {
   id: 'gr-climbing',
   kind: 'group',
-  name: 'UTD Climbing',
-  firstName: 'UTD Climbing',
+  name: 'MPK Climbing Club',
+  firstName: 'MPK Climbing Club',
   avatar: posts.p6,
   verified: false,
   mutualFriends: 0,
@@ -105,14 +105,14 @@ export const utdClimbing: User = {
 export const richardsonNow: User = {
   id: 'pg-richardson',
   kind: 'page',
-  name: 'Richardson Now',
-  firstName: 'Richardson Now',
+  name: 'Menlo Park Now',
+  firstName: 'Menlo Park Now',
   avatar: posts.p5,
   verified: true,
   mutualFriends: 0,
   isFriend: false,
   online: false,
-  subtitle: 'Local news · Richardson, Texas',
+  subtitle: 'Local news · Menlo Park, California',
   audienceCount: 58300,
 };
 

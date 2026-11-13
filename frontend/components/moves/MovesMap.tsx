@@ -3,7 +3,8 @@ import { StyleSheet } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 
 import { bitmojiFor } from '@/lib/mock/bitmoji';
-import { me, myPosition, type Coordinate, type MapMove } from '@/lib/mock/moves';
+import { myPosition, type Coordinate, type MapMove } from '@/lib/mock/moves';
+import { useSession } from '@/lib/session';
 
 import { AvatarPin } from './AvatarPin';
 
@@ -23,10 +24,11 @@ export type MovesMapProps = {
 };
 
 const HOME_CAMERA = {
-  center: { latitude: 32.9846, longitude: -96.7462 },
+  // The Meta campus (Menlo Park): Hacker Square, MPK 20 and MPK 21 in view.
+  center: { latitude: 37.4800, longitude: -122.1540 },
   pitch: 35,
   heading: 0,
-  altitude: 5200,
+  altitude: 6600,
   zoom: 14.1,
 };
 
@@ -45,6 +47,7 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
   ref,
 ) {
   const mapRef = useRef<MapView>(null);
+  const myId = useSession((st) => st.userId);
 
   useImperativeHandle(ref, () => ({
     focus: (coordinate, zoomedIn = true) => {
@@ -102,7 +105,7 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
         </Marker>
       ))}
       <Marker coordinate={myPosition} anchor={{ x: 0.5, y: 0.8 }} displayPriority="required" zIndex={5}>
-        <AvatarPin image={bitmojiFor(me.id, 'walk')} name="Me" detail="now" status="me" />
+        <AvatarPin image={bitmojiFor(myId, 'walk')} name="Me" detail="now" status="me" />
       </Marker>
     </MapView>
   );

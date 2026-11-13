@@ -8,7 +8,7 @@ paths only; nothing else is logged or stored.
 
 import logging
 
-NEARBY_PATHS = ("/moves/nearby", "/marks/nearby")
+NEARBY_PATHS = ("/moves/nearby", "/marks/nearby", "/areas/city")
 
 
 def strip_nearby_query(target: str) -> str:

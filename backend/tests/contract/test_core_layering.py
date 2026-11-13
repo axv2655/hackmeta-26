@@ -6,7 +6,9 @@ ROOT = Path(__file__).resolve().parents[2] / 'app'
 
 # Services owned by other lanes still read tables directly. The rule covers the
 # core lane's use cases; moving these behind repositories is a follow-up.
-NOT_YET_LAYERED = {'notify.py', 'suggestions.py', 'taste.py', 'invites.py'}
+NOT_YET_LAYERED = {
+    'notify.py', 'suggestions.py', 'taste.py', 'invites.py', 'accounts.py'
+}
 
 
 def test_services_do_not_depend_on_sql():

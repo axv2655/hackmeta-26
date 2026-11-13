@@ -9,6 +9,7 @@ Frozen: changing a table needs an issue that all three lane owners approve.
 
 from sqlmodel import SQLModel
 
+from app.tables.accounts import Credential
 from app.tables.core import (
     AutojoinPref,
     Block,
@@ -47,6 +48,7 @@ __all__ = [
     "AutojoinPref",
     "Block",
     "CalendarEvent",
+    "Credential",
     "Circle",
     "CircleMember",
     "Copresence",

@@ -154,7 +154,7 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 | Storage | Postgres via SQLModel (`DATABASE_URL`, hosted Timescale for dev; psycopg driver), recreated from seed on demand. Falls back to a SQLite file when `DATABASE_URL` is unset; tests always use in-memory SQLite. | Shared data across phones and teammates, env-only config so the backend runs unchanged in Docker on the homelab, easy reset before the demo. Foreign keys are enforced, so seeds insert parents first (`test_seed_respects_foreign_keys`). |
 | Realtime | One WebSocket per client, server push only | Simpler and more reliable on venue Wi-Fi than push notifications. |
 | Push | In-app banners from WebSocket events + `expo-notifications` **local** notifications for lock-screen effect | Remote push needs credentials and a dev build; local notifications give the same visual. |
-| Auth | Mocked "Continue with Facebook": pick a seeded user. `X-User-Id` header | No real auth in a one-day demo. Verified badge is a seeded flag. |
+| Auth | Username + password accounts (`/auth/signup`, `/auth/login`, scrypt-hashed in `credentials`); the app keeps the account on the device and sends its id as `X-User-Id`. Seeded people log in as their first name with password `moves` | Light enough for a demo; the header is still trusted, so it is not real security. Verified badge is a seeded flag. |
 | AI | Muse behind a `MuseClient` port, JSON-only outputs, heuristic fallback for every agent | Muse is essential, but a failed call must never break the live demo. |
 | Places | Seeded `marks` table for the demo area, plus user-created Marks | No external Places API dependency. |
 | Hosting | Laptop on the same Wi-Fi (`--host 0.0.0.0`) with a tunnel as backup (`EXPO_PUBLIC_BACKEND_URL`) | Already supported by `frontend/lib/backend.js`. |
@@ -1157,7 +1157,10 @@ type Notification = { id: string; type: string; title: string; body: string;
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/health` | liveness |
-| GET | `/auth/users` | seeded users for the login picker |
+| GET | `/auth/users` | everyone, for name lookups |
+| POST | `/auth/signup` | `{name, username, password}` → `{user, username}`; befriends everyone already here |
+| POST | `/auth/login` | `{username, password}` → `{user, username}` (403 on a wrong password) |
+| GET | `/areas/city?lat&lng` | city at the map's center for the Moves header, `{name, region}`; rounded to ~1 km, reverse-geocoded (Nominatim, `GEOCODER_URL`) with a cache, falls back to the configured areas |
 | GET | `/me` | current user + settings |
 | PATCH | `/me/settings` | update `user_settings` |
 | GET | `/friends` | friend list with affinity tier |

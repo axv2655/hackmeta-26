@@ -1,0 +1,22 @@
+# Self-hosting the backend (homelab: NGINX terminates TLS in front of it).
+#
+#   backend/.env   DATABASE_URL and friends (see backend/.env.example)
+#   .env           BACKEND_PORT, PUBLIC_BASE_URL for this host
+#
+#   docker compose up -d --build
+#   docker compose exec backend python -m app.seed.seed   # wipes and reseeds!
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      FASTAPI_ENV: production
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - backend-data:/data
+
+volumes:
+  backend-data:

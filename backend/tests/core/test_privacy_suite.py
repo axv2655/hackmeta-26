@@ -877,6 +877,8 @@ def test_audit_catches_leaks() -> None:
 PUBLIC = (
     ("GET", f"{API}/health"),
     ("GET", f"{API}/auth/users"),  # the login picker, before anyone is signed in
+    ("POST", f"{API}/auth/signup"),  # making an account, signed out
+    ("POST", f"{API}/auth/login"),
     # Demo Mark photos: manifest-listed, shared by category, carry no user data.
     ("GET", "/media/seed/marks/{asset_name}"),
 )

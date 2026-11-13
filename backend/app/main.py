@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.logging import redact_nearby_queries
 from app.hooks import Hooks
 from app.lanes import Registrar, core, examples, muse, push, surfaces
+from app.mcp_server import mcp_runtime, mount_mcp
 from app.scheduler.loop import Scheduler
 
 LANES: tuple[Registrar, ...] = (
@@ -44,7 +45,8 @@ def create_app(lanes: Sequence[Registrar] = LANES) -> FastAPI:
         app.state.scheduler = scheduler
         scheduler.start()
         try:
-            yield
+            async with mcp_runtime(app):
+                yield
         finally:
             await scheduler.stop()
 
@@ -66,6 +68,7 @@ def create_app(lanes: Sequence[Registrar] = LANES) -> FastAPI:
     app.include_router(media.router)  # canonical /media, outside the API prefix
     # Public invite links (/m/{token}) sit at the root so shared URLs stay short.
     app.include_router(invite_page.router)
+    mount_mcp(app)  # remote MCP for Muse at POST /mcp (bearer token)
     register_exception_handlers(app)
     return app
 

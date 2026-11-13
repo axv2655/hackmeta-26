@@ -3,16 +3,20 @@
 Never import another lane's fakes: a bug in theirs must not mask or break yours.
 """
 
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from app.ports import (
     Intent,
+    JoinedVia,
     MarkSnapshot,
     MoveCreate,
     MoveDraftOut,
     MoveSnapshot,
     NotifyPickOut,
+    ParticipantSnapshot,
+    ParticipantStatus,
 )
 
 T0 = datetime(2026, 11, 12, 15, 0, tzinfo=UTC)
@@ -56,24 +60,77 @@ class FakeMarks:
 
 
 class FakeMoves:
+    """Core's MoveGateway as far as surfaces needs it, with a visible audience."""
+
     def __init__(self) -> None:
         self.created: list[tuple[str, MoveCreate]] = []
+        self.moves: dict[str, MoveSnapshot] = {}
+        self.audience: dict[str, frozenset[str]] = {}
+        self.joined: list[tuple[str, str]] = []
+
+    def add(
+        self,
+        move_id: str,
+        creator_id: str,
+        audience: tuple[str, ...] = (),
+        participants: tuple[ParticipantSnapshot, ...] = (),
+        status: str = "live",
+        place: str = "Kumo",
+    ) -> MoveSnapshot:
+        move = MoveSnapshot(
+            id=move_id,
+            creator_id=creator_id,
+            mark=mark("kumo", place),
+            text="getting boba",
+            category="coffee",
+            status=status,  # type: ignore[arg-type]
+            kind="move",
+            open=False,
+            origin="manual",
+            starts_at=T0,
+            created_at=T0,
+            participants=participants
+            or (ParticipantSnapshot(creator_id, "going", "creator", T0),),
+        )
+        self.moves[move_id] = move
+        self.audience[move_id] = frozenset(audience)
+        return move
+
+    def get(self, move_id: str) -> MoveSnapshot | None:
+        return self.moves.get(move_id)
+
+    def audience_ids(self, move_id: str) -> frozenset[str]:
+        return self.audience.get(move_id, frozenset())
+
+    def list_live_visible(self, viewer_id: str) -> list[MoveSnapshot]:
+        return [
+            m
+            for m in self.moves.values()
+            if m.status == "live"
+            and (viewer_id == m.creator_id or viewer_id in self.audience_ids(m.id))
+        ]
 
     async def create(self, creator_id: str, draft: MoveCreate) -> MoveSnapshot:
         self.created.append((creator_id, draft))
-        return MoveSnapshot(
-            id=f"move-{len(self.created)}",
-            creator_id=creator_id,
-            mark=mark(draft.mark_id),
-            text=draft.text,
-            category=draft.category,
-            status="live",
-            kind=draft.kind,
-            open=draft.open,
-            origin=draft.origin,
-            starts_at=T0,
-            created_at=T0,
+        move = self.add(
+            f"move-{len(self.created)}",
+            creator_id,
+            draft.user_ids,
+            place=mark(draft.mark_id).name,
         )
+        return move
+
+    async def add_participant(
+        self,
+        move_id: str,
+        user_id: str,
+        status: ParticipantStatus,
+        joined_via: JoinedVia,
+    ) -> None:
+        self.joined.append((move_id, user_id))
+        move = self.moves[move_id]
+        mine = ParticipantSnapshot(user_id, status, joined_via, T0)
+        self.moves[move_id] = replace(move, participants=(*move.participants, mine))
 
 
 class FakeMuse:
@@ -85,6 +142,8 @@ class FakeMuse:
         self.intent: Intent | None = None
         self.compose_calls: list[dict[str, object]] = []
         self.notified: list[str] = []
+        self.notify_calls: list[tuple[str, set[str], set[str]]] = []
+        self.picks: tuple[NotifyPickOut, ...] = ()  # compose_move's draft notify
 
     async def parse_intent(self, utterance: str) -> Intent:
         if self.down:
@@ -104,7 +163,12 @@ class FakeMuse:
         self.compose_calls.append(
             {"mark_id": mark_id, "seed_text": seed_text, "coarse": coarse}
         )
-        return MoveDraftOut(mark_id=mark_id, text=seed_text or "", category="coffee")
+        return MoveDraftOut(
+            mark_id=mark_id,
+            text=seed_text or "",
+            category="coffee",
+            notify=self.picks,
+        )
 
     async def notify_move(
         self,
@@ -113,7 +177,8 @@ class FakeMuse:
         drop_ids: Collection[str] = (),
     ) -> list[NotifyPickOut]:
         self.notified.append(move_id)
-        return []
+        self.notify_calls.append((move_id, set(force_ids), set(drop_ids)))
+        return [NotifyPickOut(u, "pull up?", "friend") for u in force_ids]
 
 
 class FakePlaces:
@@ -139,3 +204,14 @@ class FakePlaces:
     def demo_mark(self) -> MarkSnapshot | None:
         self.calls.append("demo")
         return self.demo
+
+
+class FakeProximity:
+    def __init__(self, together: Iterable[str] = ()) -> None:
+        self.together = frozenset(together)
+
+    def copresent_cluster(self, user_id: str) -> frozenset[str]:
+        return self.together
+
+    def open_moves_near(self, user_id: str) -> list[str]:
+        return []

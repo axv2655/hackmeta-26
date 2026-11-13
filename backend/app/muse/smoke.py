@@ -66,13 +66,6 @@ PROBES: tuple[Probe, ...] = (
         500,
     ),
     Probe(
-        "move_ranker",
-        "app.muse.agents.move_ranker",
-        "RankerOut",
-        "m1 | coffee | Kumo Matcha | matcha rn | {u2} (0.8) | y | - | 5\n"
-        "m2 | food | Taco Spot | tacos? | {u3} (0.2) | n | - | 30",
-    ),
-    Probe(
         "intent",
         "app.muse.agents.intent",
         "IntentOut",

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "hackmeta-26"
     API_V1_STR: str = "/api/v1"
     FRONTEND_HOST: str = "http://localhost:8081"
+    # Optional Vite build. The combined Docker image sets this to /web.
+    WEB_DIST_DIR: str = str(BACKEND_DIR.parent / "frontend" / "web" / "dist")
     FASTAPI_ENV: Literal["development", "staging", "production"] = "development"
     SENTRY_DSN: HttpUrl | None = None
     # Held as a secret so the password never shows up in a repr or a log line.
@@ -34,11 +36,17 @@ class Settings(BaseSettings):
     # Muse model API (ARCHITECTURE.md 3.2); read only by the muse lane.
     MUSE_BASE_URL: HttpUrl | None = None
     MUSE_API_KEY: SecretStr | None = None
-    MUSE_MODEL: str | None = None
+    MUSE_MODEL: str | None = "muse-spark-1.3"
+    MUSE_FAST_MODEL: str | None = "muse-ember-1.0"
     MUSE_VISION_MODEL: str | None = None
     # Input + output tokens one backend process may spend on Muse. Once used,
     # every agent answers with its heuristic fallback (no network call).
     MUSE_TOKEN_BUDGET: int = 400000
+    # True: Muse never calls the model. Ranking, recommended Moves (flares,
+    # nobody-bit, revive, spots) and who to nudge all come from deterministic
+    # scores; copy comes from templates. False: agents ask the model and fall
+    # back to the same scores on failure.
+    MUSE_DETERMINISTIC: bool = True
 
     # Shared invite links (ARCHITECTURE.md 9.4): public origin of the /m/{token}
     # page, e.g. a tunnel. Unset: the URL the request came in on (LAN only).

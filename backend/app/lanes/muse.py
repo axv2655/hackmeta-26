@@ -63,22 +63,32 @@ def register(
     client: MuseClient | None = None,
 ) -> MuseLane:
     # M1: runner, client and the MuseGateway port
-    client = client or client_from_settings()
+    fast_client = None
+    if client is None:
+        client = client_from_settings()
+        if settings.MUSE_FAST_MODEL:
+            fast_client = client_from_settings(
+                settings.model_copy(update={"MUSE_MODEL": settings.MUSE_FAST_MODEL})
+            )
     lane = MuseLane.build(
         engine or db.engine,
         container,
         client,
         token_budget=settings.MUSE_TOKEN_BUDGET,
+        deterministic=settings.MUSE_DETERMINISTIC,
+        fast_client=fast_client,
     )
     container.muse = lane.gateway
     gateway = lane.gateway
     autonomous = not settings.DEMO_MODE
     logger.info(
-        "muse lane: client=%s (%s) model=%s budget=%s autonomous_jobs=%s",
+        "muse lane: client=%s (%s) model=%s budget=%s deterministic=%s "
+        "autonomous_jobs=%s",
         type(client).__name__,
         client_kind(client),
         client_model(client),
         settings.MUSE_TOKEN_BUDGET,
+        settings.MUSE_DETERMINISTIC,
         autonomous,
     )
 
@@ -122,7 +132,7 @@ def register(
     gateway.bind("compose_move", compose_move)
     gateway.bind("resolve_place", resolve_place)
 
-    # M6: Move ranker (45 s per-user cache)
+    # M6: Move ranker (deterministic pairwise, domain/move_ranking.py)
     gateway.bind("rank_moves", MoveRanker(lane).rank_moves)
 
     # M7: flare / free-time agent, suggestion expiry

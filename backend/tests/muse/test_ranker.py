@@ -1,10 +1,13 @@
-"""M6: Move ranker and MuseGateway.rank_moves."""
+"""M6: deterministic Move ranker and MuseGateway.rank_moves."""
+
+import random
 
 import pytest
 
 from app.container import Container
 from app.muse.agents.move_ranker import MoveRanker
 from app.muse.client import FakeMuseClient
+from app.tables import MarkRanking
 from tests.muse import factories as f
 from tests.muse.factories import T0, days, mark_snap, move_snap
 from tests.muse.fakes import FixedClock
@@ -46,105 +49,81 @@ MOVES = [
 ]
 
 
-def ranker(engine, answer=None) -> tuple[MoveRanker, FakeMuseClient]:
-    client = FakeMuseClient({"move_ranker": answer} if answer is not None else {})
+def ranker(engine) -> tuple[MoveRanker, FakeMuseClient]:
+    client = FakeMuseClient({"move_ranker": "never asked"})
     lane = f.lane(engine, Container(clock=FixedClock(T0)), client)
-    return MoveRanker(lane, wait=True), client
+    return MoveRanker(lane), client
 
 
-def alias_of(prompt: str) -> dict[str, str]:
-    """Map visible place names back to the move aliases in the prompt."""
-    rows = prompt.split("Moves:\n")[1].splitlines()
-    return {row.split(" | ")[2]: row.split(" | ")[0] for row in rows}
-
-
-async def test_valid_output_parses_and_restores_names(engine, world) -> None:
-    def answer(system, prompt):
-        a = alias_of(prompt)
-        return {
-            "ranked": [
-                {"move": a["Lunch"], "reason": "{u3} · lunch crew"},
-                {"move": a["Kumo"], "reason": "{u1} + {u2} · matcha"},
-                {"move": a["Pickle"], "reason": "open game"},
-            ]
-        }
-
-    r, _ = ranker(engine, answer)
+async def test_closest_people_first_with_names_and_no_model_call(engine, world) -> None:
+    r, client = ranker(engine)
     ranked = await r.rank_moves("anish", MOVES)
-    assert [x.move_id for x in ranked] == ["lunch", "kumo", "pickle"]
-    assert ranked[1].reason.startswith("Tony + Priya")
-
-
-async def test_missing_and_duplicate_ids_are_repaired(engine, world) -> None:
-    def answer(system, prompt):
-        a = alias_of(prompt)
-        return {
-            "ranked": [
-                {"move": a["Lunch"], "reason": "x"},
-                {"move": a["Lunch"], "reason": "dup"},
-                {"move": "m99", "reason": "bogus"},
-            ]
-        }
-
-    r, _ = ranker(engine, answer)
-    ranked = await r.rank_moves("anish", MOVES)
-    ids = [x.move_id for x in ranked]
-    assert ids[0] == "lunch" and sorted(ids) == sorted(m.id for m in MOVES)
-    assert len(ids) == len(set(ids)) == 3
-    assert ids[1:] == ["kumo", "pickle"]  # the rest in fallback order
-
-
-async def test_garbage_falls_back_to_max_participant_affinity(engine, world) -> None:
-    r, client = ranker(engine, "garbage")
-    ranked = await r.rank_moves("anish", MOVES)
-    # kumo has tony (4 hangouts), lunch has maya (1), pickle has strangers
+    # kumo has tony (4 hangouts) + priya, lunch has maya (1), pickle has strangers
     assert [x.move_id for x in ranked] == ["kumo", "lunch", "pickle"]
-    assert ranked[0].reason == "Tony + Priya" and ranked[2].reason == ""
-    assert len(client.calls) == 2
+    assert ranked[0].reason == "Tony + Priya"
+    assert ranked[1].reason == "Maya"
+    assert client.calls == []
 
 
-async def test_more_than_15_moves_all_returned_once(engine, world) -> None:
+async def test_same_order_whatever_the_input_order(engine, world) -> None:
+    r, _ = ranker(engine)
+    first = await r.rank_moves("anish", MOVES)
+    shuffled = list(MOVES)
+    random.Random(7).shuffle(shuffled)
+    assert await r.rank_moves("anish", shuffled) == first
+    assert await r.rank_moves("anish", list(reversed(MOVES))) == first
+
+
+async def test_a_loved_place_climbs_and_says_why(engine, world) -> None:
+    world.add(
+        MarkRanking(
+            user_id="anish", mark_id="pickle", category="fitness", position=0, score=9.5
+        )
+    )
+    world.commit()
+    r, _ = ranker(engine)
+    ranked = await r.rank_moves("anish", MOVES)
+    assert [x.move_id for x in ranked] == ["kumo", "pickle", "lunch"]
+    assert ranked[1].reason == "you loved Pickle"
+
+
+async def test_a_disliked_place_sinks(engine, world) -> None:
+    world.add(
+        MarkRanking(
+            user_id="anish", mark_id="lunch", category="food", position=3, score=1.0
+        )
+    )
+    world.commit()
+    r, _ = ranker(engine)
+    ranked = await r.rank_moves("anish", MOVES)
+    assert [x.move_id for x in ranked] == ["kumo", "pickle", "lunch"]
+
+
+async def test_closing_fill_timer_is_the_reason(engine, world) -> None:
+    flare = move_snap(
+        "flare",
+        "jordan",
+        kind="flare",
+        created_at=T0 - days(0.3),
+        fill_deadline=T0 + days(3 / 1440),
+        mark=mark_snap("court", category="fitness"),
+    )
+    r, _ = ranker(engine)
+    ranked = await r.rank_moves("anish", [flare])
+    assert ranked[0].reason == "3 min to join"
+
+
+async def test_many_moves_all_returned_once_newest_first_on_ties(engine, world) -> None:
     many = [
         move_snap(f"m{i}", "jordan", created_at=T0 - days(i / 100)) for i in range(20)
     ]
-    r, client = ranker(engine, "garbage")
+    r, _ = ranker(engine)
     ranked = await r.rank_moves("anish", many)
-    assert [x.move_id for x in ranked] == [f"m{i}" for i in range(20)]  # newest first
-    prompt = client.calls[0][1]
-    assert len(prompt.split("Moves:\n")[1].splitlines()) == 15
-
-
-async def test_cache_45s_per_user(engine, world) -> None:
-    r, client = ranker(engine, "garbage")
-    await r.rank_moves("anish", MOVES)
-    await r.rank_moves("anish", list(reversed(MOVES)))
-    assert len(client.calls) == 2  # one ranking (call + retry), then cached
-    await r.rank_moves("tony", MOVES)
-    assert len(client.calls) == 4
+    assert [x.move_id for x in ranked] == [f"m{i}" for i in range(20)]
     assert await r.rank_moves("anish", []) == []
 
 
 async def test_gateway_rank_moves_is_bound(engine, world) -> None:
     container, *_ = f.wire(engine, FixedClock(T0))
-    ranked = await container.muse.rank_moves("anish", MOVES)  # heuristic first
+    ranked = await container.muse.rank_moves("anish", MOVES)
     assert [x.move_id for x in ranked] == ["kumo", "lunch", "pickle"]
-
-
-async def test_app_mode_answers_heuristic_now_and_muse_later(engine, world) -> None:
-    def answer(system, prompt):
-        a = alias_of(prompt)
-        return {
-            "ranked": [
-                {"move": a[n], "reason": "muse"} for n in ("Pickle", "Lunch", "Kumo")
-            ]
-        }
-
-    client = FakeMuseClient({"move_ranker": answer})
-    r = MoveRanker(f.lane(engine, Container(clock=FixedClock(T0)), client))
-    first = await r.rank_moves("anish", MOVES)
-    assert [x.move_id for x in first] == ["kumo", "lunch", "pickle"]  # heuristic
-    assert await r.rank_moves("anish", MOVES) == first  # still ranking
-    await r.settle()
-    later = await r.rank_moves("anish", MOVES)
-    assert [x.move_id for x in later] == ["pickle", "lunch", "kumo"]
-    assert len(client.calls) == 1  # one background call, not one per request

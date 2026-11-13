@@ -38,7 +38,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import Engine
 from sqlmodel import Session
 
-from app.muse.client import MuseClient
+from app.muse.client import MuseClient, client_model
 from app.ports import Clock
 from app.tables import MuseRun
 
@@ -127,6 +127,10 @@ class MuseRunner:
     token_budget: int | None = None
     """Input + output tokens this process may spend; None means no cap. Once
     spent, every agent goes straight to its fallback without a network call."""
+    deterministic: bool = False
+    """True (`MUSE_DETERMINISTIC`): never call the model; every agent answers
+    with its scored, rule-based fallback at once and nothing is logged."""
+    agent_clients: dict[str, MuseClient] = field(default_factory=dict)
     _cache: dict[str, tuple[float, BaseModel]] = field(default_factory=dict)
     _total: AgentStats = field(default_factory=AgentStats)
     _by_agent: dict[str, AgentStats] = field(default_factory=dict)
@@ -151,6 +155,7 @@ class MuseRunner:
         check: Callable[[T], T] | None = None,
         system: str | None = None,
         slow: bool = False,
+        live: bool = False,
     ) -> T:
         value, _ = await self.run_agent_meta(
             agent,
@@ -163,6 +168,7 @@ class MuseRunner:
             check=check,
             system=system,
             slow=slow,
+            live=live,
         )
         return value
 
@@ -179,16 +185,24 @@ class MuseRunner:
         check: Callable[[T], T] | None = None,
         system: str | None = None,
         slow: bool = False,
+        live: bool = False,
     ) -> tuple[T, bool]:
         """Like `run_agent`, plus whether the value came from `fallback()`.
 
-        A cache hit replays a Muse answer, so it reports `False`."""
-        system = system or load_prompt(agent)
-        images = list(images or ()) if self.client.supports_vision else []
-        key = prompt_hash(agent, system, prompt, images)
+        A cache hit replays a Muse answer, so it reports `False`. `live=True`
+        asks the model even in deterministic mode (the user prompted Muse)."""
         stats = self._by_agent.setdefault(agent, AgentStats())
         for s in (stats, self._total):
             s.calls += 1
+        if self.deterministic and not live:
+            for s in (stats, self._total):
+                s.fallbacks += 1
+            return fallback(), True
+
+        system = system or load_prompt(agent)
+        client = self.agent_clients.get(agent, self.client)
+        images = list(images or ()) if client.supports_vision else []
+        key = prompt_hash(f"{agent}:{client_model(client)}", system, prompt, images)
 
         cached = self._cache.get(key)
         if cached and cached[0] > time.monotonic():
@@ -209,7 +223,7 @@ class MuseRunner:
                 s.muse_calls += 1
             try:
                 completion = await asyncio.wait_for(
-                    self.client.complete(
+                    client.complete(
                         system, prompt, images=images, json=True, max_tokens=max_tokens
                     ),
                     timeout=self.slow_timeout_s if slow else self.timeout_s,
@@ -294,7 +308,11 @@ class MuseRunner:
             "budget_tokens": self.token_budget,
             "budget_exhausted": self.budget_exhausted,
             "by_agent": {
-                name: s.as_dict() for name, s in sorted(self._by_agent.items())
+                name: {
+                    **s.as_dict(),
+                    "model": client_model(self.agent_clients.get(name, self.client)),
+                }
+                for name, s in sorted(self._by_agent.items())
             },
             "last_outputs": list(self._last),
         }

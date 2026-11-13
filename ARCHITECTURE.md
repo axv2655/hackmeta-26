@@ -169,11 +169,29 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 | AI | Muse behind a `MuseClient` port, JSON-only outputs, heuristic fallback for every agent | Muse is essential, but a failed call must never break the live demo. |
 | Local time | Each phone sends `X-Timezone` and `X-UTC-Offset` on every request; the server remembers the zone per user in memory (`core/timezones.py`) and uses it for every time it writes into copy, including background Muse scans and quiet hours. US Central only when a user has never reported a zone. | "Free til 2:50" must match the clock on the phone reading it, wherever that person is. A zone name is not a location. |
 | Places | Seeded `marks` table for the demo area, plus user-created Marks | No external Places API dependency. |
-| Hosting | Laptop on the same Wi-Fi (`--host 0.0.0.0`) with a tunnel as backup (`EXPO_PUBLIC_BACKEND_URL`) | Already supported by `frontend/lib/backend.js`. |
+| Hosting | One web + API container on the mobile backend's existing server; root Dockerfile and Compose build Vite and FastAPI together | Web at `/` (`/web` redirects), mobile API at `/api/v1`, same origin and port. The deployment hostname comes from `EXPO_PUBLIC_BACKEND_URL`; no hostname is committed. Local LAN/tunnel development remains available. |
+
+Desktop web is still a client using local demo data. `app/web.py` mounts its built
+files last, after API, WebSocket, media, invite, docs and MCP routes. There is no
+SPA catch-all for missing files or unknown API URLs. `WEB_DIST_DIR` defaults to
+`frontend/web/dist` locally and `/web` in the combined image; API-only development
+still boots without a web build. Rebuild/restart the server to publish changes.
 
 ### 3.2 Muse API: first thing to verify
 
-The exact Muse API shape is **not known in this repo**. Before building any agent:
+**Current model choice:** `MUSE_DETERMINISTIC=true` is the default and skips all
+model calls. When explicitly disabled, `muse-spark-1.3` is the default model.
+`MUSE_FAST_MODEL=muse-ember-1.0` routes `move_writer`, `place_resolver`, and
+`pseudo_group_label` to Ember; an empty fast-model setting uses the default for all.
+One runner shares validation, fallbacks, caching and the token budget across both
+clients. `/demo/muse-stats` reports each agent's configured model. Poke selection is
+deterministic by default and makes no model call. Existing deployments must
+set `MUSE_MODEL=muse-spark-1.3` and `MUSE_FAST_MODEL=muse-ember-1.0`, then restart; changing
+the source default does not override an environment value. If vision is enabled,
+set `MUSE_VISION_MODEL=muse-spark-1.3` as well. No key still means the fake client.
+
+The HTTP adapter uses the Messages-compatible API documented in
+`docs/BACKEND_TASKS.md` section 7. Before enabling a model with a deployment's key:
 
 1. Get base URL, auth scheme, model id, and whether it supports JSON/structured output, tool calls, and image input.
 2. Put them in `backend/.env` (`MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL`, optional `MUSE_VISION_MODEL`).
@@ -548,11 +566,23 @@ under the map-style and center buttons. Step 1 is only where, a short descriptio
 (Muse's draft plus alternate chips) and who (Circles / Facebook Groups with a "Group"
 tag, plus friends), with the AudienceLine. **Make Move** posts with
 `notify_user_ids: []`, so nobody is poked yet. Step 2 ("Your Move is live") shows
-Muse's picks from `/muse/notify-preview` (with reasons) plus anyone picked by hand,
+deterministic picks from `/muse/notify-preview` (with reasons) plus anyone picked by hand,
 pre-checked; **Poke N** calls `POST /moves/{id}/notify {user_ids}`, which pokes only
 audience members not already poked. **Share link** sends the no-login `/m/{token}`
 page from the user's own phone (9.4). **Done** opens the new Move's card on the map.
 Without a backend the composer runs on the mock world and the Move stays local.
+
+The composer renders an editable form immediately. Its quick draft, friends,
+Circles, crews and places publish independently while the Muse draft runs in
+parallel. List requests have a 12-second deadline; the model draft has a 25-second
+UI deadline. Late replies preserve typed text, selected places, categories and
+audiences. Partial failures show Retry without hiding successful choices. Posting
+still requires server-confirmed audience visibility. This is client background
+loading, not a durable backend queue.
+
+Mobile Facebook controls reuse matching SVGs from `frontend/web/src/assets/icons`.
+Menu shortcuts, including Memories, use the web sidebar sprite. Regenerate these
+local assets with `node scripts/sync-meta-icons.mjs` from `frontend/mobile`.
 
 ### 7.3 Pull up, arrive, leave
 
@@ -607,6 +637,15 @@ decides whether any of them get an actual notification.
   **Ghost rule**: a ghost needs `arrived_at IS NOT NULL`, and the status is either `left`
   or still `there` when the Move ended (people still there at the end ghost). A
   taken-back Pull up has no row, so it never ghosts. Each ghost carries the Move's `text`.
+- At exactly 24 hours after leaving (or Move end for someone still there), the
+  Ghost expires. The person's visit appears in **Facebook Menu → Memories**
+  (`app/memories.tsx`, `GET /me/memories?limit=30&offset=0`). This personal archive
+  reads retained participation records; no destructive migration or new public
+  audience. Original Move visibility and Moment approval still apply. Quiet
+  departures and never-arrived Pull ups are excluded. Turning Ghosts off hides
+  the map trace but keeps one's private Memories. Demo Control's time shift
+  advances both views. The map refreshes every 20 seconds and Memories every minute
+  while focused, as well as on reopening or manual refresh.
 - Tap a ghost → `mark/[id].tsx` ghost sheet: "Tony, Maya and Priya were here 2h ago",
   the Move text, and its **Moments** in a horizontal viewer. CTA: "Poke me next time
   they're out" (stores a preference that boosts those people in the notify picker).
@@ -795,6 +834,15 @@ Muse is the reason the right people show up. The design principle: **Python comp
 facts, Muse makes judgments and writes words.** We never ask Muse to do arithmetic over
 raw history, and we never hardcode who gets notified.
 
+**Deterministic mode (`MUSE_DETERMINISTIC=true`, the default).** Muse never calls the
+model. Every agent answers at once with its scored, rule-based path: Moves are ranked
+by binary pairwise comparison (10.5), recommended Moves come from scores (flares 10.6,
+nobody-bit 10.9, revive 10.8, spots 10.7), and who to nudge or invite is the affinity
+score from 10.1 (how often you hang out, how recently, at the same kind of place, how
+often you pull up). Copy comes from templates and `source` reads `heuristic`.
+`GET /muse/status` reports `live: false`. Set `MUSE_DETERMINISTIC=false` to let agents
+ask the model again, with the same scores as their fallback.
+
 ### 10.1 Signals computed in Python (`domain/affinity.py`, `muse/context.py`)
 
 For a user U and candidate C:
@@ -863,16 +911,24 @@ make Muse's work visible to judges and make the app honest with users.
   Used by Reels and saved Reels. If `confidence < 0.6`, the UI asks
   "Is this Kumo Matcha?".
 
-### 10.5 Move ranker (P0) — `agents/move_ranker.py`
+### 10.5 Move ranker (P0) — `agents/move_ranker.py`, `domain/move_ranking.py`
 
-- **When**: `GET /moves/nearby` (cached per user for 45 s) and the Home feed insert.
-- **Input**: up to 15 visible active Moves, each with participants and the user's
-  affinity to each participant, category match with the user's taste profile, distance
-  bucket, and fill deadline.
-- **Output**: `{ "ranked": [{ "move": "m2", "reason": "Tony + Priya · your usual lunch crew" }] }`
-- **Rules**: favor the people the user clicks with most, then taste fit, then closeness
-  and urgency. The reason line is shown on the "For you" strip.
-- **Fallback**: sort by max participant affinity.
+- **When**: `GET /moves/feed`, `GET /moves/nearby` and the Home feed insert. No model
+  call, no cache, no background task: the order is computed on the request.
+- **Facts per Move** (from the viewer's side): the best affinity of anyone on it and
+  how many people with positive affinity are there (10.1); the viewer's own 0 to 10
+  score for the Mark from `mark_rankings` (unrated counts as 5); taste fit (category or
+  vibe tags in the taste profile); minutes left on the fill timer; how many are going;
+  age.
+- **Comparison**: `prefer(a, b)` is one binary question, "should a sit above b?". It
+  compares weighted factor totals (people 4, place 2, crowd 1.5, taste 1.5, urgency 1,
+  momentum 1, freshness 0.5; each factor scaled to about -1..1), then newest first,
+  then id, so it is a strict total order.
+- **Ranking**: binary insertion with `prefer`, inserting in id order (the same halving
+  search the rating flow uses), so the result never depends on input order.
+- **Reason line**: the factor that added the most: "Tony + Priya", "you loved Kumo",
+  "your kind of coffee", "3 min to join", "4 going", "just posted", or nothing.
+- The nobody-bit path (10.9) uses the same ranking to pick where to go instead.
 
 ### 10.6 Calendar flare and free-time agents (P1) — `agents/flare.py`
 
@@ -885,7 +941,14 @@ Demo Control) for users with `muse_proactive` on:
 2. Gather options: Saved Marks (and saved Reels with a resolved Mark) reachable in the
    window, with `flared_at` older than 3 days; active Moves nearby; pseudo-group
    members who are also free.
-3. Ask Muse: is this a good moment, and for what? Output:
+3. Decide by score (`domain/recommend.py`; in live mode Muse is asked first and these
+   scores are its fallback). Each saved place scores the user's own rating (2), taste
+   fit (1.5), hangouts there with the friends who are free (1.5) and how recently it
+   was saved (1); the best place flares when it reaches 1.5, so a plain old save never
+   does. Invites are the free friends with positive affinity plus 2 for crew members,
+   best first, at most 3. With no place worth it, a free-time nudge fires only for a
+   free friend scoring at least 1. Demo Control's `force` skips the thresholds. In live
+   mode Muse's output looks like:
 
 ```json
 {
@@ -1298,6 +1361,7 @@ grouped and `'same'` is a tie.
 | GET | `/marks/search?q` | name search |
 | POST | `/marks` | create a Mark |
 | GET | `/marks/{id}` | detail: scores, ghosts, recent Moments |
+| GET | `/me/memories?limit&offset` | personal arrived visits whose Ghost window has expired |
 | POST/DELETE | `/marks/{id}/save` | Saved Marks |
 | GET | `/me/saved` | Saved Marks and saved Reels |
 | POST | `/audience/preview` | `{circle_ids, user_ids}` → `AudienceSummary` |

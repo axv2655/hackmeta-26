@@ -29,6 +29,7 @@ from app.models.marks import (
 from app.models.marks import (
     MarkRead as MarkRead,
 )
+from app.models.marks import MemoryRead
 from app.models.marks import (
     MomentRead as MomentRead,
 )
@@ -63,26 +64,6 @@ MarkServiceDep = Annotated[MarkService, Depends(get_mark_service)]
 
 
 # --- Schemas -----------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # --- Endpoints ---------------------------------------------------------------
@@ -144,3 +125,13 @@ def unsave_mark(user: CurrentUserDep, marks: MarkServiceDep, mark_id: str) -> No
 @router.get("/me/saved")
 def my_saved(user: CurrentUserDep, marks: MarkServiceDep) -> SavedRead:
     return SavedRead.from_items(marks.saved(user.id))
+
+
+@router.get("/me/memories")
+def my_memories(
+    user: CurrentUserDep,
+    marks: MarkServiceDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[MemoryRead]:
+    return [MemoryRead.from_memory(m) for m in marks.memories(user.id, limit, offset)]

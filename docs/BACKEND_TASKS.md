@@ -149,7 +149,7 @@ Every issue ends with the same ground rules:
 ## 7. Open items
 
 - **Muse API shape**: verified by M1 on 2026-11-12 with live calls.
-  - Anthropic Messages-compatible: `POST https://api.meta.ai/v1/messages`, header `Authorization: Bearer <MUSE_API_KEY>`, `anthropic-version: 2023-06-01`. Model id `muse-wonder-1.0` (the only one offered).
+  - Anthropic Messages-compatible: `POST https://api.meta.ai/v1/messages`, header `Authorization: Bearer <MUSE_API_KEY>`, `anthropic-version: 2023-06-01`. Initial live verification used `muse-wonder-1.0`. The project now defaults to `muse-spark-1.3` to reduce cost; Spark access still needs verification with the deployment's key.
   - No JSON mode; asking for "only a JSON object" in the system prompt returns clean JSON. The runner still extracts and validates.
   - **Thinking is always on and cannot be disabled** (`thinking.type=disabled` is a 400; `budget_tokens` must be at least 1024). The response starts with a `redacted_thinking` block, and thinking tokens (about 100 to 300) count against `max_tokens`. A 50-token cap returned no text. `HttpMuseClient` adds `THINKING_HEADROOM = 1024` on top of each agent's cap (the 10.12 caps describe the answer only).
   - Vision works: an inline base64 image is read correctly; a URL image works only if Muse can download it (Wikimedia refused). `MUSE_VISION_MODEL` unset keeps the text-only paths.

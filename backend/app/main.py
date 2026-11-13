@@ -18,6 +18,7 @@ from app.hooks import Hooks
 from app.lanes import Registrar, core, examples, muse, push, surfaces
 from app.mcp_server import mcp_runtime, mount_mcp
 from app.scheduler.loop import Scheduler
+from app.web import mount_web
 
 LANES: tuple[Registrar, ...] = (
     core.register,
@@ -73,6 +74,7 @@ def create_app(lanes: Sequence[Registrar] = LANES) -> FastAPI:
     app.include_router(invite_page.router)
     mount_mcp(app)  # remote MCP for Muse at POST /mcp (bearer token)
     register_exception_handlers(app)
+    mount_web(app, settings.WEB_DIST_DIR)
     return app
 
 

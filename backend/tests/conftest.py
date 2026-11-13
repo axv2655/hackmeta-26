@@ -32,6 +32,9 @@ def _demo_mode_off(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "DEMO_MODE", None)
+    # Muse agent tests exercise the model path with FakeMuseClient; tests of
+    # deterministic mode opt in with `MUSE_DETERMINISTIC=True`.
+    monkeypatch.setattr(settings, "MUSE_DETERMINISTIC", False)
 
 
 @pytest.fixture

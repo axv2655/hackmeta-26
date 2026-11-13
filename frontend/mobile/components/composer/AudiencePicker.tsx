@@ -12,6 +12,7 @@ import { Chip, Face, section } from './Chip';
 import { toggleId } from './hooks';
 
 type Props = {
+  loading?: boolean;
   circles: Circle[];
   crews: PseudoGroup[];
   friends: UserLite[];
@@ -23,10 +24,10 @@ type Props = {
 };
 
 /** "Who": Circles, usual crews and friends. Never public: someone has to be picked. */
-export function AudiencePicker({ circles, crews, friends, circleIds, userIds, onCircles, onUsers, sample }: Props) {
+export function AudiencePicker({ circles, crews, friends, circleIds, userIds, onCircles, onUsers, sample, loading }: Props) {
   const router = useRouter();
 
-  if (!sample && circles.length === 0 && friends.length === 0) {
+  if (!loading && !sample && circles.length === 0 && friends.length === 0) {
     return (
       <View style={styles.empty}>
         <Text style={section.label}>Who</Text>
@@ -45,6 +46,7 @@ export function AudiencePicker({ circles, crews, friends, circleIds, userIds, on
   return (
     <View style={styles.wrap}>
       <Text style={section.label}>Who</Text>
+      {loading ? <Text style={section.sub}>Loading friends and Circles...</Text> : null}
       <View style={section.wrapRow}>
         {circles.map((c) => (
           <Chip

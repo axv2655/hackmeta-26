@@ -1,4 +1,5 @@
 import { ApiError } from './backend';
+import { loadParts, withDeadline } from './composerLoading';
 import { mockAllowed } from './demo';
 import { endpoints } from './endpoints';
 import { coarse, here, kmBetween, useLocation } from './location';
@@ -15,7 +16,6 @@ import {
   type MoveDraft,
   type MoveOrigin,
   type MuseMark,
-  type NearbyMark,
   type NotifyPick,
   type PseudoGroup,
   type SpotPick,
@@ -57,6 +57,22 @@ export type ComposerData = {
   /** Usual crews (Pseudo-groups) that are not muted. */
   crews: PseudoGroup[];
 };
+
+export type ComposerPart = 'draft' | 'friends' | 'circles' | 'crews' | 'places';
+export type ComposerProgress = (part: ComposerPart, data: Partial<ComposerData>) => void;
+
+/** Empty, editable form; no fake people or locations while requests are in flight. */
+export function emptyComposer(prefill: Prefill): ComposerData {
+  return {
+    sample: false, places: [], friends: [], circles: [], crews: [],
+    draft: {
+      mark: null, text: prefill.text ?? '', category: prefill.category ?? 'other',
+      kind: prefill.fill ? 'flare' : 'move', alternates: [], circle_ids: prefill.circleIds,
+      user_ids: prefill.userIds, notify: [], fill_minutes: prefill.fill || null,
+      chips: [], nearby_mark_ids: [], confirm_place: false, source: 'heuristic',
+    },
+  };
+}
 
 // --- params -------------------------------------------------------------------
 
@@ -132,11 +148,11 @@ function dedupe(list: Place[]): Place[] {
 }
 
 async function getPlaces(ids: string[]): Promise<Place[]> {
-  const rows = await Promise.all(ids.map((id) => endpoints.marks.get(id).catch(() => null)));
+  const rows = await Promise.all(ids.map((id) => withDeadline(endpoints.marks.get(id), 12_000).catch(() => null)));
   return rows.filter((m): m is MarkDetail => m !== null).map(toPlace);
 }
 
-async function buildPlaces(draft: MoveDraft, nearby: NearbyMark[], markId?: string): Promise<Place[]> {
+async function buildPlaces(draft: MoveDraft, nearby: Place[], markId?: string): Promise<Place[]> {
   let places = dedupe([...(draft.mark ? [toPlace(draft.mark)] : []), ...nearby.map(toPlace)]);
   // Far from every Mark (nearby is capped at 50 km): use the draft's nearest list.
   if (places.length <= 1 && draft.nearby_mark_ids.length) {
@@ -152,22 +168,19 @@ async function buildPlaces(draft: MoveDraft, nearby: NearbyMark[], markId?: stri
 /** Seed for Muse's writer and place resolver: what the user (or a Reel) already said. */
 export const seedOf = (p: Prefill): string | undefined => p.seedText ?? p.text;
 
-async function loadLive(prefill: Prefill): Promise<ComposerData> {
+async function loadLive(prefill: Prefill, progress: ComposerProgress, settled: (part: ComposerPart) => void): Promise<ComposerData> {
   const at = coarseHere();
-  const [draft, friendRows, circles, crews, nearby] = await Promise.all([
-    endpoints.muse.compose({ ...at, mark_id: prefill.markId, seed_text: seedOf(prefill), heuristic: true }),
-    endpoints.friends.list(),
-    endpoints.circles.list(),
-    endpoints.pseudoGroups.list().catch(() => [] as PseudoGroup[]),
-    endpoints.marks.nearby(at.lat, at.lng, 50, 8).catch(() => [] as NearbyMark[]),
-  ]);
+  const parts = await loadParts<Pick<ComposerData, ComposerPart>>({
+    draft: () => endpoints.muse.compose({ ...at, mark_id: prefill.markId, seed_text: seedOf(prefill), heuristic: true }),
+    friends: () => endpoints.friends.list().then((rows) => rows.map((f) => f.user)),
+    circles: () => endpoints.circles.list(),
+    crews: () => endpoints.pseudoGroups.list().then((rows) => rows.filter((c) => !c.muted && c.members.length > 0)),
+    places: () => endpoints.marks.nearby(at.lat, at.lng, 50, 8).then((rows) => rows.map(toPlace)),
+  }, (part, value) => progress(part, { [part]: value }), settled);
   return {
     sample: false,
-    draft,
-    places: await buildPlaces(draft, nearby, prefill.markId),
-    friends: friendRows.map((f) => f.user),
-    circles,
-    crews: crews.filter((c) => !c.muted && c.members.length > 0),
+    ...parts,
+    places: await buildPlaces(parts.draft, parts.places, prefill.markId),
   };
 }
 
@@ -177,11 +190,19 @@ export function sampleAllowed(e: unknown): boolean {
 }
 
 /** Loads the composer. HTTP errors throw (the screen shows Retry); offline gives sample data. */
-export async function loadComposer(prefill: Prefill): Promise<ComposerData> {
+export async function loadComposer(
+  prefill: Prefill,
+  progress: ComposerProgress,
+  settled: (part: ComposerPart) => void,
+): Promise<ComposerData> {
+  let received = false;
   try {
-    return await loadLive(prefill);
+    return await loadLive(prefill, (part, value) => {
+      received = true;
+      progress(part, value);
+    }, settled);
   } catch (e) {
-    if (sampleAllowed(e)) return sampleComposer(prefill);
+    if (!received && sampleAllowed(e)) return sampleComposer(prefill);
     throw e;
   }
 }

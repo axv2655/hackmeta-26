@@ -15,6 +15,7 @@ import { useDebouncedQuery, type QueryState } from './hooks';
 import { MusePicksRow } from './MusePicksRow';
 
 type Props = {
+  loading?: boolean;
   places: Place[];
   place: Place | null;
   onChoose: (p: Place) => void;
@@ -26,7 +27,7 @@ type Props = {
 };
 
 /** "Where": nearby places, search, "Add here", Muse picks, and Muse's "Is this X?" check. */
-export function PlacePicker({ places, place, onChoose, category, userIds, sample, confirmPlace, onConfirmYes }: Props) {
+export function PlacePicker({ places, place, onChoose, category, userIds, sample, confirmPlace, onConfirmYes, loading }: Props) {
   const [q, setQ] = useState('');
   const input = useRef<TextInput>(null);
   const query = q.trim();
@@ -74,9 +75,9 @@ export function PlacePicker({ places, place, onChoose, category, userIds, sample
       {query ? (
         <SearchResults query={query} search={search} category={category} sample={sample} onPick={pick} />
       ) : (
-        <PlaceChips places={places} place={place} onChoose={onChoose} />
+        loading && places.length === 0 ? <Text style={section.sub}>Loading nearby places. You can search now.</Text> : <PlaceChips places={places} place={place} onChoose={onChoose} />
       )}
-      {!query && !sample ? <MusePicksRow userIds={userIds} category={category} onPick={pick} /> : null}
+      {!query && !sample && !loading ? <MusePicksRow userIds={userIds} category={category} onPick={pick} /> : null}
     </View>
   );
 }

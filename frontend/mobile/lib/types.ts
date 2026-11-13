@@ -77,6 +77,7 @@ export type MuseMark = {
 };
 
 export type Ghost = { user: UserLite; move_id: string; at: string; text: string };
+export type Memory = { move_id: string; mark_id: string; mark_name: string; category: Category; at: string; text: string };
 export type NearbyMark = Mark & { distance_km: number; ghosts: Ghost[] };
 
 export type MediaType = 'photo' | 'clip';
@@ -233,6 +234,90 @@ export type NotifyPreviewBody = {
 export type SuggestSpotsBody = { user_ids: string[]; category?: Category; lat?: number; lng?: number };
 
 export type SpotPick = { mark: MuseMark; reason: string };
+
+// Muse search: the map's prompt box (docs/MUSE_SEARCH.md).
+
+export type MuseSearchRequest = {
+  /** 1..300 chars. */
+  text: string;
+  /** Answers to an earlier `clarify` (name -> user id). */
+  picks?: Record<string, string>;
+  /** A place picked from an earlier card. */
+  mark_id?: string | null;
+  /** Coarse location (same rules as compose). */
+  lat?: number;
+  lng?: number;
+};
+
+export type MuseSearchKind = 'draft' | 'people' | 'places' | 'clarify' | 'answer';
+
+export type MuseSearchDraft = {
+  draft_id: string;
+  text: string;
+  place: string | null;
+  /** Empty means your usual audience (Muse's picks). */
+  recipients: string[];
+  /** Who will see it; always shown (rule 4). */
+  audience: string;
+  expires_at: string | null;
+};
+
+export type MuseSearchPerson = {
+  user_id: string;
+  name: string;
+  first_name: string;
+  avatar_url: string;
+  avatar_color: string;
+  reason: string;
+};
+
+export type MuseSearchPlace = {
+  mark_id: string;
+  name: string;
+  category: Category | string;
+  /** Null when nobody in the group has rated it. */
+  score: number | null;
+  reason: string;
+};
+
+export type MuseSearchClarifyOption = {
+  label: string;
+  user_id: string | null;
+  mark_id: string | null;
+};
+
+export type MuseSearchClarify = {
+  /** "text": Muse couldn't tell what you meant; no options, answer by typing a reply. */
+  field: 'person' | 'place' | 'text';
+  /** The name being clarified (field == "person"); null otherwise. */
+  name: string | null;
+  question: string;
+  options: MuseSearchClarifyOption[];
+};
+
+export type MuseSearchResult = {
+  kind: MuseSearchKind;
+  /** One line shown above the card. */
+  message: string;
+  source: MuseSource;
+  /** The activity, reused by /muse/search/draft. */
+  text: string;
+  draft: MuseSearchDraft | null;
+  people: MuseSearchPerson[];
+  places: MuseSearchPlace[];
+  clarify: MuseSearchClarify | null;
+};
+
+export type MuseSearchDraftBody = {
+  text: string;
+  /** At most 8. */
+  user_ids: string[];
+  mark_id?: string | null;
+  lat?: number;
+  lng?: number;
+};
+
+export type MuseSearchConfirm = { move_id: string; text: string };
 
 export type MuseStatus = {
   client: 'http' | 'fake';

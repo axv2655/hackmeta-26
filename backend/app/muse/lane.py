@@ -42,12 +42,21 @@ class MuseLane:
         client: MuseClient,
         *,
         token_budget: int | None = None,
+        deterministic: bool = False,
+        fast_client: MuseClient | None = None,
     ) -> MuseLane:
         runner = MuseRunner(
             client,
             clock=lambda: container.clock,
             engine=engine,
             token_budget=token_budget,
+            deterministic=deterministic,
+            agent_clients={
+                name: fast_client
+                for name in ("move_writer", "place_resolver", "pseudo_group_label")
+            }
+            if fast_client is not None
+            else {},
         )
         return cls(engine, container, runner)
 

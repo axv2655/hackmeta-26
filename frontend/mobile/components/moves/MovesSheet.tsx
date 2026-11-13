@@ -1,6 +1,6 @@
-import { forwardRef, useMemo, useState } from 'react';
+import { forwardRef, useMemo } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,7 +12,8 @@ import { LoadingState } from '@/components/common/LoadingState';
 import { MoveCard } from '@/components/fb/moves/MoveCard';
 import { MoveRow } from '@/components/fb/moves/MoveRow';
 import { MovesEmptyState } from '@/components/fb/moves/MovesEmptyState';
-import { Icon } from '@/components/ui/Icon';
+import { MuseSearchBox } from '@/components/muse/MuseSearchBox';
+import { MuseSearchPanel } from '@/components/muse/MuseSearchPanel';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { success } from '@/lib/haptics';
 import { moveMeta } from '@/lib/live';
@@ -52,7 +53,8 @@ export { useSheetBottomInset };
 /**
  * Apple-Maps-style floating glass sheet that lives inside the Moves tab (not a
  * modal), so the map stays live under it and the tab bar stays on top.
- * Detents: search pill, half (Muse card, For you, out now + list), and full.
+ * Detents: Muse prompt box, half (Muse's answer, Muse card, For you, out now +
+ * list), and full.
  * Selecting a friend swaps the content to their Move card in place.
  */
 export const MovesSheet = forwardRef<BottomSheet, MovesSheetProps>(function MovesSheet(
@@ -62,7 +64,6 @@ export const MovesSheet = forwardRef<BottomSheet, MovesSheetProps>(function Move
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const bottomInset = useSheetBottomInset();
-  const [query, setQuery] = useState('');
   const me = useSession((s) => s.userId);
 
   const fullHeight = height - insets.top - 8 - bottomInset;
@@ -105,18 +106,7 @@ export const MovesSheet = forwardRef<BottomSheet, MovesSheetProps>(function Move
         ) : (
           <>
             <View style={styles.header}>
-              <View style={styles.search}>
-                <Icon name="search" size={20} color={colors.textSecondary} />
-                <BottomSheetTextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Search friends and Moves"
-                  placeholderTextColor={colors.textSecondary}
-                  style={styles.searchInput}
-                  returnKeyType="search"
-                  clearButtonMode="while-editing"
-                />
-              </View>
+              <MuseSearchBox />
               <View style={styles.meFace}>
                 <Image source={bitmojiFor(me, 'selfie')} style={styles.meImage} contentFit="cover" />
               </View>
@@ -127,9 +117,9 @@ export const MovesSheet = forwardRef<BottomSheet, MovesSheetProps>(function Move
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+              <MuseSearchPanel />
               <SheetList
                 moves={moves}
-                query={query}
                 status={status}
                 error={error}
                 onRetry={onRetry}
@@ -146,7 +136,6 @@ export const MovesSheet = forwardRef<BottomSheet, MovesSheetProps>(function Move
 
 type SheetListProps = {
   moves: MapMove[];
-  query: string;
   status: MovesSheetProps['status'];
   error: string | null;
   onRetry: () => void;
@@ -155,12 +144,10 @@ type SheetListProps = {
 };
 
 /** The list half of the sheet: Muse card, For you, out now, then every Move. */
-function SheetList({ moves, query, status, error, onRetry, onSelect, onPull }: SheetListProps) {
+function SheetList({ moves, status, error, onRetry, onSelect, onPull }: SheetListProps) {
   const router = useRouter();
-  const q = query.trim().toLowerCase();
-  const visible = q ? moves.filter((m) => `${m.user.name} ${m.title} ${m.mark.name}`.toLowerCase().includes(q)) : moves;
-  const live = visible.filter((m) => m.status !== 'ghost');
-  const ghosts = visible.filter((m) => m.status === 'ghost');
+  const live = moves.filter((m) => m.status !== 'ghost');
+  const ghosts = moves.filter((m) => m.status === 'ghost');
 
   if (moves.length === 0 && (status === 'loading' || status === 'idle')) {
     return <LoadingState label="Loading Moves" style={styles.stateBox} />;
@@ -171,12 +158,12 @@ function SheetList({ moves, query, status, error, onRetry, onSelect, onPull }: S
 
   return (
     <>
-      {!q ? <MuseSuggestionCard /> : null}
-      {!q && live.length === 0 ? (
+      <MuseSuggestionCard />
+      {live.length === 0 ? (
         <MovesEmptyState art={150} style={styles.emptyArt} onPressMake={() => router.push('/move/new')} />
       ) : null}
-      {!q ? <ForYouStrip moves={live} onSelect={onSelect} /> : null}
-      {!q && live.length > 0 ? <OutNow moves={live} onSelect={onSelect} /> : null}
+      <ForYouStrip moves={live} onSelect={onSelect} />
+      {live.length > 0 ? <OutNow moves={live} onSelect={onSelect} /> : null}
 
       {live.length > 0 ? <Text style={styles.sectionTitle}>Happening now</Text> : null}
       {live.length > 0 ? (
@@ -201,8 +188,6 @@ function SheetList({ moves, query, status, error, onRetry, onSelect, onPull }: S
           ))}
         </View>
       ) : null}
-
-      {q && visible.length === 0 ? <Text style={styles.empty}>No Moves match “{query}”.</Text> : null}
     </>
   );
 }
@@ -237,22 +222,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
-  },
-  search: {
-    flex: 1,
-    height: 48,
-    borderRadius: 24,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(118,118,128,0.14)',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 17,
-    color: colors.text,
-    paddingVertical: 0,
   },
   meFace: {
     width: 48,
@@ -290,12 +259,6 @@ const styles = StyleSheet.create({
   },
   emptyArt: { flex: 0, paddingVertical: spacing.xl, paddingHorizontal: spacing.md },
   stateBox: { flex: 0, paddingVertical: spacing.xxl },
-  empty: {
-    textAlign: 'center',
-    color: colors.textSecondary,
-    marginTop: spacing.xxl,
-    fontSize: 15,
-  },
 });
 
 export default MovesSheet;

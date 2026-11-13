@@ -261,7 +261,8 @@ button.mv-glass:active, .mv-act:active, .mv-out-item:active, .mv-pull:active, .m
 .moves-main :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* the card clips; the list scrolls inside it, so the scrollbar stays within the rounded corners */
 .mv-panel { position: absolute; z-index: 1; top: 16px; left: 16px; width: 380px; max-width: calc(100% - 32px); max-height: calc(100% - 32px); overflow: hidden; display: flex; flex-direction: column; border-radius: 32px; padding: 22px 3px 22px 16px; }
-.mv-scroll { min-height: 0; overflow-y: auto; padding-right: 5px; }
+/* always reserve the scrollbar lane, so content keeps the same right inset whether or not the list scrolls */
+.mv-scroll { min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding-right: 1px; }
 .mv-scroll::-webkit-scrollbar { width: 12px; }
 /* shorter than the card: keep the bar clear of the rounded corners */
 .mv-scroll::-webkit-scrollbar-track { background: transparent; margin: 18px 0; }
@@ -270,6 +271,8 @@ button.mv-glass:active, .mv-act:active, .mv-out-item:active, .mv-pull:active, .m
 /* Firefox has no scrollbar pseudo-elements */
 @supports not selector(::-webkit-scrollbar) { .mv-scroll { scrollbar-width: auto; scrollbar-color: rgba(60,60,67,.4) transparent; } }
 .mv-panel h3 { font-size: 20px; margin: 16px 4px 8px; }
+/* shorter search so the profile picture sits clear of the scrollbar lane */
+.mv-head { padding-right: 14px; }
 .mv-head .pill-input { height: 44px; background: rgba(118,118,128,.12); box-shadow: inset 0 1px 2px rgba(0,0,0,.06); }
 .mv-head .pill-input:focus { background: rgba(255,255,255,.7); }
 /* Meta-gradient ring: gradient painted in the border box, a white gap, then the photo */

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as L from 'lucide-react'
 import Leaflet from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { MeCard, SnapStrip, SnapshotCamera } from './Snapshot'
 
 // drop-in icons: src/assets/icons/<name>.svg overrides the bundled Lucide fallback
 const FILES = import.meta.glob('./assets/icons/*.svg', { eager: true, query: '?raw', import: 'default' })
@@ -556,6 +557,8 @@ const ALL_MOVES = [
 ]
 // on-the-way Moves are hidden: that friend is not at the Mark yet
 const MOVES = ALL_MOVES.filter((m) => m.status !== 'omw')
+// friends' snapshots from Moves happening now (demo photos)
+const DEMO_SNAPS = { 'mv-1': [['/fb/memories/p4.jpg', 'Maya']], 'mv-2': [['/fb/memories/p6.jpg', 'Tony']] }
 const statusText = (m) => (m.status === 'ghost' ? `Left ${m.time} ago` : `There · ${m.time}`)
 const pinDetail = (m) => (m.status === 'ghost' ? `Left ${m.time} ago` : m.place)
 // Snap-Map-style pin: full-body Bitmoji on a ground shadow with a name label. Static demo data only, so an HTML string is safe here.
@@ -563,8 +566,14 @@ const pinIcon = ({ img, name, detail, cat, status, extra = 0, delay = 0 }) => Le
   className: 'pin-wrap', iconSize: [0, 0],
   html: `<div class="mv-pin ${status}" style="animation-delay:${delay}ms"><div class="mv-body"><img src="${img}" alt="">${cat ? `<span class="mv-badge" style="--c:${status === 'ghost' ? '#8a8d91' : CATS[cat][2]}">${status === 'ghost' ? '👻' : CATS[cat][1]}</span>` : ''}</div><div class="mv-label"><b>${name}${extra ? ` <i>+${extra}</i>` : ''}</b><span>${detail}</span></div></div>`,
 })
-// center a point in the map area left open by the floating panel
-const focus = (map, at, zoom, animate = true) => map?.fitBounds([at, at], { paddingTopLeft: [window.innerWidth > 900 ? PANEL_W : 0, 0], maxZoom: zoom, animate, duration: 0.65 })
+// center a point in the map area left open by the floating panel. `lift` (px) aims above the point:
+// a pin's coordinate is at its feet, so lifting by half the pin's height centers the person, not their feet.
+const PIN_LIFT = 44
+const focus = (map, at, zoom, animate = true, lift = 0) => {
+  if (!map) return
+  const target = lift ? map.unproject(map.project(at, zoom).subtract([0, lift]), zoom) : at
+  map.fitBounds([target, target], { paddingTopLeft: [window.innerWidth > 900 ? PANEL_W : 0, 0], maxZoom: zoom, animate, duration: 0.65 })
+}
 const pinZ = (m, sel) => (sel ? 1000 : m.status === 'ghost' ? -500 : 0)
 
 function MovesMap({ selectedId, onSelect, onClear, mapRef, mine }) {
@@ -581,7 +590,7 @@ function MovesMap({ selectedId, onSelect, onClear, mapRef, mine }) {
     MOVES.forEach((m, i) => {
       markers.current[m.id] = Leaflet.marker(m.at, { icon: pinIcon({ img: bit(m.user, m.pose), name: first(m.user), detail: pinDetail(m), cat: m.cat, status: m.status, extra: m.joined.length, delay: i * 70 }), title: `${first(m.user)} at ${m.place}`, zIndexOffset: pinZ(m) }).addTo(map).on('click', () => onSelect(m.id))
     })
-    meMarker.current = Leaflet.marker(MY_POSITION, { icon: pinIcon({ img: bit('me', 'walk'), name: 'Me', detail: 'now', status: 'me' }), interactive: false, zIndexOffset: 500 }).addTo(map)
+    meMarker.current = Leaflet.marker(MY_POSITION, { icon: pinIcon({ img: bit('me', 'walk'), name: 'Me', detail: 'now', status: 'me' }), title: 'You', zIndexOffset: 500 }).addTo(map).on('click', () => onSelect('me'))
     map.on('click', onClear)
     mapRef.current = map
     return () => { map.remove(); mapRef.current = null; markers.current = {} }
@@ -592,6 +601,8 @@ function MovesMap({ selectedId, onSelect, onClear, mapRef, mine }) {
       mk?.getElement()?.classList.toggle('sel', m.id === selectedId)
       mk?.setZIndexOffset(pinZ(m, m.id === selectedId))
     })
+    meMarker.current?.getElement()?.classList.toggle('sel', selectedId === 'me')
+    meMarker.current?.setZIndexOffset(selectedId === 'me' ? 1000 : 500)
   }, [selectedId])
   useEffect(() => {
     // textContent, not HTML: this is typed by the user
@@ -623,7 +634,7 @@ function MoveRow({ m, pulled, onPick, onPull }) {
   )
 }
 
-function MoveCard({ m, pulled, onPull, onClose }) {
+function MoveCard({ m, pulled, onPull, onClose, snaps, onSnap }) {
   const ghost = m.status === 'ghost'
   const [label, , color, Icon] = CATS[m.cat]
   return (
@@ -645,6 +656,7 @@ function MoveCard({ m, pulled, onPull, onClose }) {
           <span>{m.joined.map(first).join(', ')} {ghost ? 'went' : m.joined.length > 1 ? 'are there' : 'is there'}</span>
         </div>
       )}
+      <SnapStrip snaps={snaps} canSnap={!ghost && pulled} onSnap={onSnap} empty="Nobody has captured this one yet. Be the first." />
       <div className="row mv-actions">
         {ghost
           ? <button className="btn-primary grow"><L.Images size={18} /> See Moments</button>
@@ -666,12 +678,20 @@ function Moves() {
   const [circles, setCircles] = useState(['Roommates'])
   const [people, setPeople] = useState([])
   const [shared, setShared] = useState('')
+  const [mineAudience, setMineAudience] = useState('')
+  // snapshots per Move id ('me' is my own Move): [[src, takenBy]], newest first
+  const [snaps, setSnaps] = useState(DEMO_SNAPS)
+  const [cam, setCam] = useState(null)
   const mapRef = useRef(null)
   const selected = MOVES.find((m) => m.id === sel)
   const select = useCallback((id) => {
     setSel(id)
-    focus(mapRef.current, MOVES.find((m) => m.id === id).at, 17)
+    focus(mapRef.current, id === 'me' ? MY_POSITION : MOVES.find((m) => m.id === id).at, 17, true, PIN_LIFT)
   }, [])
+  const capture = (src) => {
+    setSnaps((s) => ({ ...s, [cam]: [[src, 'You'], ...(s[cam] ?? [])] }))
+    setCam(null)
+  }
   const clear = useCallback(() => setSel(null), [])
   // everyone who would see the Move: members of the picked Circles plus people picked directly
   const audience = [...new Set([...circles.flatMap((c) => CIRCLES[c]), ...people])]
@@ -685,10 +705,11 @@ function Moves() {
     if (audience.length === 0) return
     setMine(draft.trim())
     setShared(audienceLine)
+    setMineAudience(audienceLine)
+    setSnaps((s) => ({ ...s, me: [] })) // a new Move starts with no snapshots
     setDraft('')
     setSheet(false)
-    clear()
-    focus(mapRef.current, MY_POSITION, 17)
+    select('me')
   }
   useEffect(() => {
     if (!shared) return
@@ -706,7 +727,8 @@ function Moves() {
       <MovesMap selectedId={sel} onSelect={select} onClear={clear} mapRef={mapRef} mine={mine} />
       <aside className="mv-glass mv-panel" aria-label="Moves">
         <div className="mv-scroll">
-        {selected ? <MoveCard m={selected} pulled={!!pulled[selected.id]} onPull={() => togglePull(selected.id)} onClose={clear} /> : (
+        {sel === 'me' ? <MeCard face={<img className="mv-hero" src={bit('me', 'walk')} alt="" />} mine={mine} audience={mineAudience} snaps={snaps.me ?? []} onSnap={() => setCam('me')} onClose={clear} />
+        : selected ? <MoveCard m={selected} pulled={!!pulled[selected.id]} onPull={() => togglePull(selected.id)} onClose={clear} snaps={snaps[selected.id] ?? []} onSnap={() => setCam(selected.id)} /> : (
           <>
             <div className="row mv-head">
               <input className="pill-input" placeholder="Search friends and Moves" aria-label="Search friends and Moves" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -786,6 +808,7 @@ function Moves() {
           <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="What are you up to?" aria-label="Share a Move, press Enter to choose who sees it" maxLength={60} enterKeyHint="next" />
         </div>
       </form>
+      {cam && <SnapshotCamera onCapture={capture} onClose={() => setCam(null)} />}
     </main>
   )
 }

@@ -2,14 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 
 // Backend client, the web twin of frontend/mobile/lib/backend.ts + endpoints.ts.
 // Same origin: Vite proxies /api and /media in dev; the backend serves this app in production.
-// Auth is mocked like on mobile: log in once, then send the user id as X-User-Id.
+// Auth like on mobile: log in once, then every request carries the login's session token
+// (Authorization: Bearer, or ?token= on the socket), plus X-User-Id for servers without sessions.
 
 const KEY = 'moves-web-session'
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null } }
-let session = read() // { user: UserLite, username } | null
+let session = read() // the /auth/login answer: { user: UserLite, username, session_token? } | null
 const listeners = new Set()
 
 export const getSession = () => session
+/** Who is asking: the session token the server checks, and the id older servers read. */
+export function authHeaders() {
+  if (!session) return {}
+  const h = { 'X-User-Id': session.user.id }
+  if (session.session_token) h.Authorization = `Bearer ${session.session_token}`
+  return h
+}
 export function setSession(next) {
   session = next
   try { if (next) localStorage.setItem(KEY, JSON.stringify(next)); else localStorage.removeItem(KEY) } catch { /* private window: session lasts this tab */ }
@@ -27,7 +35,7 @@ export class ApiError extends Error {
 
 export async function api(path, { body, method = body ? 'POST' : 'GET' } = {}) {
   const headers = { 'X-UTC-Offset': String(-new Date().getTimezoneOffset()) }
-  if (session) headers['X-User-Id'] = session.user.id
+  Object.assign(headers, authHeaders())
   const form = body instanceof FormData
   if (body && !form) headers['Content-Type'] = 'application/json'
   let res
@@ -98,12 +106,14 @@ export const events = new EventTarget()
 const emit = (type, data) => events.dispatchEvent(new CustomEvent(type, { detail: data }))
 
 export function useRealtime() {
-  const userId = useSession()?.user.id
+  const s = useSession()
+  const userId = s?.user.id
+  const token = s?.session_token
   useEffect(() => {
     if (!userId) return undefined
     let ws, retry, closed = false, attempt = 0
     const connect = () => {
-      ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/v1/ws?user_id=${e(userId)}`)
+      ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/v1/ws?user_id=${e(userId)}${token ? `&token=${e(token)}` : ''}`)
       ws.onopen = () => { attempt = 0; emit('socket.open') }
       ws.onmessage = (m) => { try { const env = JSON.parse(m.data); if (typeof env?.type === 'string') emit(env.type, env.data) } catch { /* not an envelope */ } }
       ws.onclose = () => { if (!closed) retry = setTimeout(connect, Math.min(15000, 1000 * 2 ** attempt++)) }
@@ -111,7 +121,7 @@ export function useRealtime() {
     }
     connect()
     return () => { closed = true; clearTimeout(retry); ws?.close() }
-  }, [userId])
+  }, [userId, token])
 }
 
 // Envelope types (ARCHITECTURE.md 9.1) that change what the Moves map shows.
@@ -153,7 +163,7 @@ export function ago(iso) {
 
 /**
  * A Moment photo under /media is checked per viewer (only people who can see the Move get it), so it needs
- * X-User-Id, which an <img src> cannot send. Fetch it with the header and hand back a blob: URL.
+ * the session headers, which an <img src> cannot send. Fetch it with the header and hand back a blob: URL.
  * Anything else (data:, blob:, public /fb/ paths) passes straight through. null while loading or on failure.
  */
 export function useMedia(src) {
@@ -164,7 +174,7 @@ export function useMedia(src) {
     let gone = false
     let made = null
     setUrl(null)
-    fetch(src, { headers: session ? { 'X-User-Id': session.user.id } : {} })
+    fetch(src, { headers: authHeaders() })
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
       .then((b) => { if (!gone) { made = URL.createObjectURL(b); setUrl(made) } })
       .catch(() => { /* stays null: the caller shows its placeholder */ })

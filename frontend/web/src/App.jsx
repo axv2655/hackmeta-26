@@ -141,14 +141,17 @@ function useDismiss(open, setOpen) {
   return ref
 }
 
-// Menu dropdown: [section, [[label, desc, icon]]]; icon is a sidebar sprite y-offset or a Lucide stand-in
+// Menu dropdown: [section, [[label, desc]]]; icon is public/fb/menu/<label-slug>.webp
 const MENU_SECTIONS = [
-  ['Social', [['Events', 'Organize or find events and other things to do online and nearby.', L.CalendarDays], ['Friends', 'Search for friends or people you may know.', -851], ['Groups', 'Connect with people who share your interests.', -185], ['News Feed', 'See relevant posts from people and Pages you follow.', L.Newspaper], ['Feeds', 'See the most recent posts from your friends, groups, Pages and more.', L.Rss], ['Pages', 'Discover and connect with businesses on Facebook.', -333]]],
-  ['Entertainment', [['Reels', 'A Reels destination personalized to your interests and connections.', -111], ['Video', 'A video destination personalized to your interests and connections.', L.MonitorPlay]]],
-  ['Shopping', [['Marketplace', 'Buy and sell in your community.', -999], ['Orders and payments', 'A seamless, secure way to pay on the apps you already use.', L.CreditCard]]],
-  ['Personal', [['Memories', 'Browse your old photos, videos and posts on Facebook.', -1221], ['Saved', 'Find posts, photos and videos that you saved for later.', -518]]],
+  ['Social', [['Events', 'Organize or find events and other things to do online and nearby.'], ['Friends', 'Search for friends or people you may know.'], ['Groups', 'Connect with people who share your interests.'], ['News Feed', 'See relevant posts from people and Pages you follow.'], ['Feeds', 'See the most recent posts from your friends, groups, Pages and more.'], ['Pages', 'Discover and connect with businesses on Facebook.']]],
+  ['Entertainment', [['Reels', 'A Reels destination personalized to your interests and connections.'], ['Gaming Video', 'Watch and connect with your favorite games and streamers.'], ['Play games', 'Play your favorite games.']]],
+  ['Shopping', [['Orders and payments', 'A seamless, secure way to pay on the apps you already use.'], ['Marketplace', 'Buy and sell in your community.']]],
+  ['Personal', [['Your Ad Activity', 'See all the ads you interacted with on Facebook.'], ['Memories', 'Browse your old photos, videos and posts on Facebook.'], ['Saved', 'Find posts, photos and videos that you saved for later.'], ['Support', 'Everything you need to identify issues and fix them faster.']]],
+  ['Professional', [['Ads Manager', 'Create, manage and track the performance of your ads.']]],
+  ['More from Meta', [['Meta AI', 'Ask questions, brainstorm ideas, create any image you can imagine and more.'], ['Chat with AIs', 'Create and discover AIs for fun conversations or help with specific topics.'], ['Messenger Kids', 'Let kids message with close friends and family.'], ['Meta Quest 3S', 'Meta Quest 3 is now here'], ['Dating', 'Find love through what you like.'], ['Threads', "Say more with Threads — Instagram's text-based conversation app."], ['WhatsApp', 'Message and call people privately on your computer.'], ['Instagram', 'See everyday moments from people you love.']]],
 ]
-const CREATE = [['Post', L.SquarePen], ['Story', L.BookOpen], ['Reel', L.Clapperboard], ['Life update', L.Star], ['Note', L.MessageSquare], null, ['Page', L.Flag], ['Ad', L.Megaphone], ['Group', L.Users], ['Event', L.CalendarPlus], ['Marketplace listing', L.ShoppingBag]]
+const cr = (n, F) => pick(`cr-${n}`, F)
+const CREATE = [['Post', cr('post', L.SquarePen)], ['Story', cr('story', L.BookOpen)], ['Reel', cr('reel', L.Clapperboard)], ['Life update', cr('life-update', L.Star)], ['Note', cr('note', L.MessageSquare)], null, ['Page', cr('page', L.Flag)], ['Ad', cr('ad', L.Megaphone)], ['Group', Users], ['Event', cr('event', L.CalendarPlus)], ['Marketplace listing', cr('marketplace-listing', L.ShoppingBag)], ['Fundraiser', cr('fundraiser', L.HeartHandshake)]]
 
 function AppMenu() {
   const [q, setQ] = useState('')
@@ -164,9 +167,9 @@ function AppMenu() {
             return shown.length > 0 && (
               <section key={sec} className="menu-sec">
                 <h3>{sec}</h3>
-                {shown.map(([label, desc, I]) => (
+                {shown.map(([label, desc]) => (
                   <a key={label} className="menu-row tall">
-                    {typeof I === 'number' ? <i className="sprite" style={{ backgroundImage: 'url(/fb/sidebar.webp)', backgroundPosition: `0 ${I}px` }} /> : <span className="menu-glyph"><I size={24} /></span>}
+                    <img className="menu-img" src={`/fb/menu/${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.webp`} alt="" />
                     <span className="grow"><b>{label}</b><span className="small">{desc}</span></span>
                   </a>
                 ))}

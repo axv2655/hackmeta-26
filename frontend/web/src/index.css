@@ -234,9 +234,10 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
 .menu-row.tall { align-items: flex-start; }
 .menu-row.tall b { display: block; font-size: 15px; font-weight: 600; }
 .menu-row.tall .small { display: block; font-size: 13px; line-height: 1.3; }
-.menu-glyph { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--accent); flex-shrink: 0; }
 .chats .side-search { margin: 8px 0; }
 .chat-last { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .b { font-weight: 600; }
 .center { text-align: center; display: block; }
 .chat-all { padding: 8px 0 0; font-weight: 600; }
+
+.menu-img { width: 36px; height: 36px; flex-shrink: 0; }

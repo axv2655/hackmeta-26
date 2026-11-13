@@ -14,15 +14,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FLogo } from '@/components/fb/brand/FLogo';
 import { MetaLogo } from '@/components/fb/brand/MetaLogo';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { success, warning } from '@/lib/haptics';
+import { errorMessage } from '@/lib/backend';
+import { DEMO } from '@/lib/demo';
+import { selection, success, warning } from '@/lib/haptics';
 import { useSession } from '@/lib/session';
 import { colors, radius, spacing } from '@/lib/theme';
 
 type Mode = 'login' | 'signup';
 
+/** Seeded demo people: username is the first name in lower case, password "moves". */
+const DEMO_ACCOUNTS = ['Anish', 'Priya', 'Tony', 'Maya'] as const;
+const DEMO_PASSWORD = 'moves';
+
 /**
  * Log in or make an account. Shown whenever nobody is signed in on this
- * phone; the root layout swaps in the app once `userId` is set.
+ * phone; the root layout swaps in the app once `userId` is set, and sends a
+ * fresh sign-up to onboarding (this screen never navigates itself).
  */
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -49,10 +56,17 @@ export default function LoginScreen() {
       success();
     } catch (e) {
       warning();
-      const message = e instanceof Error ? e.message : '';
-      setError(message.includes('Network') || message === '' ? "Can't reach Facebook right now. Try again." : message);
+      setError(errorMessage(e));
       setBusy(false);
     }
+  };
+
+  const fillDemo = (first: string) => {
+    selection();
+    setMode('login');
+    setUsername(first.toLowerCase());
+    setPassword(DEMO_PASSWORD);
+    setError(null);
   };
 
   const flip = () => {
@@ -135,6 +149,26 @@ export default function LoginScreen() {
           {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryText}>{signup ? 'Sign up' : 'Log in'}</Text>}
         </PressableScale>
 
+        {DEMO ? (
+          <View style={styles.demo}>
+            <Text style={styles.demoLabel}>Demo accounts</Text>
+            <View style={styles.demoRow}>
+              {DEMO_ACCOUNTS.map((first) => (
+                <PressableScale
+                  key={first}
+                  onPress={() => fillDemo(first)}
+                  scaleTo={0.95}
+                  style={[styles.demoChip, username === first.toLowerCase() && !signup && styles.demoChipOn]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Fill in ${first}'s demo account`}
+                >
+                  <Text style={styles.demoChipText}>{first}</Text>
+                </PressableScale>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.spacer} />
 
         <PressableScale onPress={flip} scaleTo={0.97} style={styles.secondary} accessibilityRole="button">
@@ -174,6 +208,19 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   primaryText: { color: colors.white, fontSize: 17, fontWeight: '600' },
+  demo: { marginTop: spacing.xl, alignItems: 'center', gap: spacing.sm },
+  demoLabel: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  demoRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm },
+  demoChip: {
+    paddingHorizontal: spacing.md,
+    height: 32,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoChipOn: { backgroundColor: colors.chipSelectedBg },
+  demoChipText: { fontSize: 15, fontWeight: '600', color: colors.text },
   spacer: { flex: 1, minHeight: spacing.xxxl },
   secondary: {
     height: 44,

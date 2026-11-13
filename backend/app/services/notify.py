@@ -6,6 +6,8 @@
                  swept in by proximity, never nudged)
                - users in quiet hours
                - users already nudged for this Move
+               - users whose non-empty Move categories leave this one out
+                 (unless the creator force-picked them)
     picked     = notify picker (Muse, or fallback)
     send       = store a notification and publish it over the socket
 
@@ -18,7 +20,7 @@ each line. `None` lets the picker choose.
 joiner's close friends who are in the audience (second order). It never
 widens the audience: every recipient is already in `move_audience`.
 
-Categories cannot be muted yet: `user_settings` has no such column.
+A user with an empty `move_categories` hears about every category.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from typing import Any
 
 from sqlmodel import Session, col, select
 
+from app.core import timezones
 from app.domain.affinity import Target, local
 from app.muse.agents import notify_picker
 from app.muse.agents.notify_picker import NotifyRequest
@@ -45,7 +48,9 @@ def in_quiet_hours(settings: UserSettings | None, now: datetime) -> bool:
     quiet = settings.quiet_hours if settings else None
     if not quiet:
         return False
-    start, end, hour = quiet.get("start"), quiet.get("end"), local(now).hour
+    # Quiet hours are the recipient's own clock, not the poster's.
+    zone = timezones.zone_for(settings.user_id) if settings else None
+    start, end, hour = quiet.get("start"), quiet.get("end"), local(now, zone).hour
     if start is None or end is None or start == end:
         return False
     return start <= hour < end if start < end else hour >= start or hour < end
@@ -242,6 +247,9 @@ class NotifyService:
         force: set[str],
         drop: set[str],
     ) -> list[NotifyPickOut]:
+        candidate_ids = candidate_ids - (
+            self._not_interested(candidate_ids, category) - force
+        )
         if not candidate_ids:
             return []
         now = self.lane.now()
@@ -278,6 +286,7 @@ class NotifyService:
     ) -> None:
         audience = self.c.moves.audience_ids(move.id)
         pool = self.candidates(move, audience) - {joiner_id}
+        pool -= self._not_interested(pool, move.category)
         if not pool:
             return
         now = self.lane.now()
@@ -315,6 +324,19 @@ class NotifyService:
             select(Notification).where(col(Notification.type).in_(NUDGE_TYPES))
         ).all()
         return {n.user_id for n in rows if n.data.get("move_id") == move_id}
+
+    def _not_interested(self, user_ids: Collection[str], category: str) -> set[str]:
+        """Users who chose Move categories and left `category` out."""
+        if not user_ids:
+            return set()
+        rows = self.session.exec(
+            select(UserSettings).where(col(UserSettings.user_id).in_(list(user_ids)))
+        ).all()
+        return {
+            s.user_id
+            for s in rows
+            if s.move_categories and category not in s.move_categories
+        }
 
     def _quiet(self, user_ids: Collection[str]) -> set[str]:
         if not user_ids:

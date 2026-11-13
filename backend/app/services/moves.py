@@ -20,7 +20,8 @@ Events (`data` carries ids and states only, never coordinates; clients refetch
 
 * `move.created` on create: move_id, creator_id, mark_id, category, kind.
 * `participant.changed` on join, arrive, leave: move_id, user_id, status,
-  joined_via.
+  joined_via. `status` is None when the participant was removed (a taken-back
+  Pull up, or a quiet leave, which goes only to the leaver).
 * `move.ended` on end, everyone left, stale: move_id, status, reason, ends_at.
 
 `move.updated` is not emitted here: no Move field other than its status can
@@ -220,11 +221,26 @@ class MoveService:
         await self._commit(self._save_participant(move.id, updated))
         return rules.with_participant(move, updated)
 
-    async def leave(self, user_id: str, move_id: str) -> MoveSnapshot:
-        """The user becomes a ghost; when that was the last participant the
-        Move ends with `everyone_left`. Raises `MoveNotFound`, `NotParticipant`,
-        `MoveNotLive`."""
+    async def leave(
+        self, user_id: str, move_id: str, *, quiet: bool = False
+    ) -> MoveSnapshot:
+        """Leave a Move.
+
+        * `going` (taking back a Pull up): the participant row is deleted, so
+          no ghost, and the user may Pull up again; viewers get
+          `participant.changed` with status None.
+        * `quiet` (any status): the row is deleted and only the leaver hears
+          about it; no hooks, no notification, no ghost.
+        * `there`, not quiet: the user becomes `left` (a ghost).
+
+        The creator always becomes `left`. When every remaining participant
+        has left, the Move ends with `everyone_left`. Raises `MoveNotFound`,
+        `NotParticipant`, `MoveNotLive`.
+        """
         move = self._load(user_id, move_id)
+        current = rules.withdraw(move, user_id)
+        if rules.removes_row(move, current, quiet=quiet):
+            return await self._withdraw(move, current, quiet=quiet)
         now = self.clock.now()
         updated = rules.leave(move, user_id, now)
         if updated is None:
@@ -301,6 +317,33 @@ class MoveService:
         others = (vis.audience_ids | vis.participant_ids) - vis.hidden_from_ids
         return others | {vis.creator_id}
 
+    async def _withdraw(
+        self, move: MoveSnapshot, current: ParticipantSnapshot, *, quiet: bool
+    ) -> MoveSnapshot:
+        """Delete the participant row (no ghost). A quiet leave tells only the
+        leaver; taking back a Pull up tells everyone who saw "on the way"."""
+        self.moves.delete_participant(move.id, current.user_id)
+        outbox = _Outbox()
+        outbox.publish(
+            {current.user_id} if quiet else self._viewers(move.id) | {current.user_id},
+            "participant.changed",
+            {
+                "move_id": move.id,
+                "user_id": current.user_id,
+                "status": None,
+                "joined_via": current.joined_via,
+            },
+        )
+        move = rules.without_participant(move, current.user_id)
+        if rules.everyone_left(move):
+            move = self._record_end(
+                rules.end(move, "everyone_left", self.clock.now()),
+                "everyone_left",
+                outbox,
+            )
+        await self._commit(outbox)
+        return move
+
     def _save_participant(self, move_id: str, p: ParticipantSnapshot) -> _Outbox:
         self.moves.save_participant(move_id, p)
         outbox = _Outbox()
@@ -349,4 +392,3 @@ class MoveService:
                 logger.exception("publishing %s failed", event.type)
         for fire in outbox.hooks:
             await fire()
-

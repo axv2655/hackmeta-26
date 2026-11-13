@@ -11,6 +11,9 @@ Muse answered or the fallback ran:
   hangouts in 90 days while others in the pool do (with no history at all,
   nobody is a stretch);
 - every copy starts with "Hey {first_name}"; a bad line gets the template.
+
+Each pick carries `source`: "muse" only when Muse answered and chose that
+person itself; fallback picks and creator-forced picks say "heuristic".
 """
 
 from __future__ import annotations
@@ -129,8 +132,8 @@ async def pick(runner: MuseRunner, req: NotifyRequest) -> NotifyResult:
         ]
     )
 
-    def finalize(out: PickerOut) -> NotifyResult:
-        return _finalize(req, out, book, by_id, force, cap)
+    def finalize(out: PickerOut, source: str = "heuristic") -> NotifyResult:
+        return _finalize(req, out, book, by_id, force, cap, source)
 
     def check(out: PickerOut) -> PickerOut:
         result = finalize(out)
@@ -150,7 +153,7 @@ async def pick(runner: MuseRunner, req: NotifyRequest) -> NotifyResult:
             skipped_note="",
         )
 
-    out = await runner.run_agent(
+    out, used_fallback = await runner.run_agent_meta(
         req.agent,
         req.creator_id,
         prompt,
@@ -160,7 +163,7 @@ async def pick(runner: MuseRunner, req: NotifyRequest) -> NotifyResult:
         slow=True,
         check=check,
     )
-    return finalize(out)
+    return finalize(out, "heuristic" if used_fallback else "muse")
 
 
 def _finalize(
@@ -170,6 +173,7 @@ def _finalize(
     by_id: dict[str, Candidate],
     force: Collection[str],
     cap: int,
+    source: str = "heuristic",
 ) -> NotifyResult:
     chosen: list[NotifyPickOut] = []
     seen: set[str] = set()
@@ -192,17 +196,21 @@ def _finalize(
                 continue
             stretch_used = True
         if len(chosen) < cap:
-            chosen.append(_make(req, book, c, p))
+            chosen.append(_make(req, book, c, p, source))
     for uid in force:
         chosen.append(_make(req, book, by_id[uid], copies.get(uid)))
     return NotifyResult(chosen, book.restore(out.skipped_note), cap, by_id)
 
 
 def _make(
-    req: NotifyRequest, book: AliasBook, c: Candidate, p: Pick | None
+    req: NotifyRequest,
+    book: AliasBook,
+    c: Candidate,
+    p: Pick | None,
+    source: str = "heuristic",
 ) -> NotifyPickOut:
     copy = book.restore(p.line).strip() if p and p.line else ""
     if not copy.lower().startswith(f"hey {c.first_name.lower()}"):
         copy = template_copy(req, c.first_name)
     reason = book.restore(p.reason).strip() if p and p.reason else ""
-    return NotifyPickOut(c.user_id, copy, reason or template_reason(c))
+    return NotifyPickOut(c.user_id, copy, reason or template_reason(c), source)

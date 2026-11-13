@@ -182,7 +182,16 @@ def render(inp: WriterInput) -> str:
 
 
 async def write(runner: MuseRunner, inp: WriterInput) -> WriterOut:
-    return await runner.run_agent(
+    out, _ = await write_meta(runner, inp)
+    return out
+
+
+async def write_meta(runner: MuseRunner, inp: WriterInput) -> tuple[WriterOut, bool]:
+    """The written line, plus whether the template fallback produced it.
+
+    Slow timeout (20 s): Muse thinks before answering; the composer already
+    shows the instant heuristic draft while this runs."""
+    return await runner.run_agent_meta(
         AGENT,
         inp.user_id,
         render(inp),
@@ -190,4 +199,5 @@ async def write(runner: MuseRunner, inp: WriterInput) -> WriterOut:
         lambda: fallback(inp),
         max_tokens=MAX_TOKENS,
         check=lambda out: check(out, inp),
+        slow=True,
     )

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { selection, success } from '@/lib/haptics';
+import { useMeUser } from '@/lib/people';
 import { useFeedStore } from '@/lib/store/feed';
 import { colors, hairline, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
@@ -23,7 +24,7 @@ export type ShareScreenProps = {
 };
 
 /**
- * "New post" share settings: preview card, audience, music, cross-posting,
+ * "New post" share settings: preview card, audience, music,
  * AI label, and the Post button pinned to the bottom.
  */
 export function ShareScreen({ onBack }: ShareScreenProps) {
@@ -40,6 +41,7 @@ export function ShareScreen({ onBack }: ShareScreenProps) {
   const setMusic = useComposerStore((s) => s.setMusic);
   const setAiLabel = useComposerStore((s) => s.setAiLabel);
   const addPost = useFeedStore((s) => s.addPost);
+  const me = useMeUser();
 
   const canPost = hasContent({ text, image });
   const audienceInfo = audienceOption(audience);
@@ -59,11 +61,11 @@ export function ShareScreen({ onBack }: ShareScreenProps) {
     const draft = useComposerStore.getState();
     if (!hasContent(draft)) return;
     posted.current = true;
-    addPost(toPostDraft(draft));
+    addPost(toPostDraft(draft), me);
     success();
     // Pops everything above the tabs and lands on Home, where the new post is first in the feed.
     router.dismissTo('/');
-  }, [addPost, router]);
+  }, [addPost, me, router]);
 
   const handleCycleAudience = useCallback(() => {
     selection();
@@ -121,8 +123,6 @@ export function ShareScreen({ onBack }: ShareScreenProps) {
             <SettingRow icon="music" title="Add music" onPress={() => setMusic(defaultTrack)} />
           )}
 
-          <SettingRow icon="share-external" title="Also share to..." onPress={noop} />
-
           <SettingRow
             icon="plus-circle"
             title="Add AI label"
@@ -130,10 +130,7 @@ export function ShareScreen({ onBack }: ShareScreenProps) {
             trailing={<ToggleSwitch value={aiLabel} onValueChange={setAiLabel} accessibilityLabel="Add AI label" />}
           >
             <Text style={styles.helper}>
-              We require you to label certain realistic content that’s made with AI.{' '}
-              <Text style={styles.link} onPress={noop} accessibilityRole="link">
-                Learn more
-              </Text>
+              We require you to label certain realistic content that’s made with AI.
             </Text>
           </SettingRow>
         </View>
@@ -145,8 +142,6 @@ export function ShareScreen({ onBack }: ShareScreenProps) {
     </View>
   );
 }
-
-function noop() {}
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white },
@@ -164,7 +159,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.gutter,
     paddingBottom: spacing.lg,
   },
-  link: { color: colors.blue },
   // Capsule chip showing the current audience, like a selected filter chip.
   audienceChip: {
     flexDirection: 'row',

@@ -14,7 +14,7 @@ function tile(id: string, label: string, icon: IconName, color: string, href?: s
   return { id, label, icon, color, href };
 }
 
-/** Prefer the seeded shortcut (so labels, badges and hrefs stay in one place); fall back to a local one. */
+/** Prefer the seeded shortcut (so labels and icons stay in one place); fall back to a local one. */
 function seeded(fallback: MenuShortcut): MenuShortcut {
   return menuShortcuts.find((s) => s.id === fallback.id) ?? fallback;
 }
@@ -27,16 +27,23 @@ export const movesShortcut: MenuShortcut = {
 
 export const MOVES_TAGLINE = 'See what your friends are up to right now';
 
+/** Shown full width under Moves when the build has `EXPO_PUBLIC_DEMO=1`. */
+export const demoShortcut: MenuShortcut = tile('shortcut-demo', 'Demo Control', 'zap', accent.teal, '/demo');
+
+export const DEMO_TAGLINE = 'Fire Muse scans, shift time, act as friends';
+
 /** Always-visible tiles, in display order (two columns). */
 export const primaryShortcuts: MenuShortcut[] = [
-  seeded(tile('shortcut-friends', 'Friends', 'friends', colors.blue)),
+  { ...seeded(tile('shortcut-friends', 'Friends', 'friends', colors.blue)), href: '/friends' },
+  { ...seeded(tile('shortcut-saved', 'Saved', 'bookmark', accent.purple)), href: '/saved' },
+  { ...seeded(tile('shortcut-groups', 'Groups', 'users', colors.blue)), href: '/circles' },
+  tile('shortcut-crews', 'Crews', 'sparkles', accent.orange, '/groups'),
+  { ...seeded(tile('shortcut-events', 'Events', 'calendar', colors.badgeRed)), href: '/calendar' },
+  tile('shortcut-leaderboards', 'Leaderboards', 'star', accent.teal, '/leaderboards'),
+  { ...seeded(tile('shortcut-reels', 'Reels', 'reels-filled', accent.pink)), href: '/reels' },
   seeded(tile('shortcut-memories', 'Memories', 'history', colors.blue)),
-  seeded(tile('shortcut-saved', 'Saved', 'bookmark', accent.purple)),
-  seeded(tile('shortcut-groups', 'Groups', 'users', colors.blue)),
-  seeded(tile('shortcut-reels', 'Reels', 'reels-filled', accent.pink, '/reels')),
   seeded(tile('shortcut-marketplace', 'Marketplace', 'store', colors.blue)),
   seeded(tile('shortcut-feeds', 'Feeds', 'rss', colors.blue)),
-  seeded(tile('shortcut-events', 'Events', 'calendar', colors.badgeRed)),
 ];
 
 /** Revealed by "See more". */
@@ -46,6 +53,13 @@ export const moreShortcuts: MenuShortcut[] = [
   seeded(tile('shortcut-birthdays', 'Birthdays', 'cake', accent.pink)),
   seeded(tile('shortcut-fundraisers', 'Fundraisers', 'heart-filled', accent.teal)),
 ];
+
+/** Accordion rows that open a real screen. Every other row opens "Coming soon". */
+export const ROW_HREFS: Readonly<Record<string, string>> = {
+  'row-settings-main': '/settings',
+  'row-privacy-shortcuts': '/settings/privacy',
+  'row-notifications': '/settings/notifications',
+};
 
 export const ALSO_FROM_META_ID = 'row-also-from-meta';
 
@@ -68,6 +82,7 @@ const settingsFallback: MenuRow = {
     { id: 'row-settings-main', label: 'Settings', icon: 'settings' },
     { id: 'row-privacy-shortcuts', label: 'Privacy shortcuts', icon: 'lock' },
     { id: 'row-your-time', label: 'Your time on Facebook', icon: 'clock' },
+    { id: 'row-notifications', label: 'Notification settings', icon: 'bell' },
   ],
 };
 

@@ -1,5 +1,7 @@
 import type { IconName } from '@/components/ui/Icon';
 
+import type { Category, MoveKind, ParticipantStatus } from '@/lib/types';
+
 import type { BitmojiPose } from './bitmoji';
 import type { User } from './types';
 import { currentUser, dev, dhivyesh, jordan, maya, priya, tony } from './users';
@@ -49,7 +51,22 @@ export type MapMove = {
   going?: boolean;
   /** Muse's ranking reason, when it gave one. */
   reason?: string;
+  /** The real Move id (also set on ghosts, whose `id` is a pin id). */
+  moveId?: string;
+  /** The backend category (10 values); `mark.category` is the pin pose group. */
+  category?: Category;
+  /** The signed-in user's part in this Move. */
+  myStatus?: ParticipantStatus | null;
+  kind?: MoveKind;
+  /** ISO time a Flare stops filling. */
+  fillDeadline?: string | null;
+  open?: boolean;
+  /** Everyone on the Move, the poster included, with where they are. */
+  participants?: { user: User; status: ParticipantStatus }[];
 };
+
+/** Where the seeded world lives (the Meta campus); the map's home camera centers here. */
+export const CAMPUS_CENTER: Coordinate = { latitude: 37.48, longitude: -122.154 };
 
 export const CATEGORY_META: Record<MoveCategory, { label: string; icon: IconName; color: string }> = {
   coffee: { label: 'Coffee', icon: 'coffee', color: '#A0612B' },

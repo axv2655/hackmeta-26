@@ -79,10 +79,19 @@ def heuristic(inp: ResolveInput) -> PlaceResolution:
 
 
 async def resolve(runner: MuseRunner, inp: ResolveInput) -> PlaceResolution:
+    res, _ = await resolve_meta(runner, inp)
+    return res
+
+
+async def resolve_meta(
+    runner: MuseRunner, inp: ResolveInput
+) -> tuple[PlaceResolution, bool]:
+    """The resolution, plus whether Muse was asked and fell back. A geotag or
+    an input with nothing to read is answered directly (no Muse call, `False`)."""
     if inp.geotag is not None:
-        return heuristic(inp)
+        return heuristic(inp), False
     if not inp.caption and not (inp.frame_url and runner.supports_vision):
-        return heuristic(inp)
+        return heuristic(inp), False
 
     book = AliasBook("k")
     rows = []
@@ -108,7 +117,7 @@ async def resolve(runner: MuseRunner, inp: ResolveInput) -> PlaceResolution:
         alias = book.alias(res.mark_id) if res.mark_id else None
         return ResolverOut(mark=alias, confidence=res.confidence)
 
-    out = await runner.run_agent(
+    out, used_fallback = await runner.run_agent_meta(
         AGENT,
         inp.user_id,
         prompt,
@@ -117,7 +126,12 @@ async def resolve(runner: MuseRunner, inp: ResolveInput) -> PlaceResolution:
         images=[inp.frame_url] if inp.frame_url else None,
         max_tokens=MAX_TOKENS,
         check=check,
+        slow=True,
     )
+    return _resolution(out, book), used_fallback
+
+
+def _resolution(out: ResolverOut, book: AliasBook) -> PlaceResolution:
     mark_id = book.id_of(out.mark)
     if mark_id is not None:
         return PlaceResolution(mark_id, out.confidence)

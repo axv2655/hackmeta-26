@@ -348,3 +348,44 @@ class TestEnd:
         move = _move(status=status, participants=())
         with pytest.raises(MoveNotLive):
             domain.end(move, reason, T0 + timedelta(hours=5), actor_id="ana")
+
+
+class TestWithdraw:
+    """Taking back a Pull up and leaving quietly remove the participant."""
+
+    @pytest.mark.parametrize("status", ["going", "there"])
+    def test_withdraw_returns_the_participant(self, status: ParticipantStatus) -> None:
+        before = _p("bo", status)
+        assert domain.withdraw(_move(before), "bo") == before
+
+    def test_withdraw_needs_a_participant_and_a_live_move(self) -> None:
+        with pytest.raises(NotParticipant):
+            domain.withdraw(_move(), "bo")
+        with pytest.raises(MoveNotLive):
+            domain.withdraw(_move(_p("bo"), status="ended"), "bo")
+
+    @pytest.mark.parametrize(
+        ("status", "quiet", "removes"),
+        [
+            ("going", False, True),
+            ("going", True, True),
+            ("there", False, False),
+            ("there", True, True),
+            ("left", True, False),
+        ],
+    )
+    def test_removes_row(
+        self, status: ParticipantStatus, quiet: bool, removes: bool
+    ) -> None:
+        bo = _p("bo", status)
+        assert domain.removes_row(_move(bo), bo, quiet=quiet) is removes
+
+    def test_creator_never_removes_row(self) -> None:
+        ana = _p("ana", "going", via="creator")
+        assert domain.removes_row(_move(ana), ana, quiet=True) is False
+
+    def test_pull_up_again_after_withdraw(self) -> None:
+        move = domain.without_participant(_move(_p("bo")), "bo")
+        assert domain.participant(move, "bo") is None
+        again = domain.join(move, "bo", "going", "tap", LATER)
+        assert again is not None and again.status == "going"

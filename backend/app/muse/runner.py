@@ -11,7 +11,8 @@
 3. Extract the first JSON object, validate it against `schema`, then run the
    agent's own `check` (raise `ValueError` to reject an answer).
 4. On timeout, transport error, garbage or a failed check: retry once, then
-   return `fallback()`.
+   return `fallback()`. Once `token_budget` is spent, skip the call and fall
+   back at once. `run_agent_meta` also says whether the fallback was used.
 5. Write a `muse_runs` row either way, and keep in-memory stats for
    `GET /demo/muse-stats`.
 
@@ -123,6 +124,9 @@ class MuseRunner:
     timeout_s: float = TIMEOUT_S
     slow_timeout_s: float = SLOW_TIMEOUT_S
     cache_ttl_s: float = CACHE_TTL_S
+    token_budget: int | None = None
+    """Input + output tokens this process may spend; None means no cap. Once
+    spent, every agent goes straight to its fallback without a network call."""
     _cache: dict[str, tuple[float, BaseModel]] = field(default_factory=dict)
     _total: AgentStats = field(default_factory=AgentStats)
     _by_agent: dict[str, AgentStats] = field(default_factory=dict)
@@ -148,6 +152,37 @@ class MuseRunner:
         system: str | None = None,
         slow: bool = False,
     ) -> T:
+        value, _ = await self.run_agent_meta(
+            agent,
+            user_id,
+            prompt,
+            schema,
+            fallback,
+            images=images,
+            max_tokens=max_tokens,
+            check=check,
+            system=system,
+            slow=slow,
+        )
+        return value
+
+    async def run_agent_meta[T: BaseModel](
+        self,
+        agent: str,
+        user_id: str | None,
+        prompt: str,
+        schema: type[T],
+        fallback: Callable[[], T],
+        *,
+        images: Sequence[str] | None = None,
+        max_tokens: int = 400,
+        check: Callable[[T], T] | None = None,
+        system: str | None = None,
+        slow: bool = False,
+    ) -> tuple[T, bool]:
+        """Like `run_agent`, plus whether the value came from `fallback()`.
+
+        A cache hit replays a Muse answer, so it reports `False`."""
         system = system or load_prompt(agent)
         images = list(images or ()) if self.client.supports_vision else []
         key = prompt_hash(agent, system, prompt, images)
@@ -159,10 +194,15 @@ class MuseRunner:
         if cached and cached[0] > time.monotonic():
             for s in (stats, self._total):
                 s.cache_hits += 1
-            return schema.model_validate(cached[1].model_dump())
+            return schema.model_validate(cached[1].model_dump()), False
+
+        started = time.perf_counter()
+        if self.budget_exhausted:
+            return self._fall_back(
+                agent, user_id, key, stats, fallback, started, 0, 0, ["budget"]
+            ), True
 
         tokens_in = tokens_out = 0
-        started = time.perf_counter()
         errors: list[str] = []
         for _ in range(ATTEMPTS):
             for s in (stats, self._total):
@@ -201,8 +241,33 @@ class MuseRunner:
                 ok=True,
                 output=value.model_dump(mode="json"),
             )
-            return value
+            return value, False
 
+        return self._fall_back(
+            agent, user_id, key, stats, fallback, started, tokens_in, tokens_out, errors
+        ), True
+
+    @property
+    def tokens_used(self) -> int:
+        return self._total.input_tokens + self._total.output_tokens
+
+    @property
+    def budget_exhausted(self) -> bool:
+        """True once `token_budget` (input + output tokens) is spent."""
+        return self.token_budget is not None and self.tokens_used >= self.token_budget
+
+    def _fall_back[T: BaseModel](
+        self,
+        agent: str,
+        user_id: str | None,
+        key: str,
+        stats: AgentStats,
+        fallback: Callable[[], T],
+        started: float,
+        tokens_in: int,
+        tokens_out: int,
+        errors: list[str],
+    ) -> T:
         value = fallback()
         latency = int((time.perf_counter() - started) * 1000)
         logger.info("muse %s fell back: %s", agent, "; ".join(errors))
@@ -225,6 +290,9 @@ class MuseRunner:
         return {
             **self._total.as_dict(),
             "client": type(self.client).__name__,
+            "tokens_used": self.tokens_used,
+            "budget_tokens": self.token_budget,
+            "budget_exhausted": self.budget_exhausted,
             "by_agent": {
                 name: s.as_dict() for name, s in sorted(self._by_agent.items())
             },

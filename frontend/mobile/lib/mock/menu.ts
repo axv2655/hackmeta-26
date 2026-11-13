@@ -2,16 +2,20 @@ import { colors } from '@/lib/theme';
 
 import type { MenuRow, MenuShortcut } from './types';
 
-/** Shortcut tiles for the Menu grid (two columns), in display order. */
+/**
+ * Shortcut tiles for the Menu grid (two columns), in display order. Tiles with
+ * an `href` open a real screen; the rest open the "Coming soon" sheet. Badges
+ * are live (the Menu sets Friends from pending requests), never seeded.
+ */
 export const menuShortcuts: MenuShortcut[] = [
-  { id: 'shortcut-friends', label: 'Friends', icon: 'friends', color: colors.blue, badge: '2 new' },
+  { id: 'shortcut-friends', label: 'Friends', icon: 'friends', color: colors.blue, href: '/friends' },
   { id: 'shortcut-moves', label: 'Moves', icon: 'moves-filled', color: '#F7923B', href: '/moves' },
-  { id: 'shortcut-groups', label: 'Groups', icon: 'users', color: colors.blue },
+  { id: 'shortcut-groups', label: 'Groups', icon: 'users', color: colors.blue, href: '/circles' },
   { id: 'shortcut-reels', label: 'Reels', icon: 'reels-filled', color: '#F5428D', href: '/reels' },
   { id: 'shortcut-memories', label: 'Memories', icon: 'history', color: colors.blue },
-  { id: 'shortcut-saved', label: 'Saved', icon: 'bookmark', color: '#A033FF' },
+  { id: 'shortcut-saved', label: 'Saved', icon: 'bookmark', color: '#A033FF', href: '/saved' },
   { id: 'shortcut-marketplace', label: 'Marketplace', icon: 'store', color: colors.blue },
-  { id: 'shortcut-events', label: 'Events', icon: 'calendar', color: colors.badgeRed },
+  { id: 'shortcut-events', label: 'Events', icon: 'calendar', color: colors.badgeRed, href: '/calendar' },
   { id: 'shortcut-pages', label: 'Pages', icon: 'flag', color: '#F7923B' },
   { id: 'shortcut-feeds', label: 'Feeds', icon: 'rss', color: colors.blue },
   { id: 'shortcut-gaming', label: 'Gaming', icon: 'gamepad', color: colors.blue },

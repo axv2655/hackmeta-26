@@ -16,6 +16,7 @@ EXPECTED = {
     "moment_tags",
     # muse
     "muse_runs", "taste_profiles", "pseudo_groups", "suggestions", "notifications",
+    "muse_mutes",
     # surfaces
     "proximity_tokens", "proximity_sightings", "copresence", "hangouts", "ratings",
     "mark_rankings", "calendar_events", "reels", "saved_reels",

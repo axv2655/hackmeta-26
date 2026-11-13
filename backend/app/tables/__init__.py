@@ -29,7 +29,14 @@ from app.tables.core import (
 )
 from app.tables.friends import FriendRequest
 from app.tables.messages import MoveInvite
-from app.tables.muse import MuseRun, Notification, PseudoGroup, Suggestion, TasteProfile
+from app.tables.muse import (
+    MuseMute,
+    MuseRun,
+    Notification,
+    PseudoGroup,
+    Suggestion,
+    TasteProfile,
+)
 from app.tables.push import PushToken
 from app.tables.surfaces import (
     CalendarEvent,
@@ -66,6 +73,7 @@ __all__ = [
     "MoveAudienceCircle",
     "MoveInvite",
     "MoveParticipant",
+    "MuseMute",
     "MuseRun",
     "Notification",
     "PushToken",

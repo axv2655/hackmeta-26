@@ -1,13 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Avatar } from '@/components/ui/Avatar';
 import { Hairline } from '@/components/ui/Hairline';
-import { Icon, IconBadge, type IconName } from '@/components/ui/Icon';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
-import type { Notification, TextSegment } from '@/lib/mock';
 import { colors, fontWeights, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
 
 /** Distance the sheet rises on open. The Modal's own fade covers the rest. */
@@ -18,30 +22,19 @@ const SHEET_RADIUS = radius.xl + 10;
 // iOS sheet curve.
 const EASE_SHEET = Easing.bezier(0.32, 0.72, 0, 1);
 
-export type NotificationSheetAction = 'toggle-read' | 'remove' | 'turn-off';
+export type SheetOption = { key: string; icon: IconName; label: string };
 
 export type NotificationActionSheetProps = {
   visible: boolean;
-  /** Kept by the parent after closing so the content does not blank out during the fade. */
-  notification: Notification | null;
-  /** The text the row is currently showing (it changes once a friend request is answered). */
-  segments: TextSegment[];
-  unread: boolean;
-  onSelect: (action: NotificationSheetAction) => void;
+  /** Shown above the options (an avatar and the row text). Kept by the parent while the sheet fades out. */
+  header?: ReactNode;
+  options: SheetOption[];
+  onSelect: (key: string) => void;
   onClose: () => void;
 };
 
-type Option = { action: NotificationSheetAction; icon: IconName; label: string };
-
-/** Bottom sheet behind a row's "..." button. */
-export function NotificationActionSheet({
-  visible,
-  notification,
-  segments,
-  unread,
-  onSelect,
-  onClose,
-}: NotificationActionSheetProps) {
+/** Facebook-style bottom sheet: optional header, then one row per option. Works on iOS and Android. */
+export function NotificationActionSheet({ visible, header, options, onSelect, onClose }: NotificationActionSheetProps) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   const translateY = useSharedValue(SHEET_TRAVEL);
@@ -58,12 +51,6 @@ export function NotificationActionSheet({
 
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.get() }] }));
 
-  const options: Option[] = [
-    { action: 'toggle-read', icon: 'check', label: unread ? 'Mark as read' : 'Mark as unread' },
-    { action: 'remove', icon: 'x-circle', label: 'Remove this notification' },
-    { action: 'turn-off', icon: 'bell-off', label: 'Turn off notifications like this' },
-  ];
-
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.root}>
@@ -79,30 +66,18 @@ export function NotificationActionSheet({
         >
           <View style={styles.grabber} />
 
-          {notification ? (
-            <View style={styles.summary}>
-              <Avatar
-                source={notification.avatar}
-                size={64}
-                badge={<IconBadge name={notification.badgeIcon} color={notification.badgeColor} size={28} ring />}
-              />
-              <Text style={styles.summaryText} numberOfLines={3}>
-                {segments.map((segment, index) => (
-                  <Text key={index} style={segment.bold ? styles.bold : undefined}>
-                    {segment.text}
-                  </Text>
-                ))}
-              </Text>
-            </View>
+          {header ? (
+            <>
+              <View style={styles.summary}>{header}</View>
+              <Hairline />
+            </>
           ) : null}
-
-          <Hairline />
 
           <View style={styles.options}>
             {options.map((option) => (
               <PressableScale
-                key={option.action}
-                onPress={() => onSelect(option.action)}
+                key={option.key}
+                onPress={() => onSelect(option.key)}
                 scaleTo={1}
                 pressedOpacity={0.5}
                 accessibilityLabel={option.label}
@@ -120,6 +95,18 @@ export function NotificationActionSheet({
         </Animated.View>
       </View>
     </Modal>
+  );
+}
+
+/** The usual sheet header: a picture over centered text. */
+export function SheetSummary({ picture, text }: { picture: ReactNode; text: ReactNode }) {
+  return (
+    <>
+      {picture}
+      <Text style={styles.summaryText} numberOfLines={3}>
+        {text}
+      </Text>
+    </>
   );
 }
 
@@ -149,7 +136,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   summaryText: { ...typeScale.row, textAlign: 'center' },
-  bold: { fontWeight: fontWeights.semibold },
   options: { paddingTop: spacing.sm },
   option: {
     minHeight: 56,

@@ -55,10 +55,19 @@ class MoveCreateBody(BaseModel):
             notify_user_ids=None if notify is None else tuple(notify),
         )
 
+
+class LeaveBody(BaseModel):
+    """Optional body of `POST /moves/{id}/leave`. `quiet` removes the user
+    without a ghost and tells only them (A.2)."""
+
+    quiet: bool = False
+
+
 class ParticipantRead(BaseModel):
     user: UserLite
     status: ParticipantStatus
     joined_via: JoinedVia
+
 
 class MoveRead(BaseModel):
     """API `Move` (14.1)."""

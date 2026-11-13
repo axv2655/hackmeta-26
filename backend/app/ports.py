@@ -196,6 +196,7 @@ class NotifyPickOut:
     user_id: str
     copy: str
     reason: str
+    source: str = "heuristic"
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,6 +215,7 @@ class MoveDraftOut:
     fill_minutes: int | None = None
     chips: tuple[str, ...] = ()
     nearby_mark_ids: tuple[str, ...] = ()
+    source: str = "heuristic"
 
 
 @dataclass(frozen=True, slots=True)

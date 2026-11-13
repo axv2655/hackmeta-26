@@ -156,6 +156,7 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 | Push | In-app banners from WebSocket events + `expo-notifications` **local** notifications for lock-screen effect | Remote push needs credentials and a dev build; local notifications give the same visual. |
 | Auth | Username + password accounts (`/auth/signup`, `/auth/login`, scrypt-hashed in `credentials`); the app keeps the account on the device and sends its id as `X-User-Id`. Seeded people log in as their first name with password `moves` | Light enough for a demo; the header is still trusted, so it is not real security. Verified badge is a seeded flag. |
 | AI | Muse behind a `MuseClient` port, JSON-only outputs, heuristic fallback for every agent | Muse is essential, but a failed call must never break the live demo. |
+| Local time | Each phone sends `X-Timezone` and `X-UTC-Offset` on every request; the server remembers the zone per user in memory (`core/timezones.py`) and uses it for every time it writes into copy, including background Muse scans and quiet hours. US Central only when a user has never reported a zone. | "Free til 2:50" must match the clock on the phone reading it, wherever that person is. A zone name is not a location. |
 | Places | Seeded `marks` table for the demo area, plus user-created Marks | No external Places API dependency. |
 | Hosting | Laptop on the same Wi-Fi (`--host 0.0.0.0`) with a tunnel as backup (`EXPO_PUBLIC_BACKEND_URL`) | Already supported by `frontend/lib/backend.js`. |
 
@@ -432,6 +433,11 @@ notifications
 muse_runs                           audit + cost log for every Muse call
   id, agent, user_id, input_tokens, output_tokens, latency_ms
   ok: bool, used_fallback: bool, prompt_hash, output: json, created_at
+
+muse_mutes                          crews the owner told Muse to stop suggesting (F31)
+  owner_id, members_key             sorted member ids joined by "," (owner excluded), so a
+  created_at                        mute survives pseudo-group recomputes; revive and flare
+                                    crew picks skip it
 ```
 
 ### 5.5 Mocked Facebook surfaces
@@ -556,8 +562,17 @@ State machine for `move_participants.status`:
   `POST /moves/{id}/arrive`. The server never receives the coordinates. Manual
   "I'm here" button is always available. BLE co-presence with someone already `there`
   also counts as arrival.
-- **Leave**: `POST /moves/{id}/leave` from the "Leave" button, or from the geofence
-  (outside 150 m for 3 minutes). The participant becomes a ghost.
+- **Leave**: `POST /moves/{id}/leave` (optional body `{quiet?: bool}`) from the "Leave"
+  button, or from the geofence (outside 150 m for 3 minutes).
+  - **Take back** (status still `going`): the participant row is **deleted**, viewers get
+    `participant.changed` with `status: null`, `my_status` is `null`, and the user can
+    Pull up again. No ghost.
+  - **Leave** while `there` (`quiet` false): status becomes `left`; a ghost if
+    `ghost_visible`.
+  - **Leave quietly** (`quiet: true`, any status): the row is deleted, no ghost, no hooks,
+    no notification; `participant.changed` goes only to the leaver.
+  - The creator's own leave keeps the old behaviour (the app offers End instead). After
+    a delete, the `everyone_left` end rule still applies.
 - **End**: a Move ends when the creator ends it, when every participant has left, or by
   the scheduler 3 hours after `starts_at` with no activity. A Move or flare
   that gets nobody triggers the "nobody bit" path (section 10.9) instead of a failure
@@ -577,6 +592,9 @@ decides whether any of them get an actual notification.
 - While `there`: full-color avatar at the Mark's coordinates (never GPS).
 - After `left` or Move end: gray avatar ("ghost mode") at the same Mark for 24 hours, if
   `ghost_visible` is on. Ghost visibility uses the original `move_audience`.
+  **Ghost rule**: a ghost needs `arrived_at IS NOT NULL`, and the status is either `left`
+  or still `there` when the Move ended (people still there at the end ghost). A
+  taken-back Pull up has no row, so it never ghosts. Each ghost carries the Move's `text`.
 - Tap a ghost → `mark/[id].tsx` ghost sheet: "Tony, Maya and Priya were here 2h ago",
   the Move text, and its **Moments** in a horizontal viewer. CTA: "Nudge me next time
   they're out" (stores a preference that boosts those people in the notify picker).
@@ -1152,30 +1170,87 @@ type Notification = { id: string; type: string; title: string; body: string;
                       data: Record<string, string>; read_at?: string; created_at: string };
 ```
 
+Added on `mobile/facebook-shell` (the exact shapes are pinned by
+`backend/tests/contract/fixtures/core-openapi.json` and
+`backend/tests/contract/test_plan_endpoints.py`):
+
+```ts
+// Honest labels: 'muse' only when the agent answered without falling back.
+type NotifyPick = { user: UserLite; copy: string; reason: string; source: 'muse'|'heuristic' };
+type MoveDraft = { mark: MuseMark|null; text: string; category: Category; kind: 'move'|'flare';
+  alternates: string[]; circle_ids: string[]; user_ids: string[]; notify: NotifyPick[];
+  fill_minutes: number|null; chips: string[]; nearby_mark_ids: string[]; confirm_place: boolean;
+  source: 'muse'|'heuristic' };
+type MuseMark = { id; name; category; lat; lng; address; photo_url: string|null; vibe_tags: string[] };
+type Suggestion = { id; type: 'flare'|'free_time'|'revive'|'route'|'reel_move'|'nobody_bit';
+  message; chips; draft: MoveDraft|null; status; created_at; expires_at;
+  fill_minutes: number|null; target_move_id: string|null; group_id: string|null;
+  window_start: string|null; window_end: string|null };
+type Ghost = { user: UserLite; move_id: string; at: string; text: string };
+type Relation = 'self'|'friend'|'outgoing'|'incoming'|'none';
+type Person = { user: UserLite; username: string|null; relation: Relation; mutual_count: number };
+type Profile = { user: UserLite; username: string|null; relation: Relation; mutual_count: number;
+  mutual: UserLite[] /* up to 6 */; friend_count: number;
+  moves: { id; text; category; mark: { id; name }; starts_at; my_status }[] };
+type Taste = { summary: string; likes: string[]; dislikes: string[]; updated_at: string };
+type MuseStatus = { client: 'http'|'fake'; live: boolean; model: string|null; vision: boolean;
+  calls: number; muse_calls: number; fallbacks: number; fallback_rate: number;
+  tokens_used: number; budget_tokens: number|null; budget_exhausted: boolean };
+type PseudoGroup = { id; label; members: UserLite[]; pattern; strength: number; fading: boolean;
+  last_hangout_at: string|null; history: number[]; muted: boolean };
+type RatingFace = 'loved'|'fine'|'not_for_us';
+type RatingAnswer = { other_mark_id: string; preferred: 'this'|'other'|'same' };
+type RatingQuestions = { move_id; mark: MuseMark; category; already_rated: boolean;
+  faces: { key: RatingFace; label: string }[]; vibe_tags: string[]; ranked_count: number;
+  first_comparison: MuseMark|null };
+type RatingResult = { mark: MuseMark; category; position: number; total: number; score: number;
+  list: { mark: MuseMark; score: number; position: number }[]; taste: Taste|null };
+type LeaderboardSpot = { position; mark: MuseMark; score; your_score: number|null;
+  friends_score: number|null; rankers: UserLite[] /* up to 3 */ };
+type MyListRow = { position: number; mark: MuseMark; score: number; category: Category };
+type CalendarEvent = { id; title: string|null; starts_at; ends_at; place: string|null };
+type FreeWindow = { start: string; end: string; minutes: number };
+type CalendarDay = { events: CalendarEvent[]; free_window: FreeWindow|null };
+type Reel = { id; author_name; video_url; thumb_url; caption; likes; mark: MuseMark|null;
+  distance_mi: number|null; saved: boolean };   // media 'bundle:<id>' = bundled in the app
+type ReelPlace = { reel_id; mark: MuseMark|null; distance_mi: number|null;
+  active_move: { id; text; creator: UserLite; participants_count; friends_there: UserLite[];
+                 my_status } | null;
+  headline: string; draft: MoveDraft|null /* null after an 8 s timeout */; confirm_place: boolean };
+```
+
+Score bands for rankings: Loved 7.0-10.0, Fine 4.0-6.9, Not for us 0.0-3.9; faces stay
+grouped and `'same'` is a tie.
+
 ### 14.2 Endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/health` | liveness |
 | GET | `/auth/users` | everyone, for name lookups |
-| POST | `/auth/signup` | `{name, username, password}` → `{user, username}`; befriends everyone already here |
+| POST | `/auth/signup` | `{name, username, password}` → `{user, username}`; sends the new account friend requests from Anish, Priya and Tony (no auto-friending) and adds it to the example Moves' audiences |
 | POST | `/auth/login` | `{username, password}` → `{user, username}` (403 on a wrong password) |
-| GET | `/users/search?q=` | people by name or @username, each with `relation` (friend, outgoing, incoming, none) |
-| GET | `/friends/requests` | `{incoming, outgoing}` pending requests |
+| GET | `/users/search?q=` | `Person[]`: people by name or @username, each with `relation` and `mutual_count` |
+| GET | `/users/{user_id}` | `Profile` (declared after `/users/search`); 404 for an unknown user or a block either way; `moves` are their live Moves you can see, Mark id and name only |
+| GET | `/friends/suggestions?limit=10` | `Person[]`: friends of friends by mutual count, padded with other people by name |
+| GET | `/friends/requests` | `{incoming, outgoing}` pending requests (each with `mutual_count`) |
 | POST | `/friends/requests` | `{user_id}`: add friend (accepts if they already asked you); notifies them |
 | POST | `/friends/requests/{user_id}/accept` | accept; notifies them |
 | DELETE | `/friends/requests/{user_id}` | decline theirs or cancel yours |
-| DELETE | `/friends/{user_id}` | unfriend |
+| DELETE | `/friends/{user_id}` | unfriend; also strips each from the other's Circles and auto-join list |
 | POST | `/me/push-tokens` | `{token, sandbox}`: this phone's APNs device token; every stored notification is also pushed to it when `APNS_*` is configured |
 | DELETE | `/me/push-tokens/{token}` | on logout |
 | GET | `/areas/city?lat&lng` | city at the map's center for the Moves header, `{name, region}`; rounded to ~1 km, reverse-geocoded (Nominatim, `GEOCODER_URL`) with a cache, falls back to the configured areas |
 | GET | `/me` | current user + settings |
+| PATCH | `/me` | `{name}` (1-60 chars, trimmed) → `Me`; 422 otherwise |
+| POST | `/me/verify` | mock "Verify with Facebook": sets `fb_verified` → `Me` |
+| GET | `/me/taste` | `Taste` or JSON `null` |
 | PATCH | `/me/settings` | update `user_settings` |
-| GET | `/friends` | friend list with affinity tier |
+| GET | `/friends` | friend list with affinity tier and `username` |
 | GET/POST | `/circles` | list / create |
-| PATCH/DELETE | `/circles/{id}` | rename, set members / delete |
-| GET/POST/DELETE | `/me/blocks` | hidden-from list |
-| GET/PUT | `/me/autojoin` | auto-join list |
+| PATCH/DELETE | `/circles/{id}` | rename, set members / delete (members must be friends, else 422) |
+| GET/POST/DELETE | `/me/blocks` | hidden-from list; a block also removes the friendship, pending requests, the person from your Circles and auto-join both ways |
+| GET/PUT | `/me/autojoin` | auto-join list (PUT: friends only, else 422) |
 | GET | `/marks/nearby?lat&lng&radius_km` | Marks with saved/ghost info |
 | GET | `/marks/search?q` | name search |
 | POST | `/marks` | create a Mark |
@@ -1183,7 +1258,8 @@ type Notification = { id: string; type: string; title: string; body: string;
 | POST/DELETE | `/marks/{id}/save` | Saved Marks |
 | GET | `/me/saved` | Saved Marks and saved Reels |
 | POST | `/audience/preview` | `{circle_ids, user_ids}` → `AudienceSummary` |
-| POST | `/muse/compose-move` | `{lat?, lng?, mark_id?, seed_text?}` → `MoveDraft` |
+| GET | `/muse/status` | `MuseStatus` (no user data) |
+| POST | `/muse/compose-move` | `{lat?, lng?, mark_id?, seed_text?}` → `MoveDraft` (`source` honest) |
 | POST | `/muse/notify-preview` | `{mark_id, text, circle_ids, user_ids}` → `NotifyPick[]` |
 | POST | `/moves/{id}/notify` | `{user_ids}` → pokes that list now (creator only, audience only, skips anyone already poked) |
 | POST | `/muse/suggest-spots` | `{user_ids, category?}` → Marks with reasons |
@@ -1193,33 +1269,36 @@ type Notification = { id: string; type: string; title: string; body: string;
 | GET | `/moves/{id}` | detail |
 | POST | `/moves/{id}/join` | I'm going |
 | POST | `/moves/{id}/arrive` | status → there |
-| POST | `/moves/{id}/leave` | status → left |
+| POST | `/moves/{id}/leave` | optional `{quiet?}`; take back / leave / leave quietly (section 7.3) |
 | POST | `/moves/{id}/end` | creator ends |
 | GET/POST | `/moves/{id}/moments` | list / upload (multipart: file, caption, repeated `tagged_user_ids`) |
 | POST | `/moments/{id}/approve` | `{approve: bool}` |
-| POST | `/moves/{id}/rating` | submit rating + pairwise answers |
-| GET | `/moves/{id}/rating/questions` | pairwise questions for this user |
-| GET | `/leaderboards/spots?category` | Top spots |
-| GET | `/leaderboards/my-list?category` | personal ranked list |
+| GET | `/moves/{id}/rating/questions` | `RatingQuestions`; 404 when the Move is hidden |
+| POST | `/moves/{id}/rating/next` | `{answers}` → `{next_comparison: MuseMark|null}`; 422 on a stale answer |
+| POST | `/moves/{id}/rating` | `{face, answers, vibe_tags, note}` → `RatingResult`; 403 not a participant/creator, 409 already rated |
+| GET | `/leaderboards/spots?category&limit` | `LeaderboardSpot[]` from you and your friends; `category` optional (unknown → 422) |
+| GET | `/leaderboards/my-list?category` | `MyListRow[]` |
 | GET | `/notifications` | list |
 | POST | `/notifications/read` | mark read |
 | GET | `/suggestions` | pending Muse suggestions |
-| POST | `/suggestions/{id}/accept` | creates the Move (optional edited draft) |
-| POST | `/suggestions/{id}/dismiss` | |
-| GET | `/pseudo-groups` | with fading flag and history |
+| POST | `/suggestions/{id}/accept` | optional `{text?, user_ids?, fill_minutes?}` → `{suggestion, move_id, draft}`; flare `fill_minutes` clamped to 5-10; 404 / 409 closed |
+| POST | `/suggestions/{id}/dismiss` | optional `{never_again?}`; on a revive card it mutes that crew |
+| GET | `/pseudo-groups` | with fading flag, history and `muted` |
 | POST | `/pseudo-groups/{id}/revive` | → `MoveDraft` |
-| POST | `/proximity/token` | rotating BLE token |
-| POST | `/proximity/sightings` | batch sightings |
-| POST | `/proximity/prompt/{move_id}/accept` | join via prompt; body `{always: bool}` |
-| GET | `/calendar` | mock events / free window |
-| PUT | `/calendar/busy` | device busy blocks |
-| GET | `/reels` | mock feed |
-| GET | `/reels/{id}/place` | chip + sheet data |
-| POST/DELETE | `/reels/{id}/save` | save Reel → Saved Mark |
-| POST | `/glasses/command` | `{utterance, lat?, lng?}` → draft + spoken confirmation |
-| POST | `/glasses/confirm` | post the drafted Move |
-| WS | `/ws?user_id` | events (section 9.1) |
-| * | `/demo/*` | section 15.2 |
+| POST/DELETE | `/pseudo-groups/{id}/mute` | 204; 404 if not yours |
+| POST | `/proximity/prompt/{move_id}/accept` | optional `{always?}` → `{move_id, status: 'there'}`; 404 hidden, 409 not live; `always` adds the participants who are friends to your auto-join list |
+| GET | `/calendar` | `CalendarDay` (events now-2h to now+12h, free window) |
+| PUT | `/calendar/busy` | `{blocks: {start, end}[]}` replaces your title-less blocks in the next 24 h; 422 end <= start |
+| GET | `/reels?lat&lng` | `Reel[]` (coarse lat/lng used once, never stored) |
+| GET | `/reels/{id}/place?lat&lng` | `ReelPlace` |
+| POST/DELETE | `/reels/{id}/save` | save Reel → Saved Mark (`source='reel'`); unsave removes the Saved Mark only if this reel saved it |
+| WS | `/ws?user_id` | events (section 9.1); new: `proximity.prompt {move_id, mark_name, creator, names, text}`, `rating.prompt {move_id, mark_name}`; `participant.changed` may carry `status: null` |
+| * | `/demo/*` | section 15.2 (404 unless `DEMO_MODE`) |
+
+Not built on this branch: `/proximity/token`, `/proximity/sightings` (real BLE), `/glasses/*`.
+Notification `data.route` values: `/move/{id}`, `/move/{id}/rate`, `/move/{id}/moments`,
+`/suggestion/{id}`, `/friends`, `/user/{id}`. `proximity_added` also carries `undo: "leave"`.
+APNs payloads repeat the data under `body` and set `aps.badge` to the unread count.
 
 Uploaded and seeded Moment media is served through authenticated `/media/{filename}` handlers over `backend/data/uploads`, with `X-User-Id` and the same visibility checks as Moments. The legacy `/api/v1/media/{filename}` URL remains supported. Never publicly mount the private uploads directory. Mark seed images use a separate public allowlisted `/media/seed/marks/{asset_name}` route.
 
@@ -1229,8 +1308,12 @@ Uploaded and seeded Moment media is served through authenticated `/media/{filena
 
 ### 15.1 Seed world (`backend/app/seed/seed.py`)
 
-`uv run python -m app.seed.seed` drops and rebuilds `app.db`. It must produce a world
-where every Muse feature has real signal to reason about:
+`uv run python -m app.seed.seed` drops and rebuilds the database (it wipes real
+accounts). `uv run python -m app.seed.topup` inserts only the missing seed rows (history
+Moves and hangouts, Reels, Anish's clock-relative calendar, ratings and rankings,
+pseudo-groups and Anish's taste) and never drops anything; prefer it on a shared
+database. Calendar rows are relative to seed time, so Demo Control's flare scan writes its
+own block. It must produce a world where every Muse feature has real signal to reason about:
 
 - **Area**: one campus-sized area (default: around UT Dallas / Richardson–Plano; change
   the center constant to the demo venue if needed). 30 to 40 Marks across all
@@ -1259,18 +1342,27 @@ where every Muse feature has real signal to reason about:
 
 | Control | Endpoint | Effect |
 | --- | --- | --- |
-| Reset world | `POST /demo/reset` | re-run the seed |
+| Demo state | `GET /demo/state` | `{demo_mode, now, offset_minutes, muse: {client, live}, user_id}` |
+| Reset world | `POST /demo/reset` | **soft**: clock offset 0, example-Move hold list released, example Moves revived and re-timed, cast users' pending suggestions expired, demo calendar blocks and demo co-presence rows removed. Never drops a table or an account |
 | Set demo time | `POST /demo/time` `{iso}` or `{offset_minutes}` | shifts `core/clock.py`; all "now" reads go through the Clock |
-| Fire flare scan | `POST /demo/flare-scan` | runs section 10.6 for the current user now |
+| Fire flare scan | `POST /demo/flare-scan` `{user_id?, window_minutes?}` | inserts a "CS 4349 lecture" block at now + window (default 45), makes sure there is a Saved Mark, then runs section 10.6 forced (skips the memo, daily cap, quiet hours and Mark cooldowns; `muse_proactive` off still wins) |
 | Fire free-time prompt | `POST /demo/free-time` | "Want to start a Move?" |
 | Fire revive scan | `POST /demo/revive-scan` | runs section 10.8 |
-| Simulate co-presence | `POST /demo/copresence` `{user_ids, on}` | injects `source: sim` sightings |
-| Friend posts a Move | `POST /demo/friend-move` `{user_id, mark_id, text}` | a seeded friend posts; notify pipeline runs |
-| Friend pulls up | `POST /demo/friend-join` `{user_id, move_id}` | |
-| End Move | `POST /demo/end-move` `{move_id}` | triggers ghosts + rating prompt |
+| Simulate co-presence | `POST /demo/copresence` `{user_ids (>=2), on}` | upserts `copresence` rows for friend pairs (held 2 h) or deletes them, then sweeps their live Moves → `{pairs, prompted, auto_joined}` |
+| Friend posts a Move | `POST /demo/friend-move` `{user_id, mark_id, text, category?, notify_me?}` | a seeded friend posts to their friends plus you; `notify_me` (default true) force-notifies you |
+| Friend pulls up | `POST /demo/friend-join` `{user_id, move_id, status?}` | `there` joins and arrives, so `arrived_at` is set |
+| Friend leaves | `POST /demo/friend-leave` `{user_id, move_id, quiet?}` | a ghost unless quiet → `{move_id, my_status}` |
+| Friend accepts | `POST /demo/friend-accept` `{user_id}` | that user accepts your pending request → `{relation}`; 404 with no request |
+| End Move | `POST /demo/end-move` `{move_id}` | ghosts, hangouts, rating prompt; an example Move goes on the hold list so the 5-minute refresh does not revive it |
 | Nobody bit | `POST /demo/nobody-bit` `{move_id}` | expires the fill window with no joiners; section 10.9 runs |
-| Route suggestion | `POST /demo/route` `{move_id, user_ids}` | section 10.10 |
-| Muse stats | `GET /demo/muse-stats` | calls, tokens, fallback rate, last outputs |
+| Muse stats | `GET /demo/muse-stats` | calls, tokens, budget, fallback rate, last outputs |
+
+Example Moves: the 5-minute `example_moves` job stays registered in DEMO_MODE (otherwise
+`end_stale_moves` ends Tony's seeded Kumo Move overnight). `app/services/examples.py` keeps
+an in-memory hold list (`hold`, `release_all`, `held`); `refresh()` skips held ids and
+`/demo/reset` releases them. In DEMO_MODE the autonomous Muse jobs (`muse_flare_scan`,
+`muse_nobody_bit`, `muse_pseudo_groups`) are not registered; Demo Control is the
+deterministic path. `/demo/route` is not built (F22 is out).
 
 **All time reads in the backend go through `core/clock.py`.** Never call
 `datetime.now()` directly in services; the demo depends on shifting time.
@@ -1293,11 +1385,19 @@ Record a backup video of the full flow once it works.
 
 ## 16. Frontend architecture notes
 
-- **State**: server state in TanStack Query (keys: `['moves','nearby']`, `['move',id]`,
-  `['notifications']`, `['suggestions']`, ...). Realtime events patch or invalidate
-  these keys in one place (`lib/realtime.ts`). Local UI state in component state;
-  session and settings in a small zustand store persisted to AsyncStorage.
-- **Optimistic actions**: join/leave/save update the cache immediately and roll back on error.
+- **State** (`frontend/mobile`): each feature is a zustand store in `lib/<feature>.ts`
+  with `status`/`error`, `load()`, optimistic mutations that roll back and
+  `toast(errorMessage(e))` on failure, and an `onLogout` reset. HTTP calls go through
+  `lib/endpoints.ts` (typed by `lib/types.ts`). `lib/realtime.ts` distributes every
+  envelope through `appEvents`; stores subscribe themselves. After a successful Move
+  mutation, emit `appEvents.emit('moves.changed')`. Session and settings live in a small
+  zustand store persisted to AsyncStorage. TanStack Query is not used.
+- **Screens**: `LoadingState` on first load, `ErrorState` with Retry, `EmptyState` when
+  empty; `StackScreen` for new screens; `useOpenTarget()` for anything notification-like
+  and `composerHref(...)` into the composer.
+- **Demo time**: countdowns use `serverNow()` from `lib/format.ts`, fed by each realtime
+  envelope's `ts` and by `/demo/time` and `/demo/state`.
+- **Optimistic actions**: join/leave/save update the store immediately and roll back on error.
 - **`lib/backend.ts`**: port the existing `backend.js` helper to TypeScript and add the
   `X-User-Id` header from the session. Keep the LAN auto-discovery and
   `EXPO_PUBLIC_BACKEND_URL` override. WebSocket URL derives from the same base.
@@ -1314,6 +1414,48 @@ Record a backup video of the full flow once it works.
 - `app.json`: add iOS usage strings (location when-in-use, Bluetooth, calendar, camera,
   microphone, speech recognition), the plugins for the native modules, and the
   expo-router entry.
+
+### 16.1 Route map (`frontend/mobile/app`)
+
+All routes are Stack screens under the signed-in guard in `app/_layout.tsx`.
+
+| Path | File | Presentation | Reached from |
+| --- | --- | --- | --- |
+| `/login` | `app/login.tsx` | screen | signed out |
+| `/onboarding` | `app/onboarding.tsx` | fullScreenModal | after signup; Home first-run card |
+| `/` (Home) | `app/(tabs)/index.tsx` | tab | tab bar |
+| `/reels` | `app/(tabs)/reels.tsx` | tab | tab bar, Menu Reels tile |
+| `/moves` | `app/(tabs)/moves.tsx` | tab | tab bar, Menu Moves tile |
+| `/notifications` | `app/(tabs)/notifications.tsx` | tab | tab bar |
+| `/profile` | `app/(tabs)/profile.tsx` | tab | tab bar, Menu profile card |
+| `/search` | `app/(tabs)/search.tsx` | tab (hidden) | header search, Friends "Find friends" |
+| `/menu` | `app/menu.tsx` | screen | hamburger |
+| `/post/new`, `/post/share` | existing | modal | Home composer |
+| `/move/new` | `app/move/new.tsx` | fullScreenModal | Moves "Make a Move", Home "Make a Move", suggestion accept (draft), Reel "Start a Move here", crew "Notify this crew", Mark "Start a Move here" |
+| `/move/[id]` | `app/move/[id]/index.tsx` | screen | Moves card "Details", notifications/banner/push, Home feed unit, profile Moves, composer Done, suggestion accept (move_id) |
+| `/move/[id]/moments` | `app/move/[id]/moments.tsx` | screen | Move detail Moments row, ghost card "See Moments", Mark detail, `moment_approval` |
+| `/move/[id]/rate` | `app/move/[id]/rate.tsx` | modal | `rate_move` notification/banner, Move detail "Rate it", Demo "End + rate" |
+| `/suggestion/[id]` | `app/suggestion/[id].tsx` | modal | `muse_*` notifications/banner/push, Home Muse card, Moves sheet Muse card, Demo results |
+| `/calendar` | `app/calendar.tsx` | screen | Menu Events tile, suggestion reasoning card, Demo |
+| `/demo` | `app/demo.tsx` | screen | Menu "Demo Control" tile (only when `EXPO_PUBLIC_DEMO=1`) |
+| `/leaderboards` | `app/leaderboards.tsx` | screen | Menu Leaderboards tile, Moves map trophy button, rate result card, Mark detail |
+| `/mark/[id]` | `app/mark/[id].tsx` | screen | Move detail place row, leaderboard rows, Saved list, Reel sheet |
+| `/saved` | `app/saved.tsx` | screen | Menu Saved tile |
+| `/friends` | `app/friends.tsx` | screen | Menu Friends tile, Profile "See all", `friend_request`, Home Add friends card |
+| `/user/[id]` | `app/user/[id].tsx` | screen | PersonRow, Move creators/participants, profile friend tiles, `friend_accepted` |
+| `/profile/edit` | `app/profile/edit.tsx` | modal | Profile "Edit profile" |
+| `/settings` | `app/settings/index.tsx` | screen | Menu gear, "Settings & privacy > Settings" |
+| `/settings/privacy` | `app/settings/privacy.tsx` | screen | Settings, Menu "Privacy shortcuts", onboarding |
+| `/settings/hidden` | `app/settings/hidden.tsx` | screen | Privacy "Hidden from" |
+| `/settings/autojoin` | `app/settings/autojoin.tsx` | screen | Privacy "Auto-join" |
+| `/settings/notifications` | `app/settings/notifications.tsx` | screen | Settings, Notifications tab header menu |
+| `/circles` | `app/circles/index.tsx` | screen | Menu Groups tile, Privacy "Circles", composer "Manage" |
+| `/circles/[id]` | `app/circles/[id].tsx` (`id='new'` creates) | screen | Circles list, composer "+ New Circle" |
+| `/groups` | `app/groups.tsx` (crews) | screen | Menu "Crews" tile, revive suggestion "See your crews" |
+
+Overlays (not routes): `ProximityPrompt` sheet, `Toast`, `OfflineBar`, `InAppBanner` (all mounted in `app/_layout.tsx` by
+fe-shell). Menu tiles with no feature (Memories, Marketplace, Feeds, Pages, Gaming, Birthdays, Fundraisers, Messenger and
+other "Also from Meta" rows, Help rows) open a "Coming soon" sheet instead of doing nothing.
 
 ---
 

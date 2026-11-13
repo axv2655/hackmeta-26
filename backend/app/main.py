@@ -13,6 +13,7 @@ from app.api.routes import media
 from app.container import Container
 from app.core.config import settings
 from app.core.logging import redact_nearby_queries
+from app.core.timezones import TimezoneMiddleware
 from app.hooks import Hooks
 from app.lanes import Registrar, core, examples, muse, push, surfaces
 from app.scheduler.loop import Scheduler
@@ -62,6 +63,8 @@ def create_app(lanes: Sequence[Registrar] = LANES) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Local time is each phone's own zone (core/timezones.py).
+    app.add_middleware(TimezoneMiddleware)
     app.include_router(api_router, prefix=settings.API_V1_STR)
     app.include_router(media.router)  # canonical /media, outside the API prefix
     # Public invite links (/m/{token}) sit at the root so shared URLs stay short.

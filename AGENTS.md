@@ -18,7 +18,7 @@ implementation prompts for the **surfaces** lane only (S1-S11, issues #24-#34).
 
 ## Stack
 
-- `frontend/`: Expo SDK 57, React Native 0.86, React 19, TypeScript, expo-router, TanStack Query, zustand.
+- `frontend/`: Expo SDK 57, React Native 0.86, React 19, TypeScript, expo-router, zustand. The app is `frontend/mobile`.
   Currently a Hello-world scaffold. Needs an Expo dev build for BLE; must also run in Expo Go with BLE simulated.
 - `backend/`: FastAPI, Python >= 3.12, uv. SQLModel over SQLite planned. Layered template.
 - Realtime is one WebSocket per client, server push only. Auth is mocked: pick a seeded user, send `X-User-Id`.
@@ -63,9 +63,10 @@ Edge cases go to the privacy pass (12.5), not the critical path. Do not build th
 - All time reads go through `core/clock.py`; never `datetime.now()` in services (the demo shifts time).
 - Muse is behind a `MuseClient` port; only `HttpMuseClient.complete()` knows the wire format. Every agent has a heuristic fallback; a failed call must never break the demo. Develop against `FakeMuseClient`; mind the $100 token budget.
 - Ruff rules E, F, I. Tests under `backend/tests`, service-level first, then one HTTP round trip.
+- Tests always run on an in-memory SQLite (`tests/conftest.py` forces `DB_PATH=:memory:`), never the `DATABASE_URL` in `backend/.env`. An autouse fixture there pins `settings.DEMO_MODE = None`; a test that needs Demo Control opts in with `monkeypatch.setattr(settings, "DEMO_MODE", "on")` on the shared settings object before booting the app. `tests/contract/test_plan_endpoints.py` pins every promised route and `tests/integration/test_journeys.py` walks the demo journeys with all lanes.
 
 **Frontend**
-- Server state in TanStack Query; realtime events patch/invalidate keys in `lib/realtime.ts` only. Session/settings in zustand + AsyncStorage.
+- Server state in zustand feature stores (`lib/<feature>.ts`: `status`/`error`, `load()`, optimistic mutations with rollback, `onLogout` reset) calling `lib/endpoints.ts`; not TanStack Query. `lib/realtime.ts` forwards every envelope through `appEvents` and stores subscribe themselves. Session/settings in zustand + AsyncStorage.
 - Optimistic join/leave/save with rollback. Loading, empty and error states everywhere; no red screen on a dropped socket.
 - Request each permission in context; every feature has a no-permission path.
 - Types in `lib/types.ts` mirror backend schemas (ARCHITECTURE.md 14).
@@ -89,6 +90,11 @@ null implementation); lifecycle through hooks in `app/hooks.py`; each lane wires
 Tests live in `backend/tests/<lane>/` with the lane's own `fakes.py` and `factories.py`. Never edit another lane's
 files, `ports.py`, `hooks.py`, `tables/`, `api/main.py` or `api/deps.py` (T0 owns them; changes need all three owners).
 Branch `<lane>/<task-id>-name`, one PR per issue, body `Closes #<issue>`. Frontend lanes are separate from this plan.
+
+**Waiver on `mobile/facebook-shell`:** the lane-ownership rules above are waived on this branch (owner decision).
+Services there read other lanes' tables directly where needed (listed in `NOT_YET_LAYERED` in
+`tests/contract/test_core_layering.py`), and `tests/contract/test_lane_isolation.py::test_no_lane_imports_another_lane`
+is skipped. The `domain/ <- services/ <- api/` layering, domain errors and the Clock rule still hold.
 
 ## Definition of done
 

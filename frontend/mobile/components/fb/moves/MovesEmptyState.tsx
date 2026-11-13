@@ -6,23 +6,31 @@ import { colors, fontWeights, layout, radius, spacing, type as typeScale } from 
 import { MovesIllustration } from './MovesIllustration';
 
 export type MovesEmptyStateProps = {
-  onPressShare?: () => void;
+  /** Opens the composer. */
+  onPressMake: () => void;
+  title?: string;
+  description?: string;
+  /** Illustration width; smaller inside the sheet. */
+  art?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-/** Centered pitch for Moves, shown until the real map lands. */
-export function MovesEmptyState({ onPressShare, style }: MovesEmptyStateProps) {
+/** Shown when no friend has a Move out: a short pitch and a Make a Move button. */
+export function MovesEmptyState({
+  onPressMake,
+  title = 'No Moves out right now',
+  description = "Share what you're doing right now and friends pull up. No events, no RSVPs.",
+  art = 232,
+  style,
+}: MovesEmptyStateProps) {
   return (
     <View style={[styles.root, style]}>
-      <MovesIllustration width={232} />
+      <MovesIllustration width={art} />
       <Text style={styles.title} accessibilityRole="header">
-        See what your friends are up to
+        {title}
       </Text>
-      <Text style={styles.description}>
-        Share what you&apos;re doing right now and friends pull up. No events, no RSVPs.
-      </Text>
-      {/* Button fires a light haptic on its own; sharing is not wired up yet. */}
-      <Button title="Share a Move" size="lg" fullWidth onPress={onPressShare} style={styles.button} />
+      <Text style={styles.description}>{description}</Text>
+      <Button title="Make a Move" size="lg" fullWidth onPress={onPressMake} style={styles.button} />
     </View>
   );
 }

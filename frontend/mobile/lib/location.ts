@@ -18,33 +18,78 @@ type LocationState = {
   /** Live position, or null before the first fix / without permission. */
   coords: Coordinate | null;
   permission: Permission;
+  /** False once the OS will no longer show the prompt (user must use Settings). */
+  canAskAgain: boolean;
+  /** Ask (when the OS still can) and start watching. */
   start: () => Promise<void>;
+  /** Read the permission without prompting; start watching if now granted. */
+  recheck: () => Promise<void>;
+  /** Stop watching. Keeps the permission and the last fix. */
+  stop: () => void;
 };
 
 let watching: Location.LocationSubscription | null = null;
+let starting = false;
+
+type Set = (partial: Partial<LocationState>) => void;
+
+const toCoord = (p: Location.LocationObject): Coordinate => ({
+  latitude: p.coords.latitude,
+  longitude: p.coords.longitude,
+});
+
+async function watch(set: Set) {
+  if (watching) return;
+  const last = await Location.getLastKnownPositionAsync();
+  if (last) set({ coords: toCoord(last) });
+  const sub = await Location.watchPositionAsync(
+    { accuracy: Location.Accuracy.Balanced, distanceInterval: 25 },
+    (p) => set({ coords: toCoord(p) }),
+  );
+  if (watching) sub.remove();
+  else watching = sub;
+}
 
 export const useLocation = create<LocationState>()((set, get) => ({
   coords: null,
   permission: 'unknown',
+  canAskAgain: true,
   start: async () => {
-    if (watching || get().permission === 'denied') return;
+    if (watching || starting) return;
+    if (get().permission === 'denied' && !get().canAskAgain) return;
+    starting = true;
     try {
-      let { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== 'granted') status = (await Location.requestForegroundPermissionsAsync()).status;
-      if (status !== 'granted') {
-        set({ permission: 'denied' });
+      let perm = await Location.getForegroundPermissionsAsync();
+      if (perm.status !== 'granted' && perm.canAskAgain) perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        set({ permission: 'denied', canAskAgain: perm.canAskAgain });
         return;
       }
-      set({ permission: 'granted' });
-      const last = await Location.getLastKnownPositionAsync();
-      if (last) set({ coords: { latitude: last.coords.latitude, longitude: last.coords.longitude } });
-      watching = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 25 },
-        (p) => set({ coords: { latitude: p.coords.latitude, longitude: p.coords.longitude } }),
-      );
+      set({ permission: 'granted', canAskAgain: true });
+      await watch(set);
     } catch {
       set({ permission: 'denied' });
+    } finally {
+      starting = false;
     }
+  },
+  recheck: async () => {
+    try {
+      const perm = await Location.getForegroundPermissionsAsync();
+      if (perm.status === 'granted') {
+        set({ permission: 'granted', canAskAgain: true });
+        await watch(set);
+        return;
+      }
+      get().stop();
+      set({ permission: perm.status === 'denied' ? 'denied' : 'unknown', canAskAgain: perm.canAskAgain });
+    } catch {
+      // Keep the current state; the app works without location.
+    }
+  },
+  stop: () => {
+    watching?.remove();
+    watching = null;
   },
 }));
 

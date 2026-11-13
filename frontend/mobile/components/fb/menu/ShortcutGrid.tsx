@@ -6,14 +6,23 @@ import { Button } from '@/components/ui/Button';
 import type { MenuShortcut } from '@/lib/mock';
 import { motion, spacing } from '@/lib/theme';
 
-import { chunk, MOVES_TAGLINE, moreShortcuts, movesShortcut, primaryShortcuts } from './data';
+import { chunk, DEMO_TAGLINE, demoShortcut, MOVES_TAGLINE, moreShortcuts, movesShortcut, primaryShortcuts } from './data';
 import { ShortcutTile } from './ShortcutTile';
 
 const GAP = spacing.sm + 2;
 
 export type ShortcutGridProps = {
   onPressShortcut?: (shortcut: MenuShortcut) => void;
+  /** Live badge text by shortcut id ("2 requests"). Replaces any seeded badge. */
+  badges?: Readonly<Record<string, string | undefined>>;
+  /** Show the Demo Control tile (only in a demo build). */
+  showDemo?: boolean;
 };
+
+function withBadges(items: MenuShortcut[], badges?: ShortcutGridProps['badges']): MenuShortcut[] {
+  if (!badges) return items;
+  return items.map((s) => (s.id in badges ? { ...s, badge: badges[s.id] } : s));
+}
 
 function Rows({ items, onPress }: { items: MenuShortcut[]; onPress?: (shortcut: MenuShortcut) => void }) {
   return (
@@ -31,8 +40,8 @@ function Rows({ items, onPress }: { items: MenuShortcut[]; onPress?: (shortcut: 
   );
 }
 
-/** Two-column shortcut grid: Moves on top, eight tiles, and four more behind "See more". */
-export function ShortcutGrid({ onPressShortcut }: ShortcutGridProps) {
+/** Two-column shortcut grid: Moves on top (and Demo Control in a demo build), ten tiles, four more behind "See more". */
+export function ShortcutGrid({ onPressShortcut, badges, showDemo = false }: ShortcutGridProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -40,7 +49,12 @@ export function ShortcutGrid({ onPressShortcut }: ShortcutGridProps) {
       <View style={styles.row}>
         <ShortcutTile shortcut={movesShortcut} onPress={onPressShortcut} isNew tagline={MOVES_TAGLINE} />
       </View>
-      <Rows items={primaryShortcuts} onPress={onPressShortcut} />
+      {showDemo ? (
+        <View style={styles.row}>
+          <ShortcutTile shortcut={demoShortcut} onPress={onPressShortcut} tagline={DEMO_TAGLINE} />
+        </View>
+      ) : null}
+      <Rows items={withBadges(primaryShortcuts, badges)} onPress={onPressShortcut} />
       {expanded ? (
         // Occasional, user-caused reveal: a short fade explains where the new tiles came from.
         <Animated.View entering={FadeIn.duration(motion.base)} style={styles.grid}>

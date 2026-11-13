@@ -33,6 +33,9 @@ from app.core.db import SessionDep
 from app.models.audience import AudienceSummary
 from app.models.marks import MarkRead
 from app.models.moves import (
+    LeaveBody,
+)
+from app.models.moves import (
     MoveCreateBody as MoveCreateBody,
 )
 from app.models.moves import (
@@ -63,15 +66,6 @@ def get_move_service(
 
 
 MoveServiceDep = Annotated[MoveService, Depends(get_move_service)]
-
-
-# --- Schemas -----------------------------------------------------------------
-
-
-
-
-
-
 
 
 # --- Presenting --------------------------------------------------------------
@@ -244,9 +238,16 @@ async def arrive_at_move(
 
 @router.post("/moves/{move_id}/leave")
 async def leave_move(
-    move_id: str, me: CurrentUserDep, moves: MoveServiceDep, show: PresenterDep
+    move_id: str,
+    me: CurrentUserDep,
+    moves: MoveServiceDep,
+    show: PresenterDep,
+    body: LeaveBody | None = None,
 ) -> MoveRead:
-    return show.one(await moves.leave(me.id, move_id))
+    """Take back a Pull up (no ghost), leave (a ghost if you were there), or
+    leave quietly with `{"quiet": true}` (no ghost, nobody is told)."""
+    quiet = body.quiet if body is not None else False
+    return show.one(await moves.leave(me.id, move_id, quiet=quiet))
 
 
 @router.post("/moves/{move_id}/end")

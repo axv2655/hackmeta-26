@@ -16,8 +16,19 @@ Gates, in order (cheap first, Muse last):
    and window is remembered for 15 minutes, so the 60 s job does not spend
    tokens re-asking.
 
-Fill window: under 60 free minutes means 5 to 10 minutes; otherwise 10 to 30.
-Travel time is not modeled (no user location on the server).
+`force=True` (Demo Control) skips the quiet-hours check, the daily cap, the
+3-day / 7-day Mark cooldowns and the 15-minute "no" memo, so a rehearsal can
+run the scan again; when Muse still says no, the heuristic proposal is used
+(labelled "heuristic"). `muse_proactive` off still wins: that is the user's own
+choice.
+
+Fill window: always 5 to 10 minutes, whatever the free window (an empty
+calendar gives a 4 h window; a flare is a short call and Move creation
+rejects longer fills). Travel time is not modeled (no user location on the
+server). Members of crews the user muted (F31, `app/muse/mutes.py`) lose the
+crew flag. The user's taste summary goes into the prompt. The stored payload
+keeps `window_start` / `window_end` (ISO) for the card's countdown, and the
+draft's `source` is "muse" only when Muse answered (no fallback).
 """
 
 from __future__ import annotations
@@ -30,16 +41,25 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from sqlmodel import Session, col, or_, select
 
+from app.core import timezones
 from app.domain.affinity import clock_label
 from app.muse.agents import move_writer
 from app.muse.agents.move_writer import WriterInput
 from app.muse.compose import ComposeService
 from app.muse.context import AliasBook, Candidate, load_candidates
 from app.muse.lane import MuseLane
+from app.muse.mutes import members_key, muted_keys
 from app.ports import FreeWindow, MarkSnapshot, MoveDraftOut, SuggestionSnapshot
 from app.services.notify import in_quiet_hours
-from app.services.suggestions import SuggestionService, draft_to_dict
-from app.tables import Friendship, Hangout, PseudoGroup, SavedMark, UserSettings
+from app.services.suggestions import SuggestionService, clamp_fill, draft_to_dict
+from app.tables import (
+    Friendship,
+    Hangout,
+    PseudoGroup,
+    SavedMark,
+    TasteProfile,
+    UserSettings,
+)
 
 AGENT = "flare"
 MAX_TOKENS = 350
@@ -65,9 +85,9 @@ class FlareOut(BaseModel):
 
 
 def fill_minutes(window_minutes: int, asked: int | None) -> int:
-    if window_minutes < 60:
-        return min(10, max(5, asked or 10))
-    return min(30, max(10, asked or 15))
+    """5 to 10 minutes whatever the window (`window_minutes` kept for callers)."""
+    del window_minutes
+    return clamp_fill(asked)
 
 
 @dataclass
@@ -76,6 +96,7 @@ class Options:
     saved: list[tuple[MarkSnapshot, datetime]]
     free: list[Candidate]
     crew: set[str]
+    taste: str = ""
 
 
 @dataclass
@@ -83,11 +104,15 @@ class FlareScanner:
     lane: MuseLane
     _no_memo: dict[tuple, float] = field(default_factory=dict)
 
-    async def run_flare_scan(self, user_id: str) -> SuggestionSnapshot | None:
-        return await self._scan(user_id, allow_flare=True)
+    async def run_flare_scan(
+        self, user_id: str, *, force: bool = False
+    ) -> SuggestionSnapshot | None:
+        return await self._scan(user_id, allow_flare=True, force=force)
 
-    async def run_free_time_scan(self, user_id: str) -> SuggestionSnapshot | None:
-        return await self._scan(user_id, allow_flare=False)
+    async def run_free_time_scan(
+        self, user_id: str, *, force: bool = False
+    ) -> SuggestionSnapshot | None:
+        return await self._scan(user_id, allow_flare=False, force=force)
 
     async def scan_all(self) -> int:
         """The 60 s job: every user with `muse_proactive` on."""
@@ -101,10 +126,17 @@ class FlareScanner:
         return hits
 
     async def _scan(
-        self, user_id: str, *, allow_flare: bool
+        self, user_id: str, *, allow_flare: bool, force: bool = False
+    ) -> SuggestionSnapshot | None:
+        # "free til 2:50" must read in this person's own zone, request or not.
+        with timezones.as_user(user_id):
+            return await self._scan_local(user_id, allow_flare=allow_flare, force=force)
+
+    async def _scan_local(
+        self, user_id: str, *, allow_flare: bool, force: bool = False
     ) -> SuggestionSnapshot | None:
         with self.lane.session() as session:
-            opts = self.options(session, user_id, allow_flare=allow_flare)
+            opts = self.options(session, user_id, allow_flare=allow_flare, force=force)
             if opts is None:
                 return None
             key = (
@@ -115,24 +147,30 @@ class FlareScanner:
                 opts.window.start,
                 opts.window.end,
             )
-            if self._no_memo.get(key, 0) > time.monotonic():
+            if not force and self._no_memo.get(key, 0) > time.monotonic():
                 return None
-            result = await self._ask(session, user_id, opts)
+            result = await self._ask(session, user_id, opts, force=force)
             if result is None:
                 self._no_memo[key] = time.monotonic() + NO_MEMO_S
             return result
 
     def options(
-        self, session: Session, user_id: str, *, allow_flare: bool = True
+        self,
+        session: Session,
+        user_id: str,
+        *,
+        allow_flare: bool = True,
+        force: bool = False,
     ) -> Options | None:
         now = self.lane.now()
         settings = session.get(UserSettings, user_id)
         if settings is None or not settings.muse_proactive:
             return None
-        if in_quiet_hours(settings, now):
+        if not force and in_quiet_hours(settings, now):
             return None
         svc = SuggestionService(session, self.lane)
-        if len(svc.recent(user_id, PROACTIVE, now - timedelta(days=1))) >= DAILY_CAP:
+        recent = svc.recent(user_id, PROACTIVE, now - timedelta(days=1))
+        if not force and len(recent) >= DAILY_CAP:
             return None
         window = self.lane.container.calendar.free_window(user_id, now)
         if window is None or window.minutes < MIN_WINDOW:
@@ -140,7 +178,7 @@ class FlareScanner:
 
         saved: list[tuple[MarkSnapshot, datetime]] = []
         if allow_flare:
-            blocked = self._blocked_marks(svc, user_id, now)
+            blocked = set() if force else self._blocked_marks(svc, user_id, now)
             compose = ComposeService(session, self.lane)
             rows = session.exec(
                 select(SavedMark)
@@ -161,7 +199,7 @@ class FlareScanner:
         free = [c for c in cands if c.features.currently == "free"][:MAX_PEOPLE]
         if not saved and not free:
             return None
-        return Options(window, saved, free, crew)
+        return Options(window, saved, free, crew, self._taste(session, user_id))
 
     def _blocked_marks(
         self, svc: SuggestionService, user_id: str, now: datetime
@@ -184,11 +222,28 @@ class FlareScanner:
         return {r.user_b if r.user_a == user_id else r.user_a for r in rows}
 
     def _crew(self, session: Session, user_id: str) -> set[str]:
+        """Members of the user's crews, muted crews left out (F31)."""
+        muted = muted_keys(session, user_id)
         rows = session.exec(select(PseudoGroup).where(PseudoGroup.owner_id == user_id))
-        return {m for g in rows for m in g.member_ids if m != user_id}
+        return {
+            m
+            for g in rows
+            if members_key(g.member_ids, user_id) not in muted
+            for m in g.member_ids
+            if m != user_id
+        }
+
+    def _taste(self, session: Session, user_id: str) -> str:
+        row = session.exec(
+            select(TasteProfile).where(
+                TasteProfile.subject_type == "user",
+                TasteProfile.subject_id == user_id,
+            )
+        ).first()
+        return " ".join((row.summary if row else "").split())[:200]
 
     async def _ask(
-        self, session: Session, user_id: str, opts: Options
+        self, session: Session, user_id: str, opts: Options, *, force: bool = False
     ) -> SuggestionSnapshot | None:
         now = self.lane.now()
         w = opts.window
@@ -207,6 +262,7 @@ class FlareScanner:
         prompt = "\n".join(
             [
                 f"Window: {window_label} ({w.minutes} min). Now {clock_label(now)}.",
+                f"User taste: {opts.taste or '(unknown)'}",
                 "Saved places:",
                 *(mark_rows or ["(none)"]),
                 "Free friends:",
@@ -231,7 +287,7 @@ class FlareScanner:
         def fallback() -> FlareOut:
             return self._fallback(opts, marks, people, window_label, now)
 
-        out = await self.lane.runner.run_agent(
+        out, used_fallback = await self.lane.runner.run_agent_meta(
             AGENT,
             user_id,
             prompt,
@@ -241,9 +297,14 @@ class FlareScanner:
             slow=True,
             check=check,
         )
+        if not out.act and force:  # Demo Control asked for a card: use the heuristic
+            out, used_fallback = fallback(), True
         if not out.act:
             return None
-        return await self._store(session, user_id, out, opts, marks, people, now)
+        source = "heuristic" if used_fallback else "muse"
+        return await self._store(
+            session, user_id, out, opts, (marks, people), now, source
+        )
 
     def _fallback(
         self,
@@ -291,10 +352,11 @@ class FlareScanner:
         user_id: str,
         out: FlareOut,
         opts: Options,
-        marks: AliasBook,
-        people: AliasBook,
+        books: tuple[AliasBook, AliasBook],
         now: datetime,
+        source: str,
     ) -> SuggestionSnapshot:
+        marks, people = books
         free_ids = {c.user_id for c in opts.free}
         invite = [u for u in (people.id_of(a) for a in out.invite) if u in free_ids]
         mark: MarkSnapshot | None = None
@@ -315,6 +377,7 @@ class FlareScanner:
             user_ids=tuple(invite),
             fill_minutes=fill if out.type == "flare" else None,
             chips=tuple(people.restore(c, marks) for c in out.chips[:3]),
+            source=source,
         )
         payload = {
             "message": people.restore(out.message, marks),
@@ -323,6 +386,7 @@ class FlareScanner:
             "mark_id": mark.id if mark else None,
             "invite": invite,
             "fill_minutes": draft.fill_minutes,
+            "window_start": opts.window.start.isoformat(),
             "window_end": opts.window.end.isoformat(),
         }
         return await SuggestionService(session, self.lane).create_suggestion(

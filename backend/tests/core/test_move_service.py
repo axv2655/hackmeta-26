@@ -419,7 +419,8 @@ def test_gateway_does_not_re_add_a_leaver(
 ) -> None:
     move_id = create(service)
     run(service.join("bo", move_id))
-    run(service.leave("bo", move_id))
+    run(service.arrive("bo", move_id))
+    run(service.leave("bo", move_id))  # left while there: a ghost
 
     run(gateway.add_participant(move_id, "bo", "there", "ble_auto"))
     snapshot = gateway.get(move_id)
@@ -444,30 +445,34 @@ def test_creation_refreshes_hook_changes_before_publication(
     async def sweep(mid):
         with Session(engine) as other:
             assert other.get(MoveRow, mid) is not None
-        order.append('sweep')
+        order.append("sweep")
         gateway = SqlMoveGateway(engine, clock, events, hooks)
-        await gateway.add_participant(mid, 'bo', 'there', 'ble_auto')
+        await gateway.add_participant(mid, "bo", "there", "ble_auto")
         with Session(engine) as other:
-            other.add(Block(user_id='ana', hidden_from_user_id='cy'))
+            other.add(Block(user_id="ana", hidden_from_user_id="cy"))
             other.commit()
 
     def notify(mid):
-        assert not any(kind == 'move.created' for _, kind, _ in events.published)
-        order.append('notify')
+        assert not any(kind == "move.created" for _, kind, _ in events.published)
+        order.append("notify")
 
     hooks.on_move_created.register(sweep)
     hooks.on_move_created.register(notify)
-    move = run(service.create('ana', draft()))
-    assert order == ['sweep', 'notify']
-    assert next(p for p in move.participants if p.user_id == 'bo').status == 'there'
-    creation = [e for e in events.published if e[1] == 'move.created']
+    move = run(service.create("ana", draft()))
+    assert order == ["sweep", "notify"]
+    assert next(p for p in move.participants if p.user_id == "bo").status == "there"
+    creation = [e for e in events.published if e[1] == "move.created"]
     assert len(creation) == 1
-    assert creation[0][0] == frozenset({'ana', 'bo'})
+    assert creation[0][0] == frozenset({"ana", "bo"})
 
 
 def test_default_lane_order():
     from app.main import LANES
+
     assert [register.__module__ for register in LANES] == [
-        'app.lanes.core', 'app.lanes.surfaces', 'app.lanes.muse', 'app.lanes.push',
-        'app.lanes.examples',
+        "app.lanes.core",
+        "app.lanes.surfaces",
+        "app.lanes.muse",
+        "app.lanes.push",
+        "app.lanes.examples",
     ]

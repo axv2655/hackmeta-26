@@ -6,12 +6,12 @@ import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { selection } from '@/lib/haptics';
-import type { Reel } from '@/lib/mock';
+import type { FeedReel } from '@/lib/reels';
 import { colors, fontWeights, radius, spacing } from '@/lib/theme';
 
 import { textShadow } from './constants';
 import { PlaceChip } from './PlaceChip';
-import { useReelsStore } from './store';
+import { followingFor, useReelsStore } from './store';
 
 /** Photo diameter. The blue ring and its gap bring the avatar to about 51pt. */
 const AVATAR_SIZE = 42;
@@ -41,7 +41,7 @@ function clampCaption(caption: string, columnWidth: number): { text: string; tru
 }
 
 export type ReelInfoProps = {
-  reel: Reel;
+  reel: FeedReel;
   /** Width available to the block (the page width minus the gutter and the action rail). */
   width: number;
   /** The caption collapses again when the reel stops being the active page. */
@@ -54,7 +54,7 @@ export type ReelInfoProps = {
 
 /** Bottom-left block of a reel: ringed avatar, name + globe, Follow, place chip, caption, gray audio subline. */
 function ReelInfoBase({ reel, width, active, onPressAuthor, onPressPlace, onPressAudio, style }: ReelInfoProps) {
-  const following = useReelsStore((s) => s.following[reel.author.id] ?? false);
+  const following = useReelsStore((s) => followingFor(s, reel));
   const toggleFollow = useReelsStore((s) => s.toggleFollow);
   const [expanded, setExpanded] = useState(false);
 
@@ -66,7 +66,7 @@ function ReelInfoBase({ reel, width, active, onPressAuthor, onPressPlace, onPres
 
   const onToggleFollow = () => {
     selection();
-    toggleFollow(reel.author.id);
+    toggleFollow(reel.author.id, following);
   };
 
   return (
@@ -101,8 +101,14 @@ function ReelInfoBase({ reel, width, active, onPressAuthor, onPressPlace, onPres
         </PressableScale>
       </View>
 
-      {reel.placeName ? (
-        <PlaceChip placeName={reel.placeName} onPress={onPressPlace} style={styles.chip} />
+      {reel.mark || reel.placeHint ? (
+        <PlaceChip
+          placeName={reel.mark?.name ?? reel.placeHint ?? ''}
+          distanceMi={reel.distanceMi}
+          unresolved={!reel.mark && !reel.sample}
+          onPress={onPressPlace}
+          style={styles.chip}
+        />
       ) : null}
 
       {clamped.truncated ? (

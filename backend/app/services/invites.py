@@ -4,8 +4,9 @@
              phone's share sheet with the line and the link, so the text comes
              from the sharer's own number (iMessage, WhatsApp, anything).
     page     the public `/m/{token}` page reads the Move through the token:
-             place, what's happening, first names of who's there. Ends with
-             the Move.
+             place, what's happening, the creator's and sharer's first
+             names and a headcount of everyone else (never other people's
+             names: the page is public). Ends with the Move.
     going    a guest taps "I'm pulling up" with just a first name; the sharer
              and the creator get a notification. No account needed.
 
@@ -62,8 +63,10 @@ class InvitePage:
     lng: float = 0.0
     photo_url: str | None = None
     starts_at: datetime | None = None
-    people: tuple[str, ...] = ()
-    guests: tuple[str, ...] = ()
+    hosts: tuple[str, ...] = ()
+    """First names of the creator and the sharer, when they are going."""
+    others_count: int = 0
+    """Everyone else going (participants and other guests), as a number only."""
     guest_name: str | None = None
 
 
@@ -173,13 +176,6 @@ class InviteService:
         inviter = names.get(row.inviter_id, "A friend")
         if move is None or move.status != "live":
             return InvitePage(token=row.token, live=False, inviter_first=inviter)
-        present = [p.user_id for p in move.participants if p.status in PRESENT]
-        people = self._first_names(set(present))
-        guests = self.session.exec(
-            select(MoveInvite.guest_name).where(
-                MoveInvite.move_id == move.id, col(MoveInvite.guest_name).is_not(None)
-            )
-        ).all()
         mark = move.mark
         return InvitePage(
             token=row.token,
@@ -194,10 +190,37 @@ class InviteService:
             lng=mark.lng,
             photo_url=mark.photo_url,
             starts_at=move.starts_at,
-            people=tuple(people[u] for u in present if u in people),
-            guests=tuple(g for g in guests if g),
+            hosts=self._hosts(row, move, names),
+            others_count=self._others_count(row, move),
             guest_name=row.guest_name,
         )
+
+    @staticmethod
+    def _hosts(
+        row: MoveInvite, move: MoveSnapshot, names: dict[str, str]
+    ) -> tuple[str, ...]:
+        """The creator's and the sharer's first names, if they are going."""
+        present = {p.user_id for p in move.participants if p.status in PRESENT}
+        order = dict.fromkeys((move.creator_id, row.inviter_id))
+        return tuple(names[u] for u in order if u in present and names.get(u))
+
+    def _others_count(self, row: MoveInvite, move: MoveSnapshot) -> int:
+        """Going participants besides the creator and sharer, plus guests from
+        other links. Counted, never named."""
+        hosts = {move.creator_id, row.inviter_id}
+        members = sum(
+            1
+            for p in move.participants
+            if p.status in PRESENT and p.user_id not in hosts
+        )
+        guests = self.session.exec(
+            select(func.count()).where(
+                MoveInvite.move_id == move.id,
+                MoveInvite.id != row.id,
+                col(MoveInvite.guest_name).is_not(None),
+            )
+        ).one()
+        return members + int(guests)
 
     async def _tell_hosts(
         self, row: MoveInvite, move: MoveSnapshot, guest: str

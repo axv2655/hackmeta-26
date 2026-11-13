@@ -8,6 +8,12 @@ Rows are matched by member set, so a group keeps its id (and its taste
 profile) across refreshes; a group that is no longer detected is removed.
 `member_ids` excludes the owner. A row is (re)labelled by Muse while its
 label is still the fallback form.
+
+`refresh_owners(owner_ids)` recomputes groups right away with no Muse call
+(new rows get the fallback label until the next `refresh`), so the hangout
+recorder and Demo Control can call it on Move end without waiting on the
+network. Crew mutes (`app/muse/mutes.py`) are keyed by member set, not row
+id, so they survive any refresh.
 """
 
 from __future__ import annotations
@@ -90,6 +96,16 @@ class PseudoGroupService:
                 self.session.add(row)
         self.session.commit()
         return pairs
+
+    def refresh_owners(self, owner_ids: list[str]) -> int:
+        """Recompute these owners' groups from hangouts now; returns how many
+        groups they have afterwards. Commits."""
+        now = self.lane.now()
+        count = sum(
+            len(upsert(self.session, owner, now)) for owner in dict.fromkeys(owner_ids)
+        )
+        self.session.commit()
+        return count
 
     async def _label(self, owner_id: str, row: PseudoGroup, c: pg.Cluster) -> str:
         p = c.pattern

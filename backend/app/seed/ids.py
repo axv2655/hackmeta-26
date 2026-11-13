@@ -54,6 +54,12 @@ LAST_NIGHT_SPOT = "mk_last_night_spot"  # ghosts + seeded Moments from last nigh
 HACKER_SQUARE = "mk_hacker_square"  # campus courtyard (Priya's walk)
 QUIET_CAFE = "mk_quiet_cafe"  # Reel at a Mark with nobody there
 CAPTION_CAFE = "mk_caption_cafe"  # Reel with no geotag; caption names it
+# The other three matcha spots Anish and Priya hit this month (history).
+MATCHA_LEAF_WHISK = "mk_leaf_whisk"
+MATCHA_MAIKO = "mk_maiko_matcha"
+MATCHA_GREENROOM = "mk_greenroom_tea"
+HS_HANGOUT = "mk_in_n_out"  # the HS friends' Saturday spot (history)
+STANFORD_DISH = "mk_stanford_dish"  # Maya's hike Reel
 
 # --- Live Moves ---------------------------------------------------------------
 MOVE_TONY_KUMO = "mv_tony_kumo"
@@ -67,3 +73,7 @@ REEL_KUMO = "rl_kumo"  # geotagged at Kumo: friends-there path
 REEL_NOBODY = "rl_nobody"  # Mark with nobody there: start-a-Move path
 REEL_CAPTION = "rl_caption"  # no geotag: resolver demo
 REEL_EXTRA = "rl_extra"
+
+# --- History (ended Moves, 8 weeks back) -------------------------------------
+HISTORY_MOVE_PREFIX = "mv_hist_"  # mv_hist_00, mv_hist_01, ... oldest first
+FIRST_HISTORY_MOVE = f"{HISTORY_MOVE_PREFIX}00"

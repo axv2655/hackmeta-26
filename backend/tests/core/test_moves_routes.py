@@ -277,10 +277,33 @@ def test_join_arrive_leave_round_trip(client: TestClient) -> None:
 def test_rejoin_after_leaving_is_409(client: TestClient) -> None:
     move_id = post_move(client)["id"]
     act(client, move_id, "join")
+    act(client, move_id, "arrive")
     act(client, move_id, "leave")
     response = act(client, move_id, "join")
     assert response.status_code == 409
     assert response.json() == {"detail": "cannot go from left to going"}
+
+
+def test_taking_back_a_pull_up_allows_pulling_up_again(client: TestClient) -> None:
+    move_id = post_move(client)["id"]
+    act(client, move_id, "join")
+    taken_back = act(client, move_id, "leave").json()
+    assert taken_back["my_status"] is None
+    assert [p["user"]["id"] for p in taken_back["participants"]] == ["ana"]
+    assert act(client, move_id, "join").json()["my_status"] == "going"
+
+
+def test_leave_quietly_returns_no_status(client: TestClient) -> None:
+    move_id = post_move(client)["id"]
+    act(client, move_id, "join")
+    act(client, move_id, "arrive")
+    response = client.post(
+        f"/api/v1/moves/{move_id}/leave", json={"quiet": True}, headers=as_("bo")
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["my_status"], body["status"]) == (None, "live")
+    assert "bo" not in [p["user"]["id"] for p in body["participants"]]
 
 
 def test_arrive_or_leave_without_joining_is_409(client: TestClient) -> None:

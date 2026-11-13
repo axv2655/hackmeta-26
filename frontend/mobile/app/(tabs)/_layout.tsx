@@ -1,7 +1,11 @@
 import { Tabs } from 'expo-router/js-tabs';
 
 import { TabBar } from '@/components/fb/TabBar';
+import { RouteError } from '@/components/shell/RouteError';
 import { colors } from '@/lib/theme';
+
+/** A tab that throws while rendering shows "Something went wrong" + Try again. */
+export const ErrorBoundary = RouteError;
 
 /**
  * Five tabs plus Search, drawn by the custom floating liquid-glass TabBar

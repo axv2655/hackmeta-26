@@ -8,6 +8,13 @@ top Mark, the members as audience, and a suggested time.
 
 `draft_for(group)` builds the same draft for `POST /pseudo-groups/{id}/revive`
 without storing anything.
+
+Crews the user muted (F31) are skipped. Mutes are keyed by member set with
+the **owner excluded** (`app/muse/mutes.py`), the same as
+`PseudoGroup.member_ids`, so a mute survives a refresh that re-creates the
+row. The payload stores `group_id` and `member_ids` so "never again" on the
+card can mute the crew. The draft's `source` is "muse" only when Muse
+answered (no fallback).
 """
 
 from __future__ import annotations
@@ -18,12 +25,14 @@ from datetime import timedelta
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
+from app.core import timezones
 from app.domain import pseudo_groups as pg
 from app.muse.agents import move_writer
 from app.muse.agents.move_writer import WriterInput
 from app.muse.compose import ComposeService
 from app.muse.context import AliasBook, People
 from app.muse.lane import MuseLane
+from app.muse.mutes import members_key, muted_keys
 from app.muse.pseudo_groups import PseudoGroupService
 from app.ports import MoveDraftOut, SuggestionSnapshot
 from app.services.suggestions import SuggestionService, draft_to_dict
@@ -66,13 +75,22 @@ class ReviveService:
         self.lane = lane
 
     async def run_revive_scan(self, user_id: str) -> SuggestionSnapshot | None:
+        with timezones.as_user(user_id):
+            return await self._revive_scan(user_id)
+
+    async def _revive_scan(self, user_id: str) -> SuggestionSnapshot | None:
         groups = PseudoGroupService(self.session, self.lane)
         await groups.refresh(user_id)
         now = self.lane.now()
         svc = SuggestionService(self.session, self.lane)
         if svc.recent(user_id, ("revive",), now - WEEKLY):
             return None
-        fading = [g for g in groups.owned(user_id) if g.fading]
+        muted = muted_keys(self.session, user_id)
+        fading = [
+            g
+            for g in groups.owned(user_id)
+            if g.fading and members_key(g.member_ids, user_id) not in muted
+        ]
         if not fading:
             return None
         group = max(fading, key=lambda g: (g.strength, g.id))
@@ -82,6 +100,7 @@ class ReviveService:
             "chips": list(revival.draft.chips),
             "draft": draft_to_dict(revival.draft),
             "group_id": group.id,
+            "member_ids": sorted(set(group.member_ids) - {user_id}),
             "mark_id": revival.draft.mark_id,
         }
         return await svc.create_suggestion(user_id, "revive", payload, now + EXPIRES)
@@ -128,7 +147,7 @@ class ReviveService:
         )
         writer_text = move_writer.fallback(WriterInput(owner, mark, now)).text
 
-        out = await self.lane.runner.run_agent(
+        out, used_fallback = await self.lane.runner.run_agent_meta(
             AGENT,
             owner,
             prompt,
@@ -149,6 +168,7 @@ class ReviveService:
             category=mark.category if mark else (p.get("categories") or ["other"])[0],
             user_ids=tuple(group.member_ids),
             chips=tuple(out_chips[:3]),
+            source="heuristic" if used_fallback else "muse",
         )
         return Revival(book.restore(out.message, places), draft)
 

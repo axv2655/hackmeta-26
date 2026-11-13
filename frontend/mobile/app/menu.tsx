@@ -1,37 +1,71 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AccordionSection } from '@/components/fb/menu/AccordionSection';
-import { ALSO_FROM_META_ID, menuSections } from '@/components/fb/menu/data';
+import { ALSO_FROM_META_ID, menuSections, ROW_HREFS } from '@/components/fb/menu/data';
 import { LogoutDialog } from '@/components/fb/menu/LogoutDialog';
 import { ProfileCard } from '@/components/fb/menu/ProfileCard';
 import { ShortcutGrid } from '@/components/fb/menu/ShortcutGrid';
 import { MetaLogo } from '@/components/fb/brand/MetaLogo';
 import { ScreenHeader, type HeaderAction } from '@/components/fb/ScreenHeader';
+import { ComingSoonSheet } from '@/components/shell/ComingSoonSheet';
+import type { IconName } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
+import { DEMO } from '@/lib/demo';
+import { useFriends } from '@/lib/friends';
 import { warning } from '@/lib/haptics';
-import { useLive } from '@/lib/live';
+import { logoutRow, type MenuRow, type MenuShortcut } from '@/lib/mock';
+import { useMeUser } from '@/lib/people';
 import { unregisterPush } from '@/lib/push';
-import { currentUser, logoutRow, type MenuShortcut } from '@/lib/mock';
 import { useSession } from '@/lib/session';
-import { useInbox } from '@/lib/store/inbox';
-import { useMyMoves } from '@/lib/store/moves';
 import { colors, layout, spacing } from '@/lib/theme';
+
+type Soon = { label: string; icon: IconName } | null;
+
+const TAB_ROUTES = new Set(['/', '/moves', '/reels', '/notifications', '/profile', '/search']);
+
+function requestsBadge(count: number): string | undefined {
+  if (count <= 0) return undefined;
+  return count === 1 ? '1 request' : `${count} requests`;
+}
 
 export default function MenuScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const me = useMeUser();
   const [logoutVisible, setLogoutVisible] = useState(false);
+  const [soon, setSoon] = useState<Soon>(null);
+  const incoming = useFriends((s) => s.incoming.length);
 
+  useEffect(() => {
+    void useFriends.getState().load();
+  }, []);
+
+  // Tabs are switched to (no stacking); everything else is pushed over the Menu.
+  const go = useCallback(
+    (href: string) => (TAB_ROUTES.has(href) ? router.navigate(href as Href) : router.push(href as Href)),
+    [router],
+  );
+
+  // Tiles with a screen open it; the Facebook filler says "Coming soon".
   const openShortcut = useCallback(
     (shortcut: MenuShortcut) => {
-      // Only shortcuts that map to a real tab go anywhere; the rest are mock tiles.
-      if (shortcut.href) router.navigate(shortcut.href);
+      if (shortcut.href) go(shortcut.href);
+      else setSoon({ label: shortcut.label, icon: shortcut.icon });
     },
-    [router],
+    [go],
+  );
+
+  const openRow = useCallback(
+    (row: MenuRow) => {
+      const href = ROW_HREFS[row.id];
+      if (href) go(href);
+      else setSoon({ label: row.label, icon: row.icon });
+    },
+    [go],
   );
 
   const askLogout = useCallback(() => {
@@ -41,14 +75,11 @@ export default function MenuScreen() {
 
   const closeLogout = useCallback(() => setLogoutVisible(false), []);
 
-  // Forget this phone's account and everything loaded for it; the root
-  // layout then shows the login screen.
+  // Forget this phone's account. Every store resets itself through onLogout
+  // (lib/session.ts); the root layout then shows the login screen.
   const logOut = useCallback(() => {
     setLogoutVisible(false);
     unregisterPush(); // still signed in here, so the DELETE carries the user
-    useMyMoves.setState({ mine: [], focusId: null });
-    useInbox.setState({ items: [], banner: null });
-    useLive.setState({ moves: null, online: false });
     useSession.getState().logOut();
   }, []);
 
@@ -58,7 +89,7 @@ export default function MenuScreen() {
   }, [router]);
 
   const headerActions: HeaderAction[] = [
-    { icon: 'settings', accessibilityLabel: 'Settings' },
+    { icon: 'settings', accessibilityLabel: 'Settings', onPress: () => go('/settings') },
     { icon: 'search', accessibilityLabel: 'Search', onPress: () => router.navigate('/search') },
   ];
 
@@ -85,15 +116,20 @@ export default function MenuScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
         showsVerticalScrollIndicator={false}
       >
-        <ProfileCard user={currentUser} onPress={() => router.navigate('/profile')} />
+        <ProfileCard user={me} onPress={() => router.navigate('/profile')} />
 
-        <ShortcutGrid onPressShortcut={openShortcut} />
+        <ShortcutGrid
+          onPressShortcut={openShortcut}
+          badges={{ 'shortcut-friends': requestsBadge(incoming) }}
+          showDemo={DEMO}
+        />
 
         <View style={styles.sections}>
           {menuSections.map((row) => (
             <AccordionSection
               key={row.id}
               row={row}
+              onPressItem={openRow}
               leading={
                 row.id === ALSO_FROM_META_ID ? (
                   <MetaLogo symbolOnly height={17} color={colors.textSecondary} />
@@ -103,7 +139,6 @@ export default function MenuScreen() {
           ))}
         </View>
 
-        {/* Mock only: confirming just closes the dialog. */}
         <Button
           title={logoutRow.label}
           variant="secondary"
@@ -115,6 +150,7 @@ export default function MenuScreen() {
       </ScrollView>
 
       <LogoutDialog visible={logoutVisible} onCancel={closeLogout} onConfirm={logOut} />
+      <ComingSoonSheet feature={soon} onClose={() => setSoon(null)} />
     </View>
   );
 }

@@ -13,7 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import type { ImageRef } from '@/lib/mock';
+import type { ReelPoster } from '@/lib/reels';
 import { colors } from '@/lib/theme';
 
 import { BOTTOM_GRADIENT, BOTTOM_GRADIENT_STOPS, KEN_BURNS_SWEEP_MS, TOP_GRADIENT } from './constants';
@@ -27,7 +27,8 @@ const PAN_Y = 14;
 const SWEEP_EASING = Easing.inOut(Easing.quad);
 
 export type ReelMediaProps = {
-  source: ImageRef;
+  /** Bundled frame or a remote image. */
+  source: ReelPoster;
   /** Run the slow zoom/pan. When false the frame holds wherever it was. */
   playing: boolean;
   /** Alternates the pan direction between neighbouring reels. */

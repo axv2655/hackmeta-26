@@ -2,16 +2,22 @@
 
 GET /suggestions                      pending, unexpired, newest first
 POST /suggestions/{id}/accept         the user's tap: acts on the suggestion
-POST /suggestions/{id}/dismiss
+POST /suggestions/{id}/dismiss        optional {never_again}: revive mutes the crew
 
 Muse never posts on its own; accept is the only path from a suggestion to a
-Move. A closed (accepted, dismissed, expired) suggestion answers 409.
+Move. A closed (accepted, dismissed, expired) suggestion answers 409, an
+unknown one (or someone else's) 404, through the domain error kinds.
+
+`Suggestion` carries `fill_minutes`, `target_move_id`, `group_id`,
+`window_start` and `window_end`, read from the stored payload (null when
+absent).
 """
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 from pydantic import BaseModel
+from sqlmodel import Session
 
 from app.core.db import SessionDep
 from app.muse.http import CurrentUser, LaneDep
@@ -19,11 +25,11 @@ from app.muse.schemas import MoveDraftRead
 from app.ports import SuggestionSnapshot
 from app.services.suggestions import (
     AcceptEdits,
-    SuggestionClosed,
-    SuggestionNotFound,
     SuggestionService,
+    payload_extras,
     snapshot,
 )
+from app.tables import Suggestion
 
 router = APIRouter(tags=["suggestions"])
 
@@ -37,9 +43,15 @@ class SuggestionOut(BaseModel):
     status: str
     created_at: datetime
     expires_at: datetime
+    fill_minutes: int | None = None
+    target_move_id: str | None = None
+    group_id: str | None = None
+    window_start: str | None = None
+    window_end: str | None = None
 
     @classmethod
-    def of(cls, session, s: SuggestionSnapshot) -> "SuggestionOut":
+    def of(cls, session: Session, s: SuggestionSnapshot) -> "SuggestionOut":
+        row = session.get(Suggestion, s.id)
         return cls(
             id=s.id,
             type=s.type,
@@ -49,6 +61,7 @@ class SuggestionOut(BaseModel):
             status=s.status,
             created_at=s.created_at,
             expires_at=s.expires_at,
+            **payload_extras(row.payload if row else None),
         )
 
 
@@ -64,10 +77,8 @@ class AcceptOut(BaseModel):
     draft: MoveDraftRead | None = None
 
 
-def _errors(exc: Exception) -> HTTPException:
-    if isinstance(exc, SuggestionNotFound):
-        return HTTPException(status.HTTP_404_NOT_FOUND, "Suggestion not found")
-    return HTTPException(status.HTTP_409_CONFLICT, str(exc))
+class DismissBody(BaseModel):
+    never_again: bool = False
 
 
 @router.get("/suggestions", response_model=list[SuggestionOut])
@@ -93,12 +104,9 @@ async def accept(
             user_ids=tuple(body.user_ids) if body.user_ids is not None else None,
             fill_minutes=body.fill_minutes,
         )
-    try:
-        result = await SuggestionService(session, lane).accept(
-            user.id, suggestion_id, edits
-        )
-    except (SuggestionNotFound, SuggestionClosed) as exc:
-        raise _errors(exc) from exc
+    result = await SuggestionService(session, lane).accept(
+        user.id, suggestion_id, edits
+    )
     return AcceptOut(
         suggestion=SuggestionOut.of(session, result.suggestion),
         move_id=result.move_id,
@@ -108,10 +116,13 @@ async def accept(
 
 @router.post("/suggestions/{suggestion_id}/dismiss", response_model=SuggestionOut)
 def dismiss(
-    suggestion_id: str, session: SessionDep, user: CurrentUser, lane: LaneDep
+    suggestion_id: str,
+    session: SessionDep,
+    user: CurrentUser,
+    lane: LaneDep,
+    body: DismissBody | None = None,
 ) -> SuggestionOut:
-    try:
-        s = SuggestionService(session, lane).dismiss(user.id, suggestion_id)
-    except (SuggestionNotFound, SuggestionClosed) as exc:
-        raise _errors(exc) from exc
+    s = SuggestionService(session, lane).dismiss(
+        user.id, suggestion_id, never_again=bool(body and body.never_again)
+    )
     return SuggestionOut.of(session, s)

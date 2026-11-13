@@ -1,6 +1,6 @@
 """The page a shared link opens: no login, like a Luma or Eventbrite link.
 
-GET  /m/{token}         the Move: place, what's up, who's there, map links
+GET  /m/{token}         the Move: place, what's up, host names + headcount, maps
 POST /m/{token}/going   form post with a first name -> "You're in"
 
 Mounted at the site root (not under /api/v1) so links stay short. Open Graph
@@ -102,14 +102,19 @@ def ago(start: datetime | None, now: datetime) -> str:
 
 
 def who_line(page: InvitePage) -> str:
-    names = list(dict.fromkeys([*page.people, *page.guests]))
+    """Who's going, for a public page: the creator's and sharer's first names
+    only, and a headcount for everyone else ("Ana and Bo, +3 others going")."""
+    names = list(page.hosts)
+    others = page.others_count
+    extra = f"+{others} {'other' if others == 1 else 'others'} going"
     if not names:
+        if others:
+            return f"{page.creator_first or page.inviter_first}'s Move · {extra}"
         return f"{page.creator_first or page.inviter_first} is heading there"
-    if len(names) <= 3:
-        shown = ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
-    else:
-        shown = f"{', '.join(names[:2])} and {len(names) - 2} others"
-    return f"{shown} {'is' if len(names) == 1 else 'are'} there or on the way"
+    shown = " and ".join(names)
+    verb = "is" if len(names) == 1 else "are"
+    line = f"{shown} {verb} there or on the way"
+    return f"{line}, {extra}" if others else line
 
 
 def render(page: InvitePage, now: datetime, *, error: str = "") -> str:

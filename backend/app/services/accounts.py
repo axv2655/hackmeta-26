@@ -1,9 +1,10 @@
 """Sign up and log in (real accounts next to the seeded demo world).
 
-    signup  makes a `users` row, its settings and a credential, and friends
-            the new person with everyone already here, and adds them to the
-            example Moves, so the app is alive the moment they log in.
-            Friend requests (`services/friends.py`) cover anyone added later.
+    signup  makes a `users` row, its settings and a credential. It befriends
+            nobody: a few seeded people (`WELCOME_FROM`) send the newcomer a
+            friend request, so the first thing they do is accept one
+            (`services/friends.py`). They also join the example Moves, so the
+            app is alive the moment they log in.
     login   checks a username and password and returns the user.
 
 The client then sends the user's id as `X-User-Id`, like the mock login.
@@ -23,9 +24,12 @@ from app.domain.accounts import (
     password_matches,
 )
 from app.ports import Clock
+from app.seed.ids import ANISH, PRIYA, TONY
 from app.services.examples import join_examples
-from app.tables import Credential, Friendship, User, UserSettings, new_id
+from app.tables import Credential, FriendRequest, User, UserSettings, new_id
 
+# Seeded people whose friend requests greet every new account.
+WELCOME_FROM = (ANISH, PRIYA, TONY)
 COLORS = ("#1877F2", "#E4405F", "#42B72A", "#F7B928", "#A033FF", "#FF6F3C", "#00A3A3")
 
 
@@ -62,10 +66,7 @@ class AccountService:
                 created_at=now,
             )
         )
-        others = self.session.exec(select(User.id).where(User.id != uid)).all()
-        for other in others:
-            low, high = sorted((uid, other))
-            self.session.add(Friendship(user_a=low, user_b=high, since=now))
+        self._welcome_requests(uid)
         join_examples(self.session, uid)
         self.session.commit()
         self.session.refresh(user)
@@ -80,6 +81,16 @@ class AccountService:
         if user is None:
             raise BadLogin()
         return user, username
+
+    def _welcome_requests(self, uid: str) -> None:
+        """Pending requests from `WELCOME_FROM` to the newcomer (skips anyone
+        not in this database)."""
+        now = self.clock.now()
+        for sender in WELCOME_FROM:
+            if sender != uid and self.session.get(User, sender) is not None:
+                self.session.add(
+                    FriendRequest(from_id=sender, to_id=uid, created_at=now)
+                )
 
     def _credential(self, username: str) -> Credential | None:
         query = select(Credential).where(Credential.username == username)

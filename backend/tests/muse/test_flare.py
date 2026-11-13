@@ -6,9 +6,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import select
 
+from app.muse.agents.flare import FlareScanner
 from app.muse.client import FakeMuseClient
 from app.ports import FreeWindow
-from app.tables import Notification, Suggestion, UserSettings
+from app.tables import Notification, Suggestion, TasteProfile, UserSettings
 from tests.muse import factories as f
 from tests.muse.factories import T0, days, mark_snap, move_snap
 from tests.muse.fakes import (
@@ -166,7 +167,9 @@ async def test_recently_proposed_or_dismissed_mark_is_suppressed(
     assert (s.type == "free_time") if suppressed else (s.draft.mark_id == "kumo")
 
 
-@pytest.mark.parametrize(("minutes", "fill"), [(19, None), (45, 10), (90, 15)])
+@pytest.mark.parametrize(
+    ("minutes", "fill"), [(19, None), (45, 10), (90, 10), (240, 10)]
+)
 async def test_window_math(engine, world, clock, ports, minutes, fill) -> None:
     ports["calendar"].windows["anish"] = window(minutes)
     container, *_ = f.wire(engine, clock, **ports)
@@ -349,3 +352,114 @@ async def test_accept_revive_returns_draft_and_dismiss(
         assert ports["moves"].created == []
         d = http.post("/api/v1/suggestions/d/dismiss", headers=h).json()
         assert d["status"] == "dismissed"
+
+
+# --- fill clamp, forced scans, payload extras, honest source ---------------------
+
+
+@pytest.mark.parametrize(("minutes", "asked"), [(240, 30), (240, None), (45, 2)])
+async def test_fill_always_5_to_10(engine, world, clock, ports, minutes, asked) -> None:
+    out = {
+        "act": True,
+        "type": "flare",
+        "mark": "k1",
+        "invite": ["u1"],
+        "fill_minutes": asked,
+        "text": "matcha?",
+        "message": "{k1}?",
+    }
+    ports["calendar"].windows["anish"] = window(minutes)
+    container, *_ = f.wire(engine, clock, FakeMuseClient({"flare": out}), **ports)
+    s = await container.muse.run_flare_scan("anish")
+    assert 5 <= s.draft.fill_minutes <= 10
+    assert s.draft.fill_minutes == (5 if asked == 2 else 10)
+
+
+async def test_force_bypasses_memo_and_daily_cap(engine, world, clock, ports) -> None:
+    client = FakeMuseClient({"flare": {"act": False}})
+    container, _, _, lane = f.wire(engine, clock, client, **ports)
+    flares = FlareScanner(lane)
+    assert await flares.run_flare_scan("anish") is None
+    assert await flares.run_flare_scan("anish") is None
+    assert len(client.calls) == 1  # memoized
+    forced = await flares.run_flare_scan("anish", force=True)
+    assert forced is not None  # memo skipped; Muse's "no" -> heuristic card
+    assert forced.draft.source == "heuristic"
+
+    for i in range(2):
+        world.add(
+            Suggestion(
+                user_id="anish",
+                type="flare",
+                payload={"mark_id": "kumo"},
+                created_at=T0 - timedelta(hours=i + 1),
+                expires_at=T0,
+            )
+        )
+    world.commit()
+    scanner = FlareScanner(f.lane(engine, f.wire(engine, clock, **ports)[0]))
+    assert await scanner.run_flare_scan("anish") is None  # daily cap
+    forced = await scanner.run_flare_scan("anish", force=True)
+    assert forced is not None and forced.draft.mark_id == "kumo"  # cooldown too
+
+
+async def test_payload_has_window_and_extras_on_the_api(
+    engine, world, clock, ports
+) -> None:
+    container, *_ = f.wire(engine, clock, **ports)
+    s = await container.muse.run_flare_scan("anish")
+    row = world.get(Suggestion, s.id)
+    assert row.payload["window_start"] == window(50).start.isoformat()
+    assert row.payload["window_end"] == window(50).end.isoformat()
+    app, _ = f.make_app(engine, clock, **ports)
+    with TestClient(app) as http:
+        [got] = http.get("/api/v1/suggestions", headers={"X-User-Id": "anish"}).json()
+    assert got["window_end"] == window(50).end.isoformat()
+    assert got["fill_minutes"] == 10 and got["group_id"] is None
+    assert got["target_move_id"] is None
+
+
+async def test_fallback_draft_says_heuristic_and_muse_says_muse(
+    engine, world, clock, ports
+) -> None:
+    container, *_ = f.wire(engine, clock, FakeMuseClient(default="garbage"), **ports)
+    s = await container.muse.run_flare_scan("anish")
+    assert s.draft.source == "heuristic"
+
+    out = {"act": True, "type": "flare", "mark": "k1", "message": "{k1}?"}
+    client = FakeMuseClient({"flare": out})
+    container, *_ = f.wire(engine, clock, client, **ports)
+    s = await container.muse.demo_flare_scan("anish")
+    assert s.draft.source == "muse"
+
+
+async def test_taste_summary_in_prompt(engine, world, clock, ports) -> None:
+    world.add(
+        TasteProfile(
+            subject_type="user",
+            subject_id="anish",
+            summary="likes quiet matcha spots",
+            updated_at=T0,
+        )
+    )
+    world.commit()
+    client = FakeMuseClient({"flare": {"act": False}})
+    container, *_ = f.wire(engine, clock, client, **ports)
+    await container.muse.run_flare_scan("anish")
+    [(_, prompt)] = client.calls
+    assert "User taste: likes quiet matcha spots" in prompt
+
+
+async def test_accept_clamps_edited_fill(engine, world, clock, ports) -> None:
+    container, *_ = f.wire(engine, clock, **ports)
+    s = await container.muse.run_flare_scan("anish")
+    app, _ = f.make_app(engine, clock, **ports)
+    with TestClient(app) as http:
+        r = http.post(
+            f"/api/v1/suggestions/{s.id}/accept",
+            headers={"X-User-Id": "anish"},
+            json={"fill_minutes": 30},
+        )
+    assert r.status_code == 200
+    [(_, draft)] = ports["moves"].created
+    assert draft.kind == "flare" and draft.fill_minutes == 10

@@ -13,6 +13,7 @@ import {
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { ScreenHeader } from '@/components/fb/ScreenHeader';
 import { Avatar } from '@/components/ui/Avatar';
@@ -21,7 +22,8 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection } from '@/lib/haptics';
-import { aspect, currentUser, type ImageRef } from '@/lib/mock';
+import { aspect, type ImageRef } from '@/lib/mock';
+import { useMeUser } from '@/lib/people';
 import { colors, fontWeights, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 import { audienceOption } from './audience';
@@ -68,6 +70,8 @@ function useKeyboardVisible(): boolean {
 /** "Create post": who is posting, the text (optionally on a colored card), an attached photo, and the add-to-post actions. */
 export function ComposeScreen({ onClose, onNext }: ComposeScreenProps) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const me = useMeUser();
   const inputRef = useRef<TextInput>(null);
   const keyboardVisible = useKeyboardVisible();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -92,12 +96,19 @@ export function ComposeScreen({ onClose, onNext }: ComposeScreenProps) {
     inputRef.current?.focus();
   }, []);
 
-  const handleAction = useCallback((id: ComposerActionId) => {
-    // Tag people, Feeling/activity, Check in and Live video are stand-ins for now.
-    if (id !== 'photo') return;
-    Keyboard.dismiss();
-    setPickerOpen(true);
-  }, []);
+  const handleAction = useCallback(
+    (id: ComposerActionId) => {
+      // Check in is where a Move starts: swap this post for the Move composer.
+      if (id === 'check-in') {
+        Keyboard.dismiss();
+        router.replace('/move/new');
+        return;
+      }
+      Keyboard.dismiss();
+      setPickerOpen(true);
+    },
+    [router],
+  );
 
   const handleSelectPhoto = useCallback(
     (photo: ImageRef, ratio: number) => {
@@ -138,10 +149,10 @@ export function ComposeScreen({ onClose, onNext }: ComposeScreenProps) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.userRow}>
-            <Avatar source={currentUser.avatar} size={AVATAR} />
+            <Avatar source={me.avatar} size={AVATAR} />
             <View style={styles.userText}>
               <Text style={styles.name} numberOfLines={1}>
-                {currentUser.name}
+                {me.name}
               </Text>
               <PressableScale
                 onPress={handleCycleAudience}

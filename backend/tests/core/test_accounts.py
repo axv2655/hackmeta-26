@@ -18,7 +18,7 @@ from app.domain.accounts import (
 )
 from app.main import create_app
 from app.services.accounts import AccountService
-from app.tables import Credential, Friendship, User, UserSettings
+from app.tables import Credential, FriendRequest, Friendship, User, UserSettings
 
 NOW = datetime(2026, 11, 12, 18, 0, tzinfo=UTC)
 
@@ -45,14 +45,16 @@ def test_hash_round_trip_and_never_plain():
     assert not password_matches("hunter2", "garbage")
 
 
-def test_signup_makes_user_settings_credential_and_friends(accounts, session):
+def test_signup_makes_user_settings_credential_and_a_welcome_request(accounts, session):
     user, username = accounts.signup("Ana Lopez", "@Ana_L", "pass1")
     assert (user.id, username, user.first_name) == ("u_ana_l", "ana_l", "Ana")
     assert session.get(UserSettings, user.id) is not None
     cred = session.exec(select(Credential)).one()
     assert cred.username == "ana_l" and cred.password_hash.startswith("scrypt$")
-    pairs = session.exec(select(Friendship)).all()
-    assert [(f.user_a, f.user_b) for f in pairs] == [("u_ana_l", "u_tony")]
+    assert session.exec(select(Friendship)).all() == []
+    # only Tony exists here; Anish and Priya are skipped
+    reqs = session.exec(select(FriendRequest)).all()
+    assert [(r.from_id, r.to_id) for r in reqs] == [("u_tony", "u_ana_l")]
 
 
 def test_signup_rejects_taken_and_bad_input(accounts):

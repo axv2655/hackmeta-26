@@ -260,11 +260,11 @@ def test_block_add_list_remove_round_trip(client: TestClient, world: Session) ->
     added = client.post("/api/v1/me/blocks", json={"user_id": "mom"})
     assert added.status_code == 201
     assert ids(added.json()) == ["mom"]
-    # idempotent, and blocking keeps the friendship
+    # idempotent, and blocking ends the friendship
     assert ids(client.post("/api/v1/me/blocks", json={"user_id": "mom"}).json()) == [
         "mom"
     ]
-    assert "mom" in ids([f["user"] for f in client.get("/api/v1/friends").json()])
+    assert "mom" not in ids([f["user"] for f in client.get("/api/v1/friends").json()])
     # directional: mom has not hidden anything from anish
     assert client.get("/api/v1/me/blocks", headers={"X-User-Id": "mom"}).json() == []
 
@@ -294,6 +294,18 @@ def test_autojoin_put_replaces_the_list(client: TestClient) -> None:
     assert ids(second.json()) == ["maya"]
     assert ids(client.get("/api/v1/me/autojoin").json()) == ["maya"]
     assert client.put("/api/v1/me/autojoin", json={"user_ids": []}).json() == []
+
+
+def test_autojoin_and_circles_take_friends_only(client: TestClient) -> None:
+    tony = {"X-User-Id": "tony"}
+    put = client.put("/api/v1/me/autojoin", json={"user_ids": ["maya"]}, headers=tony)
+    assert put.status_code == 422
+    body = {"name": "Crew", "member_ids": ["maya"]}
+    assert client.post("/api/v1/circles", json=body, headers=tony).status_code == 422
+    made = client.post("/api/v1/circles", json={"name": "Crew"}, headers=tony)
+    path = f"/api/v1/circles/{made.json()['id']}"
+    patched = client.patch(path, json={"member_ids": ["maya"]}, headers=tony)
+    assert patched.status_code == 422
 
 
 def test_autojoin_is_directional(users: UserService) -> None:
@@ -428,33 +440,32 @@ def test_deleting_a_circle_drops_members_and_default(
     assert world.get(UserSettings, "anish").default_circle_ids == [keep]
 
 
-
 def test_circle_replace_failure_preserves_members(circles, monkeypatch):
-    circle = circles.create('anish', 'Crew', ['tony']).circle
+    circle = circles.create("anish", "Crew", ["tony"]).circle
     original = circles.repo.replace_members
 
     def fail(cid, ids):
         original(cid, ids)
-        raise RuntimeError('write interrupted')
+        raise RuntimeError("write interrupted")
 
-    monkeypatch.setattr(circles.repo, 'replace_members', fail)
+    monkeypatch.setattr(circles.repo, "replace_members", fail)
     with pytest.raises(RuntimeError):
-        circles.update('anish', circle.id, {'member_ids': ['maya']})
-    assert [u.id for u in circles.repo.members(circle.id)] == ['tony']
+        circles.update("anish", circle.id, {"member_ids": ["maya"]})
+    assert [u.id for u in circles.repo.members(circle.id)] == ["tony"]
 
 
 def test_autojoin_replace_failure_preserves_preferences(users, monkeypatch):
-    users.set_autojoin('anish', ['tony'])
+    users.set_autojoin("anish", ["tony"])
     original = users.repo.replace_autojoin
 
     def fail(uid, others):
         original(uid, others)
-        raise RuntimeError('write interrupted')
+        raise RuntimeError("write interrupted")
 
-    monkeypatch.setattr(users.repo, 'replace_autojoin', fail)
+    monkeypatch.setattr(users.repo, "replace_autojoin", fail)
     with pytest.raises(RuntimeError):
-        users.set_autojoin('anish', ['maya'])
-    assert [u.id for u in users.autojoin('anish')] == ['tony']
+        users.set_autojoin("anish", ["maya"])
+    assert [u.id for u in users.autojoin("anish")] == ["tony"]
 
 
 # --- coarse area label (12.1) ---------------------------------------------------

@@ -1,20 +1,22 @@
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 
-import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
-import { friends, suggestions as mockSuggestions, type User } from '@/lib/mock';
+import { PressableScale } from '@/components/ui/PressableScale';
+import { useFriends } from '@/lib/friends';
+import { toUser } from '@/lib/people';
 import { colors, hairline, layout, radius, spacing, type as typeScale } from '@/lib/theme';
+import type { Person, Relation } from '@/lib/types';
 
 import { UnitHeader } from './UnitHeader';
 
 export type PeopleYouMayKnowProps = {
   /** Defaults to "People you may know". */
   title?: string;
-  /** Defaults to the seeded suggestions. */
-  people?: User[];
-  onPressMore?: () => void;
+  /** Friend suggestions from GET /friends/suggestions. The unit renders nothing when empty. */
+  people: Person[];
   /** X in the header, and also called once the last card has been removed. */
   onDismiss?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -26,16 +28,40 @@ const PHOTO_HEIGHT = 240;
 const PORTRAIT = 132;
 const PORTRAIT_RING = 3;
 
+type CardAction = { title: string; variant: 'primary' | 'tinted' | 'secondary'; icon?: 'friend-add' };
+
+function actionFor(relation: Relation): CardAction {
+  switch (relation) {
+    case 'outgoing':
+      return { title: 'Request sent', variant: 'tinted' };
+    case 'incoming':
+      return { title: 'Confirm', variant: 'primary' };
+    case 'friend':
+      return { title: 'Friends', variant: 'secondary' };
+    default:
+      return { title: 'Add friend', variant: 'primary', icon: 'friend-add' };
+  }
+}
+
+function subtitle(person: Person): string {
+  if (person.mutual_count > 0) {
+    return `${person.mutual_count} mutual friend${person.mutual_count === 1 ? '' : 's'}`;
+  }
+  return person.username ? `@${person.username}` : 'Suggested for you';
+}
+
 type SuggestionCardProps = {
-  person: User;
-  requested: boolean;
-  onToggleRequest: (id: string) => void;
+  person: Person;
+  relation: Relation;
+  onAction: (person: Person, relation: Relation) => void;
+  onOpen: (person: Person) => void;
   onRemove: (id: string) => void;
 };
 
-function SuggestionCard({ person, requested, onToggleRequest, onRemove }: SuggestionCardProps) {
-  // Two friends stand in for the "mutual friends" faces.
-  const faces = friends.slice(0, 2);
+function SuggestionCard({ person, relation, onAction, onOpen, onRemove }: SuggestionCardProps) {
+  const avatar = toUser(person.user).avatar;
+  const action = actionFor(relation);
+  const name = person.user.name;
 
   return (
     <View style={styles.card}>
@@ -44,65 +70,46 @@ function SuggestionCard({ person, requested, onToggleRequest, onRemove }: Sugges
         card. A blurred copy fills the photo area and the portrait itself sits
         on top at a size it can hold.
       */}
-      <View style={styles.photo}>
-        <Image
-          source={person.avatar}
-          style={styles.backdrop}
-          contentFit="cover"
-          blurRadius={24}
-          accessible={false}
-        />
+      <PressableScale
+        onPress={() => onOpen(person)}
+        scaleTo={1}
+        pressedOpacity={0.8}
+        style={styles.photo}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${name}'s profile`}
+      >
+        <Image source={avatar} style={styles.backdrop} contentFit="cover" blurRadius={24} accessible={false} />
         <View style={styles.backdropTint} />
         <View style={styles.portraitRing}>
-          <Image
-            source={person.avatar}
-            style={styles.portrait}
-            contentFit="cover"
-            accessibilityLabel={person.name}
-          />
+          <Image source={avatar} style={styles.portrait} contentFit="cover" accessible={false} />
         </View>
-      </View>
+      </PressableScale>
 
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
-          {person.name}
+          {name}
         </Text>
         <View style={styles.mutualRow}>
-          {person.mutualFriends > 0 ? (
-            <View style={styles.faces}>
-              {faces.map((friend, i) => (
-                <Avatar
-                  key={friend.id}
-                  source={friend.avatar}
-                  size={18}
-                  style={[styles.face, i > 0 && styles.faceOverlap]}
-                />
-              ))}
-            </View>
-          ) : null}
           <Text style={styles.mutual} numberOfLines={1}>
-            {person.mutualFriends > 0
-              ? `${person.mutualFriends} mutual friend${person.mutualFriends === 1 ? '' : 's'}`
-              : person.subtitle}
+            {subtitle(person)}
           </Text>
         </View>
         <View style={styles.buttons}>
           <Button
-            title={requested ? 'Request sent' : 'Add friend'}
-            variant={requested ? 'tinted' : 'primary'}
-            // "Request sent" only fits the half-width button without a leading icon.
-            icon={requested ? undefined : 'friend-add'}
-            onPress={() => onToggleRequest(person.id)}
+            title={action.title}
+            variant={action.variant}
+            icon={action.icon}
+            onPress={() => onAction(person, relation)}
             accessibilityLabel={
-              requested ? `Cancel friend request to ${person.name}` : `Add ${person.name} as a friend`
+              relation === 'outgoing' ? `Cancel friend request to ${name}` : `${action.title}: ${name}`
             }
             style={styles.button}
           />
           <Button
             title="Remove"
             variant="secondary"
-            onPress={() => onRemove(person.id)}
-            accessibilityLabel={`Remove ${person.name} from suggestions`}
+            onPress={() => onRemove(person.user.id)}
+            accessibilityLabel={`Remove ${name} from suggestions`}
             style={styles.button}
           />
         </View>
@@ -111,38 +118,49 @@ function SuggestionCard({ person, requested, onToggleRequest, onRemove }: Sugges
   );
 }
 
-/** "People you may know": title row with "..." and X, then a horizontal strip of suggestion cards. */
-export function PeopleYouMayKnow({
-  title = 'People you may know',
-  people = mockSuggestions,
-  onPressMore,
-  onDismiss,
-  style,
-}: PeopleYouMayKnowProps) {
-  const [requested, setRequested] = useState<readonly string[]>([]);
+/** "People you may know": title row with X, then a horizontal strip of real friend suggestions. */
+export function PeopleYouMayKnow({ title = 'People you may know', people, onDismiss, style }: PeopleYouMayKnowProps) {
+  const router = useRouter();
   const [removed, setRemoved] = useState<readonly string[]>([]);
+  // Subscribing to `relations` re-renders the cards when a request goes out or rolls back.
+  useFriends((s) => s.relations);
+  const relationOf = useFriends((s) => s.relationOf);
+  const add = useFriends((s) => s.add);
+  const confirm = useFriends((s) => s.confirm);
+  const cancel = useFriends((s) => s.remove);
 
-  const visible = people.filter((person) => !removed.includes(person.id));
+  const visible = people.filter((person) => !removed.includes(person.user.id));
 
-  const toggleRequest = useCallback((id: string) => {
-    setRequested((ids) => (ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id]));
-  }, []);
+  const act = useCallback(
+    (person: Person, relation: Relation) => {
+      if (relation === 'outgoing') void cancel(person.user.id);
+      else if (relation === 'incoming') void confirm(person.user, person.username);
+      else if (relation === 'friend') router.push(`/user/${encodeURIComponent(person.user.id)}`);
+      else void add(person.user, person.username);
+    },
+    [add, cancel, confirm, router],
+  );
+
+  const open = useCallback(
+    (person: Person) => router.push(`/user/${encodeURIComponent(person.user.id)}`),
+    [router],
+  );
 
   const remove = useCallback(
     (id: string) => {
-      const remaining = people.filter((person) => person.id !== id && !removed.includes(person.id));
+      const remaining = visible.filter((person) => person.user.id !== id);
       setRemoved((ids) => [...ids, id]);
       // Nothing left to suggest: take the whole unit out of the feed.
       if (remaining.length === 0) onDismiss?.();
     },
-    [onDismiss, people, removed],
+    [onDismiss, visible],
   );
 
   if (visible.length === 0) return null;
 
   return (
     <View style={[styles.root, style]}>
-      <UnitHeader title={title} onPressMore={onPressMore} onDismiss={onDismiss} />
+      <UnitHeader title={title} onDismiss={onDismiss} />
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -153,10 +171,11 @@ export function PeopleYouMayKnow({
       >
         {visible.map((person) => (
           <SuggestionCard
-            key={person.id}
+            key={person.user.id}
             person={person}
-            requested={requested.includes(person.id)}
-            onToggleRequest={toggleRequest}
+            relation={relationOf(person)}
+            onAction={act}
+            onOpen={open}
             onRemove={remove}
           />
         ))}
@@ -225,9 +244,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     minHeight: 20,
   },
-  faces: { flexDirection: 'row', marginRight: 6 },
-  face: { borderRadius: 9 },
-  faceOverlap: { marginLeft: -5 },
   mutual: { ...typeScale.rowSub, flexShrink: 1 },
   buttons: {
     flexDirection: 'row',

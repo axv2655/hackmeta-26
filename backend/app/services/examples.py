@@ -10,11 +10,14 @@ only reach the seeded people. Every few minutes this:
   * adds every user to the audience of the live examples, unless the creator
     blocked them, so a new account sees them straight away.
 
-Moves people make themselves are never touched.
+Moves people make themselves are never touched. An example Move ended through
+Demo Control is put on the in-memory hold list and stays ended until
+`/demo/reset` calls `release_all()` (a restart releases it too).
 """
 
 from __future__ import annotations
 
+import threading
 from datetime import timedelta
 
 from sqlalchemy import Engine
@@ -26,12 +29,37 @@ from app.tables import Block, Move, MoveAudience, MoveParticipant, User
 
 DRIFT = timedelta(minutes=2)  # leave the clock alone if it's this close
 
+_held: set[str] = set()
+_held_lock = threading.Lock()
+
+
+def hold(move_id: str) -> None:
+    """Keep an example Move ended: `refresh()` will not revive or retime it."""
+    with _held_lock:
+        _held.add(move_id)
+
+
+def release_all() -> None:
+    with _held_lock:
+        _held.clear()
+
+
+def held() -> frozenset[str]:
+    with _held_lock:
+        return frozenset(_held)
+
 
 def join_examples(session: Session, user_id: str) -> None:
-    """Put one user in the audience of every live example Move. No commit."""
+    """Put one user in the audience of every live example Move, and of the
+    ended ones (last night's, so a new account sees its ghosts and Moments, and
+    any held by Demo Control). No commit."""
+    on_hold = held()
     for spec in MOVES:
         move = session.get(Move, spec.id)
-        if move is None or move.status != "live" or move.creator_id == user_id:
+        if move is None or move.creator_id == user_id:
+            continue
+        shown = move.status == "live" or spec.ended is not None or spec.id in on_hold
+        if not shown:
             continue
         if _blocked(session, move.creator_id, user_id):
             continue
@@ -44,18 +72,24 @@ class ExampleMoves:
         self.engine = engine
         self.clock = clock
 
-    def refresh(self) -> None:
+    def refresh(self) -> int:
+        """Retime (and revive) every example Move not on hold; returns how
+        many were refreshed."""
+        refreshed = 0
         with Session(self.engine) as session:
             user_ids = session.exec(select(User.id)).all()
+            on_hold = held()
             for spec in MOVES:
                 move = session.get(Move, spec.id)
-                if move is None:
+                if move is None or spec.id in on_hold:
                     continue
                 self._retime(session, move, spec)
+                refreshed += 1
             session.flush()
             for user_id in user_ids:
                 join_examples(session, user_id)
             session.commit()
+        return refreshed
 
     def _retime(self, session: Session, move: Move, spec: SeedMove) -> None:
         now = self.clock.now()

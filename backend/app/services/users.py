@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from typing import Any, Literal
 
 from app.core.areas import coarse_area
+from app.domain.accounts import clean_display_name, first_word
 from app.domain.errors import Invalid, NotFound
 from app.domain.records import User, UserSettings
 from app.ports import Clock
@@ -39,12 +40,21 @@ class UserNotFound(NotFound):
         super().__init__(f"User {user_id!r} not found")
 
 
+class NotAFriend(Invalid):
+    """Circles and auto-join lists hold friends only."""
+
+    def __init__(self, user_ids: Iterable[str]) -> None:
+        names = ", ".join(sorted(user_ids))
+        super().__init__(f"Only friends can be added: {names}")
+
+
 @dataclass(frozen=True, slots=True)
 class Friend:
     user: User
     tier: FriendTier
     since: datetime
     hangouts: int
+    username: str | None = None
 
 
 def require_users(
@@ -64,6 +74,14 @@ def require_users(
         if user_id not in found:
             raise UserNotFound(user_id)
     return [found[user_id] for user_id in wanted]
+
+
+def require_friends(
+    repository: UsersRepository, owner_id: str, user_ids: Iterable[str]
+) -> None:
+    """Raises `NotAFriend` unless every id is a friend of `owner_id`."""
+    if strangers := set(user_ids) - set(repository.friendships(owner_id)):
+        raise NotAFriend(strangers)
 
 
 def close_friend_ids(counts: Mapping[str, int]) -> set[str]:
@@ -90,6 +108,23 @@ class UserService:
         user = self.repo.get(user_id)
         if user is None:
             raise UserNotFound(user_id)
+        return user
+
+    # --- profile ----------------------------------------------------------
+
+    def update_profile(self, user_id: str, name: str) -> User:
+        """Rename: trimmed, 1 to 60 characters; the first word is the first name."""
+        cleaned = clean_display_name(name)
+        user = replace(self.get(user_id), name=cleaned, first_name=first_word(cleaned))
+        self.repo.put_user(user)
+        self.uow.commit()
+        return user
+
+    def verify(self, user_id: str) -> User:
+        """The mock "Verify with Facebook": marks the account verified."""
+        user = replace(self.get(user_id), fb_verified=True)
+        self.repo.put_user(user)
+        self.uow.commit()
         return user
 
     # --- settings ---------------------------------------------------------
@@ -147,12 +182,14 @@ class UserService:
         since = self.repo.friendships(user_id)
         counts = dict.fromkeys(since, 0) | self._recent_hangouts(user_id, since)
         close = close_friend_ids(counts)
+        usernames = self.repo.usernames(since)
         friends = [
             Friend(
                 user=user,
                 tier="close" if user.id in close else "friend",
                 since=since[user.id],
                 hangouts=counts[user.id],
+                username=usernames.get(user.id),
             )
             for user in require_users(self.repo, since)
         ]
@@ -168,9 +205,18 @@ class UserService:
         return self.repo.blocked(user_id)
 
     def block(self, user_id: str, other_id: str) -> None:
+        """Hide your Moves from them, and cut every tie: the friendship,
+        pending requests both ways, your Circles, both auto-join lists."""
         require_users(self.repo, [other_id], not_self=user_id)
-        self.repo.block(user_id, other_id)
-        self.uow.commit()
+        try:
+            self.repo.block(user_id, other_id)
+            self.repo.drop_friendship(user_id, other_id)
+            self.repo.drop_from_owned_circles(user_id, other_id)
+            self.repo.drop_autojoin_pair(user_id, other_id)
+            self.uow.commit()
+        except Exception:
+            self.uow.rollback()
+            raise
 
     def unblock(self, user_id: str, other_id: str) -> None:
         self.repo.unblock(user_id, other_id)
@@ -183,6 +229,7 @@ class UserService:
 
     def set_autojoin(self, user_id: str, other_ids: Iterable[str]) -> list[User]:
         others = require_users(self.repo, other_ids, not_self=user_id)
+        require_friends(self.repo, user_id, [u.id for u in others])
         try:
             self.repo.replace_autojoin(user_id, [u.id for u in others])
             self.uow.commit()
@@ -196,4 +243,3 @@ class UserService:
         require_users(self.repo, [other_id], not_self=user_id)
         self.repo.add_autojoin(user_id, other_id)
         self.uow.commit()
-

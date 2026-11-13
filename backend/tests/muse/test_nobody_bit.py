@@ -110,6 +110,7 @@ async def test_valid_canned_output_parses(engine, world, clock, moves) -> None:
     container, *_ = f.wire(engine, clock, client, moves=moves)
     s = await container.muse.run_nobody_bit("own")
     assert s.message == "Tony's at Kumo rn. Pull up?" and s.chips == ("Tony there",)
+    assert s.draft.source == "muse"
 
 
 @pytest.mark.parametrize(
@@ -130,6 +131,7 @@ async def test_fallback_never_says_nobody_came(
     s = await container.muse.run_nobody_bit("own")
     assert s.message == "Quiet one. Tony is at Kumo Matcha. Pull up?"
     assert not says_nobody_came(s.message) and len(client.calls) == 2
+    assert s.draft.source == "heuristic"
 
 
 async def test_act_false_and_joined_moves_send_nothing(

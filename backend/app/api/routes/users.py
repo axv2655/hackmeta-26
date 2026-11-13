@@ -1,7 +1,7 @@
 """The signed-in user: profile, settings, friends, blocks, auto-join
 (ARCHITECTURE.md 12.2, 14.2).
 
-GET /me, PATCH /me/settings, GET /friends,
+GET /me, PATCH /me {name}, POST /me/verify, PATCH /me/settings, GET /friends,
 GET/POST /me/blocks, DELETE /me/blocks/{user_id}, GET/PUT /me/autojoin
 
 `UserLite` is the shared person schema (14.1); other core routes import it.
@@ -13,66 +13,66 @@ from collections.abc import Iterable
 from fastapi import APIRouter, status
 
 from app.api.deps_core import CurrentUserDep, UserServiceDep
+from app.domain.records import User as UserRecord
 from app.models.users import (
-    AutojoinUpdate as AutojoinUpdate,
+    AutojoinUpdate,
+    BlockCreate,
+    FriendRead,
+    MeRead,
+    ProfileUpdate,
+    QuietHours,
+    SettingsRead,
+    SettingsUpdate,
+    UserLite,
+    UserRead,
 )
-from app.models.users import (
-    BlockCreate as BlockCreate,
-)
-from app.models.users import (
-    FriendRead as FriendRead,
-)
-from app.models.users import (
-    MeRead as MeRead,
-)
-from app.models.users import (
-    QuietHours as QuietHours,
-)
-from app.models.users import (
-    SettingsRead as SettingsRead,
-)
-from app.models.users import (
-    SettingsUpdate as SettingsUpdate,
-)
-from app.models.users import (
-    UserLite as UserLite,
-)
-from app.models.users import (
-    UserRead as UserRead,
-)
+from app.services.users import UserService
 from app.tables import User
 
+# Re-exported: other core routes import the shared person schemas from here.
+__all__ = [
+    "AutojoinUpdate",
+    "BlockCreate",
+    "FriendRead",
+    "MeRead",
+    "ProfileUpdate",
+    "QuietHours",
+    "SettingsRead",
+    "SettingsUpdate",
+    "UserLite",
+    "UserRead",
+    "router",
+]
+
 router = APIRouter(tags=["users"])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _people(users: Iterable[User]) -> list[UserLite]:
     return [UserLite.model_validate(user) for user in users]
 
 
+def _me(user: User | UserRecord, service: UserService) -> MeRead:
+    return MeRead(
+        user=UserRead.model_validate(user),
+        settings=SettingsRead.model_validate(service.settings(user.id)),
+    )
+
+
 @router.get("/me")
 def read_me(me: CurrentUserDep, service: UserServiceDep) -> MeRead:
-    return MeRead(
-        user=UserRead.model_validate(me),
-        settings=SettingsRead.model_validate(service.settings(me.id)),
-    )
+    return _me(me, service)
+
+
+@router.patch("/me")
+def update_me(
+    body: ProfileUpdate, me: CurrentUserDep, service: UserServiceDep
+) -> MeRead:
+    return _me(service.update_profile(me.id, body.name), service)
+
+
+@router.post("/me/verify")
+def verify_me(me: CurrentUserDep, service: UserServiceDep) -> MeRead:
+    return _me(service.verify(me.id), service)
 
 
 @router.patch("/me/settings")

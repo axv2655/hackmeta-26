@@ -13,9 +13,16 @@ Muse never posts on its own. Only the user's tap on accept acts:
 - `nobody_bit`: join the other Move, then end the user's empty one.
 - `revive` / `route` / `reel_move`: return the stored draft.
 
+A flare's `fill_minutes` is clamped to 5..10 again on accept (edited value or
+stored draft), so an old payload or an edit can never make Move creation fail.
+
+Dismiss with `never_again=True` on a `revive` suggestion mutes that crew (by
+member set, `app/muse/mutes.py`), so revive and flare-crew picks skip it.
+
 Payload keys: `message`, `chips`, `draft` (a `MoveDraftOut` as a dict), and
-per type `mark_id`, `invite`, `fill_minutes`, `target_move_id`,
-`own_move_id`, `group_id`, `move_id`, `pair`.
+per type `mark_id`, `invite`, `fill_minutes`, `window_start`, `window_end`,
+`target_move_id`, `own_move_id`, `group_id`, `member_ids`, `move_id`, `pair`.
+`payload_extras(payload)` is what the API `Suggestion` adds from them.
 """
 
 from __future__ import annotations
@@ -26,6 +33,8 @@ from typing import Any
 
 from sqlmodel import Session, col, select
 
+from app.domain.errors import Conflict, NotFound
+from app.muse import mutes
 from app.muse.lane import MuseLane
 from app.ports import (
     MoveCreate,
@@ -35,7 +44,7 @@ from app.ports import (
     SuggestionSnapshot,
     SuggestionType,
 )
-from app.tables import Suggestion
+from app.tables import PseudoGroup, Suggestion
 
 NOTIFY_TYPE: dict[str, NotificationType] = {
     "flare": "muse_flare",
@@ -54,12 +63,35 @@ TITLES = {
 }
 
 
-class SuggestionNotFound(LookupError):
-    pass
+FILL_MIN, FILL_MAX = 5, 10
+EXTRA_KEYS = (
+    "fill_minutes",
+    "target_move_id",
+    "group_id",
+    "window_start",
+    "window_end",
+)
 
 
-class SuggestionClosed(RuntimeError):
+class SuggestionNotFound(NotFound, LookupError):
+    def __init__(self, suggestion_id: str) -> None:
+        super().__init__("Suggestion not found")
+        self.suggestion_id = suggestion_id
+
+
+class SuggestionClosed(Conflict, RuntimeError):
     """Already accepted, dismissed or expired."""
+
+
+def clamp_fill(minutes: int | None) -> int:
+    """A flare's fill window: always 5..10 minutes (10 when unset)."""
+    return min(FILL_MAX, max(FILL_MIN, minutes or FILL_MAX))
+
+
+def payload_extras(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """The API `Suggestion` extras read from a stored payload (None if absent)."""
+    p = payload or {}
+    return {key: p.get(key) for key in EXTRA_KEYS}
 
 
 def draft_to_dict(draft: MoveDraftOut) -> dict[str, Any]:
@@ -104,6 +136,7 @@ def suggestion_dict(row: Suggestion) -> dict[str, Any]:
         "status": row.status,
         "created_at": row.created_at.isoformat(),
         "expires_at": row.expires_at.isoformat(),
+        **payload_extras(p),
     }
 
 
@@ -198,6 +231,8 @@ class SuggestionService:
                 else draft.user_ids,
                 fill_minutes=edits.fill_minutes or draft.fill_minutes,
             )
+        if draft is not None and row.type == "flare":
+            draft = replace(draft, fill_minutes=clamp_fill(draft.fill_minutes))
         move_id: str | None = None
 
         if row.type in ("flare", "free_time") and draft and draft.mark_id:
@@ -234,17 +269,38 @@ class SuggestionService:
         self.session.refresh(row)
         return AcceptResult(snapshot(row), move_id, draft)
 
-    def dismiss(self, user_id: str, suggestion_id: str) -> SuggestionSnapshot:
+    def dismiss(
+        self, user_id: str, suggestion_id: str, *, never_again: bool = False
+    ) -> SuggestionSnapshot:
         row = self._open(user_id, suggestion_id)
+        now = self.lane.now()
+        muted = self._crew_of(row) if never_again and row.type == "revive" else []
         row.status = "dismissed"
         row.payload = {
             **(row.payload or {}),
-            "dismissed_at": self.lane.now().isoformat(),
+            "dismissed_at": now.isoformat(),
+            **({"never_again": True} if never_again else {}),
         }
         self.session.add(row)
         self.session.commit()
+        if muted:
+            mutes.mute(self.session, user_id, muted, now)
         self.session.refresh(row)
         return snapshot(row)
+
+    def _crew_of(self, row: Suggestion) -> list[str]:
+        """The revive crew's members (owner excluded): stored ids, else the
+        group's, else the draft audience."""
+        p = row.payload or {}
+        if p.get("member_ids"):
+            return list(p["member_ids"])
+        group = (
+            self.session.get(PseudoGroup, p["group_id"]) if p.get("group_id") else None
+        )
+        if group is not None and group.owner_id == row.user_id:
+            return list(group.member_ids)
+        draft = draft_from_dict(p.get("draft"))
+        return list(draft.user_ids) if draft else []
 
     def expire(self) -> int:
         rows = self.session.exec(

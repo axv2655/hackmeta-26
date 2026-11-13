@@ -33,7 +33,7 @@ prototype shares activities at selected places, never people's live positions.
 
 Maya is heading to a café to study. She posts “studying at Kumo, Pull up” to her
 Campus friends Circle. The composer shows who can see it. Muse suggests a few
-people to nudge, and Maya confirms whom to notify. Priya taps **Pull up** and
+people to poke, and Maya confirms whom to notify. Priya taps **Pull up** and
 appears as on the way. Once she arrives, the Move shows them together at the café.
 Other people in the permitted audience can join too. Their gathering grows within
 the Move; joining does not automatically create a Circle or widen its audience.
@@ -43,7 +43,7 @@ the Move; joining does not automatically create a Circle or widen its audience.
 1. Choose a **Mark**, the place pin where your activity happens. Search works
    without location permission.
 2. Share a **Move**: what you're doing, plus the Circles or people who can see it.
-3. Review Muse's suggested recipients and send a nudge. Visibility and receiving
+3. Review Muse's suggested recipients and send a poke. Visibility and receiving
    a notification are separate choices.
 4. Friends tap **Pull up**. The Move distinguishes people on the way from people
    who have arrived.

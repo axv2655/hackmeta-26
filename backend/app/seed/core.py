@@ -42,6 +42,7 @@ from sqlmodel import Session
 from app.core.areas import CENTER, HOME_AREA
 from app.core.config import settings
 from app.domain import moves as rules
+from app.domain.accounts import SEED_PASSWORD, hash_password
 from app.domain.moves import NewMove
 from app.domain.privacy import ResolvedAudience, resolve_audience
 from app.ports import (
@@ -60,6 +61,7 @@ from app.tables import (
     Block,
     Circle,
     CircleMember,
+    Credential,
     Friendship,
     Mark,
     Moment,
@@ -450,6 +452,16 @@ def seed(session: Session, clock: Clock) -> None:
     now = clock.now()
     session.add_all(_user(person, now) for person in PEOPLE)
     session.flush()  # Postgres checks foreign keys: users go in first
+    password = hash_password(SEED_PASSWORD)  # once: scrypt is slow on purpose
+    session.add_all(
+        Credential(
+            user_id=p.id,
+            username=p.id.removeprefix("u_"),
+            password_hash=password,
+            created_at=now,
+        )
+        for p in PEOPLE
+    )
     session.add_all(_friendship(a, b, now - timedelta(days=d)) for a, b, d in FRIENDS)
     session.add_all(_settings(person.id) for person in PEOPLE)
     session.add_all(AutojoinPref(user_id=u, other_user_id=o) for u, o in AUTOJOIN)

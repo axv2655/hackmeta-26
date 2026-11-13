@@ -41,5 +41,9 @@ class Settings(BaseSettings):
     # page, e.g. a tunnel. Unset: the URL the request came in on (LAN only).
     PUBLIC_BASE_URL: HttpUrl | None = None
 
+    # Reverse geocoder for the city name at the map's center (GET /areas/city):
+    # any Nominatim-compatible server. Empty: only the configured AREAS answer.
+    GEOCODER_URL: str = "https://nominatim.openstreetmap.org"
+
 
 settings = Settings()

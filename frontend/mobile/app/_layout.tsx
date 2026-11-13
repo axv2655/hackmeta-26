@@ -17,12 +17,13 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  // Live data: one socket for the signed-in user, and the seeded users list
-  // for names and the account switcher.
+  // Live data: one socket for the signed-in user, and everyone's names.
   useRealtime();
   useEffect(() => {
     void useSession.getState().loadUsers();
   }, []);
+  const hydrated = useSession((s) => s.hydrated);
+  const signedIn = useSession((s) => s.userId !== '');
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -34,20 +35,32 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: colors.white },
           }}
         >
-          <Stack.Screen name="(tabs)" />
-          {/* Opened from the hamburger at the left of every tab-root header. */}
-          <Stack.Screen name="menu" />
-          {/* The composer slides up over the whole app, like Facebook's. */}
-          <Stack.Screen
-            name="post/new"
-            options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
-          />
-          <Stack.Screen name="post/share" />
-          {/* Make a Move from the Moves map (ARCHITECTURE.md 7.2). */}
-          <Stack.Screen
-            name="move/new"
-            options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
-          />
+          {/* Nobody signed in on this phone: only the login screen. */}
+          <Stack.Protected guard={hydrated && !signedIn}>
+            <Stack.Screen name="login" />
+          </Stack.Protected>
+          <Stack.Protected guard={signedIn}>
+            <Stack.Screen name="(tabs)" />
+            {/* Opened from the hamburger at the left of every tab-root header. */}
+            <Stack.Screen name="menu" />
+            {/* The composer slides up over the whole app, like Facebook's. */}
+            <Stack.Screen
+              name="post/new"
+              options={{
+                presentation: 'fullScreenModal',
+                animation: 'slide_from_bottom',
+              }}
+            />
+            <Stack.Screen name="post/share" />
+            {/* Make a Move from the Moves map (ARCHITECTURE.md 7.2). */}
+            <Stack.Screen
+              name="move/new"
+              options={{
+                presentation: 'fullScreenModal',
+                animation: 'slide_from_bottom',
+              }}
+            />
+          </Stack.Protected>
           <Stack.Screen name="+not-found" />
         </Stack>
         <InAppBanner />

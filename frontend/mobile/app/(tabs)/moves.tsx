@@ -5,14 +5,15 @@ import Animated, { interpolate, useAnimatedStyle, useSharedValue, Extrapolation 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import { MovesMap, type MovesMapHandle } from '@/components/moves/MovesMap';
+import { HOME_CAMERA, MovesMap, type MovesMapHandle } from '@/components/moves/MovesMap';
 import { MovesSheet, SHEET_COLLAPSED, useSheetBottomInset } from '@/components/moves/MovesSheet';
 import { GlassSurface } from '@/components/ui/Glass';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
+import { useCityAt } from '@/lib/city';
 import { selection, tap } from '@/lib/haptics';
 import { useLive } from '@/lib/live';
-import { mapMoves } from '@/lib/mock/moves';
+import { mapMoves, type Coordinate } from '@/lib/mock/moves';
 import { useMyMoves } from '@/lib/store/moves';
 import { colors } from '@/lib/theme';
 
@@ -31,6 +32,9 @@ export default function MovesScreen() {
   const sheetIndex = useSharedValue(0);
   const [settledIndex, setSettledIndex] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The header names the city at the center of what you're looking at.
+  const [center, setCenter] = useState<Coordinate>(HOME_CAMERA.center);
+  const city = useCityAt(center, 'Nearby');
   const router = useRouter();
   const mine = useMyMoves((s) => s.mine);
   const focusId = useMyMoves((s) => s.focusId);
@@ -104,13 +108,16 @@ export default function MovesScreen() {
         selectedId={selectedId}
         onSelect={select}
         onClear={clear}
+        onCenterChange={setCenter}
         topPadding={insets.top + 40}
         bottomPadding={visibleSheet + sheetBottomInset}
       />
 
       <Animated.View pointerEvents="box-none" style={[styles.top, { top: insets.top + 6 }, controlsStyle]}>
         <GlassSurface radius={22} style={styles.titlePill}>
-          <Text style={styles.title}>Menlo Park</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            {city}
+          </Text>
           <Text style={styles.subtitle}>{moves.filter((m) => m.status !== 'ghost').length} friends out · 73°</Text>
         </GlassSurface>
 
@@ -179,7 +186,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
-  titlePill: { paddingHorizontal: 16, paddingVertical: 8 },
+  titlePill: { paddingHorizontal: 16, paddingVertical: 8, maxWidth: '68%' },
   title: { fontSize: 20, lineHeight: 24, fontWeight: '800', letterSpacing: -0.3, color: colors.text },
   subtitle: { fontSize: 13, lineHeight: 16, fontWeight: '500', color: colors.textSecondary },
   controls: { width: 52, alignItems: 'center', paddingVertical: 4 },

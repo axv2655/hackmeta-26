@@ -4,6 +4,7 @@ inside their own route module and never edit this file."""
 from fastapi import APIRouter
 
 from app.api.routes import (
+    areas,
     audience,
     auth,
     calendar,
@@ -38,6 +39,7 @@ api_router.include_router(users.router)
 api_router.include_router(circles.router)
 api_router.include_router(audience.router)
 api_router.include_router(marks.router)
+api_router.include_router(areas.router)
 api_router.include_router(moves.router)
 api_router.include_router(moments.router)
 api_router.include_router(ws.router)

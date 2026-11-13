@@ -8,13 +8,16 @@ import { ALSO_FROM_META_ID, menuSections } from '@/components/fb/menu/data';
 import { LogoutDialog } from '@/components/fb/menu/LogoutDialog';
 import { ProfileCard } from '@/components/fb/menu/ProfileCard';
 import { ShortcutGrid } from '@/components/fb/menu/ShortcutGrid';
-import { AccountSwitcher } from '@/components/moves/AccountSwitcher';
 import { MetaLogo } from '@/components/fb/brand/MetaLogo';
 import { ScreenHeader, type HeaderAction } from '@/components/fb/ScreenHeader';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { warning } from '@/lib/haptics';
+import { useLive } from '@/lib/live';
 import { currentUser, logoutRow, type MenuShortcut } from '@/lib/mock';
+import { useSession } from '@/lib/session';
+import { useInbox } from '@/lib/store/inbox';
+import { useMyMoves } from '@/lib/store/moves';
 import { colors, layout, spacing } from '@/lib/theme';
 
 export default function MenuScreen() {
@@ -36,6 +39,16 @@ export default function MenuScreen() {
   }, []);
 
   const closeLogout = useCallback(() => setLogoutVisible(false), []);
+
+  // Forget this phone's account and everything loaded for it; the root
+  // layout then shows the login screen.
+  const logOut = useCallback(() => {
+    setLogoutVisible(false);
+    useMyMoves.setState({ mine: [], focusId: null });
+    useInbox.setState({ items: [], banner: null });
+    useLive.setState({ moves: null, online: false });
+    useSession.getState().logOut();
+  }, []);
 
   const goBack = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -71,7 +84,6 @@ export default function MenuScreen() {
         showsVerticalScrollIndicator={false}
       >
         <ProfileCard user={currentUser} onPress={() => router.navigate('/profile')} />
-        <AccountSwitcher />
 
         <ShortcutGrid onPressShortcut={openShortcut} />
 
@@ -100,7 +112,7 @@ export default function MenuScreen() {
         />
       </ScrollView>
 
-      <LogoutDialog visible={logoutVisible} onCancel={closeLogout} onConfirm={closeLogout} />
+      <LogoutDialog visible={logoutVisible} onCancel={closeLogout} onConfirm={logOut} />
     </View>
   );
 }

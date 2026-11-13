@@ -21,6 +21,7 @@ EXPECTED = {
     "mark_rankings", "calendar_events", "reels", "saved_reels",
     # messages
     "move_invites",
+    "credentials",
 }  # fmt: skip
 
 

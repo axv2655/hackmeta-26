@@ -75,6 +75,8 @@ class MemoryRead(BaseModel):
     category: Category
     at: datetime
     text: str
+    people: list[UserLite]
+    """The others who were there, in arrival order (not the viewer)."""
 
     @classmethod
     def from_memory(cls, memory: Memory) -> "MemoryRead":
@@ -85,6 +87,7 @@ class MemoryRead(BaseModel):
             category=memory.mark.category,
             at=memory.at,
             text=memory.text,
+            people=[UserLite.model_validate(u) for u in memory.people],
         )
 
 

@@ -259,20 +259,38 @@ def test_ghost_window_boundary(world: Session, marks: MarkService) -> None:
     assert ghost_ids(marks, "anish", "kumo") == ["tony"]
 
 
-def test_ghost_becomes_memory_at_exactly_one_day(world, marks, clock):
+def test_memory_starts_when_you_leave_while_the_ghost_lasts_a_day(world, marks, clock):
     add_mark(world, "kumo")
     add_move(world, "visit", "kumo", people=[("tony", "left", NOW)])
-    clock.at = NOW + GHOST_WINDOW - timedelta(microseconds=1)
-    assert ghost_ids(marks, "anish", "kumo") == ["tony"]
-    assert marks.memories("tony") == []
-    clock.at = NOW + GHOST_WINDOW
-    assert ghost_ids(marks, "anish", "kumo") == []
+    clock.at = NOW - timedelta(microseconds=1)
+    assert marks.memories("tony") == []  # not left yet
+    clock.at = NOW
     [memory] = marks.memories("tony")
     assert (memory.move_id, memory.mark.id, memory.at) == ("visit", "kumo", NOW)
+    assert ghost_ids(marks, "anish", "kumo") == ["tony"]  # friends still see the Ghost
+    clock.at = NOW + GHOST_WINDOW
+    assert ghost_ids(marks, "anish", "kumo") == []
     clock.at += timedelta(days=30)
     assert [m.move_id for m in marks.memories("tony")] == ["visit"]
     # The archive is personal, even when the viewer could see the original Ghost.
     assert marks.memories("anish") == []
+
+
+def test_memory_lists_the_others_who_arrived(world, marks):
+    add_mark(world, "kumo")
+    add_move(
+        world,
+        "visit",
+        "kumo",
+        audience=("maya", "priya", "anish"),
+        people=[
+            ("tony", "left", ago(1)),
+            ("maya", "left", ago(2)),
+            ("priya", "there", None),
+        ],
+    )
+    [memory] = marks.memories("tony")
+    assert {u.id for u in memory.people} == {"maya", "priya"}
 
 
 def test_memories_departure_precedes_end_and_never_arrived_excluded(world, marks):
@@ -329,6 +347,7 @@ def test_memories_http_is_private_and_respects_block(world, client):
     assert response.status_code == 200
     [memory] = response.json()
     assert memory["move_id"] == "visit" and memory["mark_name"] == "Kumo"
+    assert memory["people"] == []  # nobody else arrived
     assert not {"lat", "lng", "user"}.intersection(memory)
     assert (
         client.get("/api/v1/me/memories", headers={"X-User-Id": "stranger"}).json()

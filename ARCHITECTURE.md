@@ -638,8 +638,12 @@ decides whether any of them get an actual notification.
   or still `there` when the Move ended (people still there at the end ghost). A
   taken-back Pull up has no row, so it never ghosts. Each ghost carries the Move's `text`.
 - At exactly 24 hours after leaving (or Move end for someone still there), the
-  Ghost expires. The person's visit appears in **Facebook Menu → Memories**
-  (`app/memories.tsx`, `GET /me/memories?limit=30&offset=0`). This personal archive
+  Ghost expires. The visit is in **Facebook Menu → Memories** (`app/memories.tsx`,
+  web Memories page, `GET /me/memories?limit=30&offset=0`) from the moment the
+  person leaves (or the Move ends), not after the Ghost: the Ghost is the trace
+  friends see, the Memory is the visitor's private archive. Each Memory lists the
+  others who arrived (`people`) and shows like a Facebook memory post, with its
+  Moments as a photo grid that updates live on `moment.added`. This personal archive
   reads retained participation records; no destructive migration or new public
   audience. Original Move visibility and Moment approval still apply. Quiet
   departures and never-arrived Pull ups are excluded. Turning Ghosts off hides
@@ -1374,7 +1378,7 @@ grouped and `'same'` is a tie.
 | GET | `/marks/search?q` | name search |
 | POST | `/marks` | create a Mark |
 | GET | `/marks/{id}` | detail: scores, ghosts, recent Moments |
-| GET | `/me/memories?limit&offset` | personal arrived visits whose Ghost window has expired |
+| GET | `/me/memories?limit&offset` | personal arrived visits from the moment one left (or the Move ended), with who else was there |
 | POST/DELETE | `/marks/{id}/save` | Saved Marks |
 | GET | `/me/saved` | Saved Marks and saved Reels |
 | POST | `/audience/preview` | `{circle_ids, user_ids}` → `AudienceSummary` |

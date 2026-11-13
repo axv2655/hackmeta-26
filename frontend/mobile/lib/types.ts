@@ -603,3 +603,16 @@ export type DemoMuseStats = {
 // --- realtime ---------------------------------------------------------------
 
 export type Envelope = { type: string; data: unknown; ts: string };
+
+/** Mirrors `McpTokenOut` in backend/app/api/routes/mcp_tokens.py. Never the token itself. */
+export type McpToken = {
+  id: string;
+  label: string;
+  /** "mvs_…abcd", enough to tell tokens apart. */
+  hint: string;
+  created_at: string;
+  last_used_at: string | null;
+};
+
+/** Mirrors `IssuedTokenOut`: the user's one MCP token, shown once. */
+export type IssuedMcpToken = McpToken & { user_id: string; token: string };

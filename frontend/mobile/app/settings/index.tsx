@@ -115,6 +115,13 @@ function SettingsBody({ me }: { me: Me }) {
       </SettingsGroup>
       <SettingsGroup title="Muse">
         <MuseRow />
+        <LinkRow
+          divider
+          icon="link"
+          title="Connect Muse"
+          subtitle="Post Moves from Meta AI and your glasses"
+          onPress={() => go('/settings/muse')}
+        />
       </SettingsGroup>
       <Text style={styles.version}>Moves {VERSION}</Text>
     </>

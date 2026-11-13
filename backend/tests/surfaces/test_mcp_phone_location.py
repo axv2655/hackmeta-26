@@ -17,7 +17,7 @@ from tests.surfaces.test_mcp_tools import Rig, person
 
 KUMO = mark("mk_kumo_matcha", "Kumo Matcha")
 HS = mark("hs", "HS Coffee")
-NEAR = (30.2812, -97.7421)  # ~25 m from the fake Mark at 30.28, -97.74
+NEAR = (30.2812, -97.7421)  # ~240 m from the fake Mark, inside the 2 km radius
 NEAR_ROUND = (30.281, -97.742)
 WITHIN_2KM = (30.292, -97.74)  # ~1.3 km
 BEYOND_2KM = (30.31, -97.74)  # ~3.3 km

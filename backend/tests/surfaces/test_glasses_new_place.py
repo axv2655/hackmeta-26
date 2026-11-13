@@ -22,7 +22,7 @@ from tests.surfaces.fakes import (
 )
 from tests.surfaces.test_mcp_tools import Rig, person
 
-NEAR = (30.2812, -97.7421)  # about 25 m from the fake Mark at 30.28, -97.74
+NEAR = (30.2802, -97.7401)  # about 24 m from the fake Mark at 30.28, -97.74
 FAR = (30.3012, -97.7021)  # a few km away
 ROUND_FAR = (30.301, -97.702)
 HOUSE = "Maya house party"

@@ -58,7 +58,7 @@ const PUSHED = [
 const MODALS = ['move/[id]/rate', 'suggestion/[id]', 'profile/edit'] as const;
 
 /** Full-screen sheets that slide up over the whole app, like Facebook's composer. */
-const SLIDE_UPS = ['post/new', 'move/new', 'onboarding'] as const;
+const SLIDE_UPS = ['post/new', 'move/new', 'onboarding', 'move/[id]/snap'] as const;
 
 /** Thin "Can't reach Moves" bar under the status bar, over every screen. */
 function TopOfflineBar() {

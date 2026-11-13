@@ -15,6 +15,7 @@ import { myFirstName, useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 
 import { FillChip, YoursTag, countsText, pullLabel, statusText } from './moveBits';
+import { MoveSnapshots } from './MoveSnapshots';
 
 export type MoveCardProps = {
   move: MapMove;
@@ -84,6 +85,8 @@ export function MoveCard({ move, sample, onPull, onClose }: MoveCardProps) {
       </Pressable>
 
       <People move={move} ghost={ghost} counts={counts} />
+
+      <MoveSnapshots move={move} id={id} sample={sample} ghost={ghost} />
 
       <CardActions move={move} id={id} sample={sample} ghost={ghost} onPull={onPull} />
     </BottomSheetScrollView>

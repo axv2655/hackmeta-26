@@ -129,6 +129,13 @@ const marks = {
 const moments = {
   list: (moveId: string) => api<Moment[]>(`/moves/${e(moveId)}/moments`),
   approve: (id: string, approve: boolean) => api<Moment>(`/moments/${e(id)}/approve`, postJson({ approve })),
+  /** A snapshot taken on this phone (a local file URI), posted as an untagged Moment. */
+  upload: (moveId: string, uri: string) => {
+    const form = new FormData();
+    // React Native's FormData takes a { uri, name, type } file part.
+    form.append('file', { uri, name: 'snapshot.jpg', type: 'image/jpeg' } as unknown as Blob);
+    return api<Moment>(`/moves/${e(moveId)}/moments`, { method: 'POST', body: form });
+  },
 };
 
 const muse = {

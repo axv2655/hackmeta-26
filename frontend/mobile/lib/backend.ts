@@ -94,7 +94,9 @@ function zoneHeaders(): [string, string][] {
  */
 export async function backendFetch<T = unknown>(path: string, options: BackendFetchOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  // FormData (photo uploads) sets its own multipart Content-Type with the boundary.
+  const json = options.body && !(options.body instanceof FormData);
+  if (json && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   for (const [name, value] of zoneHeaders()) headers.set(name, value);
   let res: FetchResponse;
   try {

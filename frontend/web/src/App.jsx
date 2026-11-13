@@ -560,11 +560,11 @@ function FriendsPage() {
   )
 }
 
-function Memories() {
+function Memories({ onDoAgain }) {
   return (
     <div className="page">
       <SideNav title="Memories" gear={false} items={[['Memories Home', L.Images], ['Notifications', L.Bell], ['Highlights', L.Sparkles], ['Hide People', L.UserX], ['Hide Dates', L.CalendarX]]} />
-      <MemoriesFeed />
+      <MemoriesFeed onDoAgain={onDoAgain} />
     </div>
   )
 }
@@ -614,6 +614,8 @@ function Shell() {
   useRealtime()
   const me = useMe()
   const [view, setView] = useState('Home')
+  const [again, setAgain] = useState(null) // "Do It Again" from a Memory: opens the Moves composer prefilled
+  const go = (v) => { setAgain(null); setView(v) } // normal navigation never carries a "Do It Again" seed
   const [posts, setPosts] = useState(INITIAL_POSTS)
   const update = (id, fn) => setPosts((ps) => ps.map((p) => (p.id === id ? fn(p) : p)))
   const [loaded, setLoaded] = useState([])
@@ -626,16 +628,16 @@ function Shell() {
   }, [view, loading])
   return (
     <>
-      <TopNav view={view} setView={setView} />
+      <TopNav view={view} setView={go} />
       {loading ? <PageSkeleton view={view} /> : <>
       {view === 'Friends' && <FriendsPage />}
       {view === 'Video' && <Reels />}
       {view === 'Marketplace' && <Marketplace />}
       {view === 'Groups' && <Groups />}
-      {view === 'Moves' && <Moves />}
-      {view === 'Memories' && <Memories />}
+      {view === 'Moves' && <Moves seed={again} />}
+      {view === 'Memories' && <Memories onDoAgain={(seed) => { setAgain(seed); setView('Moves') }} />}
       {view === 'Home' && <div className="layout">
-        <LeftRail setView={setView} />
+        <LeftRail setView={go} />
         <main className="feed">
           <Stories />
           <Composer onPost={(text) => setPosts((ps) => [{ id: Date.now(), author: me, time: 'Just now', text, likes: 0, comments: [], shares: 0 }, ...ps])} />

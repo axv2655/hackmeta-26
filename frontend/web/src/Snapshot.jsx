@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import * as L from 'lucide-react'
 import { useMedia } from './api'
 
@@ -55,25 +54,6 @@ export function SnapshotCamera({ onCapture, onClose }) {
       <button className="snap-cam-close" aria-label="Close camera" onClick={onClose}><L.X size={24} /></button>
       <button className="snap-shutter" aria-label="Take snapshot" disabled={state !== 'live'} onClick={shoot} />
     </div>
-  )
-}
-
-/** The Move's snapshots, newest first, plus the shutter button when you are in the Move. */
-export function SnapStrip({ snaps, canSnap, onSnap, empty }) {
-  const [open, setOpen] = useState(null)
-  if (!snaps.length && !canSnap) return null
-  return (
-    <section className="snap-strip" aria-label="Snapshots">
-      <div className="row between"><h4>Snapshots</h4>{canSnap && <button className="btn-gray snap-btn" onClick={onSnap}><L.Camera size={16} /> Snapshot</button>}</div>
-      {snaps.length > 0
-        ? <div className="snap-row">{snaps.map(([src, by], i) => (
-          <button key={src} className="snap" style={{ '--tilt': `${i % 2 ? 2 : -2}deg` }} onClick={() => setOpen(i)} aria-label={`Open snapshot by ${by}`}>
-            <MediaImg src={src} alt="" /><span className="snap-by">{by}</span>
-          </button>
-        ))}</div>
-        : <p className="muted small">{empty}</p>}
-      {open !== null && createPortal(<StoryViewer snaps={snaps} start={open} onClose={() => setOpen(null)} />, document.body)}
-    </section>
   )
 }
 

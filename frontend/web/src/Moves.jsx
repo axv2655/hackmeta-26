@@ -4,7 +4,8 @@ import Leaflet from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { ago, CAMPUS, endpoints, errorText, MOVE_EVENTS, useEvents, useLoad, useSession } from './api'
 import { bit, Face, poseFor } from './people'
-import { SnapStrip, SnapshotCamera } from './Snapshot'
+import { MoveRecap, withLine } from './Recap'
+import { SnapshotCamera } from './Snapshot'
 import MoveComposer from './MoveComposer'
 import { cat } from './categories'
 
@@ -32,7 +33,7 @@ function fromGhosts(mark) {
   for (const g of mark.ghosts ?? []) byMove.set(g.move_id, [...(byMove.get(g.move_id) ?? []), g])
   return [...byMove.entries()].map(([moveId, gs]) => ({
     id: `ghost-${moveId}-${mark.id}`, moveId, user: gs[0].user, title: gs[0].text || `Was at ${mark.name}`, mark,
-    category: mark.category, status: 'ghost', time: ago(gs[0].at), joined: gs.slice(1).map((g) => g.user),
+    category: mark.category, status: 'ghost', time: ago(gs[0].at), joined: gs.slice(1).map((g) => g.user), text: gs[0].text,
   }))
 }
 
@@ -124,7 +125,7 @@ function MoveRow({ p, onPick, onPull, busy }) {
   )
 }
 
-function MoveCard({ p, busy, onPull, onEnd, onClose, moments, onSnap }) {
+function MoveCard({ p, busy, onPull, onEnd, onClose, moments, onSnap, onFiles, onAgain }) {
   const ghost = p.status === 'ghost'
   const [label, , color, Icon] = cat(p.category)
   const me = useSession().user.id
@@ -151,8 +152,24 @@ function MoveCard({ p, busy, onPull, onEnd, onClose, moments, onSnap }) {
           <span>{names.join(', ')} {ghost ? 'went' : names.length > 1 || names[0] === 'You' ? 'are in' : 'is in'}</span>
         </div>
       )}
-      {moments.error ? <p className="muted small">Snapshots didn&apos;t load. {moments.error}</p>
-        : <SnapStrip snaps={(moments.data ?? []).map((m) => [m.media_url, m.author.first_name])} canSnap={!ghost && (p.mine || going(p))} onSnap={onSnap} empty={p.mine ? 'Capture the moment. Friends who can see your Move will see it here.' : 'Nobody has captured this one yet. Be the first.'} />}
+      {(() => {
+        const photos = moments.data ?? []
+        const inIt = !ghost && (p.mine || going(p))
+        const others = p.joined.filter((u) => u.id !== me)
+        if (!inIt && photos.length === 0 && !moments.error) return null
+        return (
+          <MoveRecap
+            photos={photos}
+            sub={`${label} · ${ghost ? `${p.time} ago` : 'Live now'}`}
+            caption={photos.find((m) => m.caption)?.caption ?? (others.length ? `${label} with ${withLine(others.map((u) => u.first_name))}.` : null)}
+            again={ghost ? { sub: 'Same place, new Move?', onClick: onAgain } : null}
+            onSnap={inIt ? onSnap : null}
+            onFiles={inIt ? onFiles : null}
+            error={moments.error && `Moments didn't load. ${moments.error}`}
+            empty={p.mine ? 'Capture the moment. Friends who can see your Move will see it here.' : 'Nobody has captured this one yet. Be the first.'}
+          />
+        )
+      })()}
       <div className="row mv-actions">
         {ghost ? null
           : p.mine ? <button className="btn-gray grow" disabled={busy} onClick={onEnd}><L.CircleStop size={18} /> End Move</button>
@@ -162,7 +179,7 @@ function MoveCard({ p, busy, onPull, onEnd, onClose, moments, onSnap }) {
   )
 }
 
-export default function Moves() {
+export default function Moves({ seed }) {
   const me = useSession().user.id
   const world = useLoad(() => loadWorld(me), [me])
   const [sel, setSel] = useState(null)
@@ -170,6 +187,7 @@ export default function Moves() {
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState('')
   const [cam, setCam] = useState(null)
+  const [again, setAgain] = useState(seed ?? null)
   const mapRef = useRef(null)
   const pins = useMemo(() => world.data ?? [], [world.data])
   const selected = pins.find((p) => p.id === sel)
@@ -201,7 +219,11 @@ export default function Moves() {
       moments.reload()
     } catch (e) { setToast(`Snapshot not shared. ${errorText(e)}`) }
   }
-  const posted = (move, line) => { setToast(`Shared. ${line}`); world.reload(); setTimeout(() => select(move.id), 400) }
+  const addFiles = async (moveId, files) => {
+    try { for (const f of files) await endpoints.moments.upload(moveId, f) } catch (e) { setToast(`Photo not shared. ${errorText(e)}`) }
+    moments.reload()
+  }
+  const posted = (move, line) => { setAgain(null); setToast(`Shared. ${line}`); world.reload(); setTimeout(() => select(move.id), 400) }
 
   const q = query.trim().toLowerCase()
   const visible = q ? pins.filter((p) => `${p.user.name} ${p.title} ${p.mark.name}`.toLowerCase().includes(q)) : pins
@@ -214,6 +236,8 @@ export default function Moves() {
       <aside className="mv-glass mv-panel" aria-label="Moves">
         <div className="mv-scroll">
           {selected ? <MoveCard p={selected} busy={busy} moments={moments} onClose={clear} onSnap={() => setCam(selected.moveId)}
+            onFiles={(files) => addFiles(selected.moveId, files)}
+            onAgain={() => { setAgain({ text: selected.text ?? selected.title, markId: selected.mark.id, userIds: [selected.user, ...selected.joined].map((u) => u.id).filter((id) => id !== me), at: Date.now() }); clear() }}
             onPull={() => togglePull(selected)} onEnd={() => act(() => endpoints.moves.end(selected.moveId), 'Your Move ended.').then(clear)} /> : (
             <>
               <div className="row mv-head">
@@ -247,7 +271,7 @@ export default function Moves() {
         </div>
         <button className="mv-glass mv-recenter" aria-label="Back to campus" onClick={() => { clear(); focus(mapRef.current, CAMPUS, 15) }}><L.Navigation size={20} fill="currentColor" /></button>
       </div>
-      <MoveComposer out={out} onPick={select} onPosted={posted} toast={toast} />
+      <MoveComposer out={out} onPick={select} onPosted={posted} toast={toast} seed={again} key={again?.at ?? 0} />
       {cam && <SnapshotCamera onCapture={capture} onClose={() => setCam(null)} />}
     </main>
   )

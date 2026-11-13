@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import * as L from 'lucide-react'
 import { endpoints, errorText, useLoad } from './api'
 import { cat } from './categories'
@@ -16,13 +16,15 @@ function audienceLine(summary, picked) {
   return `Visible to ${summary.count} ${summary.count === 1 ? 'person' : 'people'}: ${names.join(', ')}`
 }
 
-function ShareSheet({ draft, onCancel, onPosted }) {
+function ShareSheet({ draft, seed, onCancel, onPosted }) {
   const places = useLoad(() => endpoints.marks.nearby(12))
   const circles = useLoad(endpoints.circles)
   const friends = useLoad(endpoints.friends.list)
   const [place, setPlace] = useState(null)
   const [circleIds, setCircleIds] = useState([])
-  const [userIds, setUserIds] = useState([])
+  const [pickedIds, setUserIds] = useState(seed?.userIds ?? [])
+  // "Do It Again" seeds people from a past Move: only the ones who are still your friends go out
+  const userIds = useMemo(() => (friends.data ? pickedIds.filter((id) => friends.data.some((f) => f.user.id === id)) : pickedIds), [pickedIds, friends.data])
   const [summary, setSummary] = useState(null)
   const [state, setState] = useState({ busy: false, error: null })
   const picked = circleIds.length + userIds.length > 0
@@ -33,7 +35,8 @@ function ShareSheet({ draft, onCancel, onPosted }) {
     endpoints.audience(circleIds, userIds).then((s) => live && setSummary(s), () => live && setSummary(null))
     return () => { live = false }
   }, [circleIds, userIds, picked])
-  const mark = place ?? places.data?.[0]
+  // "Do It Again" keeps the same place while it is still in the nearby list
+  const mark = place ?? places.data?.find((m) => m.id === seed?.markId) ?? places.data?.[0]
   const line = audienceLine(summary, picked)
   const share = async () => {
     setState({ busy: true, error: null })
@@ -77,14 +80,15 @@ function ShareSheet({ draft, onCancel, onPosted }) {
   )
 }
 
-export default function MoveComposer({ out, onPick, onPosted, toast }) {
-  const [draft, setDraft] = useState('')
-  const [sheet, setSheet] = useState(false)
+export default function MoveComposer({ out, onPick, onPosted, toast, seed }) {
+  // a new `seed` remounts this (see `key` in Moves.jsx), so it only sets the starting state
+  const [draft, setDraft] = useState(seed?.text ?? '')
+  const [sheet, setSheet] = useState(Boolean(seed?.text?.trim()))
   const [actsOpen, setActsOpen] = useState(false)
   return (
     <form className="mv-dock" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { setSheet(true); setActsOpen(false) } }} onKeyDown={(e) => e.key === 'Escape' && setSheet(false)}>
       <p className={`mv-glass mv-shared${toast ? '' : ' hide'}`} role="status">{toast && <><L.CheckCircle2 size={16} /> {toast}</>}</p>
-      {sheet && <ShareSheet draft={draft.trim()} onCancel={() => setSheet(false)} onPosted={(move, line) => { setSheet(false); setDraft(''); onPosted(move, line) }} />}
+      {sheet && <ShareSheet draft={draft.trim()} seed={seed} onCancel={() => setSheet(false)} onPosted={(move, line) => { setSheet(false); setDraft(''); onPosted(move, line) }} />}
       {actsOpen && (
         <section id="mv-acts" className="mv-glass mv-acts" aria-label="What friends are up to">
           <h3>What friends are up to</h3>

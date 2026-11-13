@@ -64,6 +64,7 @@ import LStore from 'lucide-react-native/icons/store';
 import LTag from 'lucide-react-native/icons/tag';
 import LTicket from 'lucide-react-native/icons/ticket';
 import LTrash2 from 'lucide-react-native/icons/trash-2';
+import LUserCheck from 'lucide-react-native/icons/user-check';
 import LUserPlus from 'lucide-react-native/icons/user-plus';
 import LUsers from 'lucide-react-native/icons/users';
 import LUtensils from 'lucide-react-native/icons/utensils';
@@ -258,6 +259,7 @@ const LUCIDE = {
   tag: LTag,
   ticket: LTicket,
   trash: LTrash2,
+  'user-check': LUserCheck,
   'user-plus': LUserPlus,
   users: LUsers,
   utensils: LUtensils,

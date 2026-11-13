@@ -3,7 +3,8 @@ import { StyleSheet } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 
 import { bitmojiFor } from '@/lib/mock/bitmoji';
-import { myPosition, type Coordinate, type MapMove } from '@/lib/mock/moves';
+import { here, useLocation } from '@/lib/location';
+import { type Coordinate, type MapMove } from '@/lib/mock/moves';
 import { useSession } from '@/lib/session';
 
 import { AvatarPin } from './AvatarPin';
@@ -50,6 +51,8 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
 ) {
   const mapRef = useRef<MapView>(null);
   const myId = useSession((st) => st.userId);
+  // The phone's own position (never sent anywhere); the default spot without it.
+  const me = useLocation((st) => st.coords) ?? here();
 
   useImperativeHandle(ref, () => ({
     focus: (coordinate, zoomedIn = true) => {
@@ -61,7 +64,7 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
       );
     },
     recenter: () => {
-      mapRef.current?.animateCamera(HOME_CAMERA, { duration: 650 });
+      mapRef.current?.animateCamera({ ...HOME_CAMERA, center: here() }, { duration: 650 });
     },
   }));
 
@@ -72,7 +75,7 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
     <MapView
       ref={mapRef}
       style={StyleSheet.absoluteFill}
-      initialCamera={HOME_CAMERA}
+      initialCamera={{ ...HOME_CAMERA, center: here() }}
       showsPointsOfInterests={false}
       showsBuildings
       pitchEnabled
@@ -107,7 +110,7 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
           />
         </Marker>
       ))}
-      <Marker coordinate={myPosition} anchor={{ x: 0.5, y: 0.8 }} displayPriority="required" zIndex={5}>
+      <Marker coordinate={me} anchor={{ x: 0.5, y: 0.8 }} displayPriority="required" zIndex={5}>
         <AvatarPin image={bitmojiFor(myId, 'walk')} name="Me" detail="now" status="me" />
       </Marker>
     </MapView>

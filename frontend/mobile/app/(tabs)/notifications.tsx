@@ -21,6 +21,7 @@ import { NotificationRow, segmentsFor } from '@/components/fb/notifications/Noti
 import { NotificationSectionHeader } from '@/components/fb/notifications/NotificationSectionHeader';
 import { NotificationsEmptyState } from '@/components/fb/notifications/NotificationsEmptyState';
 import { MovesInbox } from '@/components/moves/MovesInbox';
+import { FriendRequestsInbox } from '@/components/friends/FriendRequestsInbox';
 import { useInbox } from '@/lib/store/inbox';
 import { Snackbar } from '@/components/fb/notifications/Snackbar';
 import type {
@@ -34,6 +35,8 @@ import { notifications, type Notification } from '@/lib/mock';
 import { useUIStore } from '@/lib/store/ui';
 import { colors, spacing } from '@/lib/theme';
 
+
+const SHOW_MOCK_REQUESTS = false;
 /** Rows shown under "Earlier" before "See previous notifications" is tapped. */
 const EARLIER_PREVIEW_COUNT = 4;
 /** Request cards shown in "Pending friend requests" before "See N friend requests" is tapped. */
@@ -201,7 +204,8 @@ export default function NotificationsScreen() {
     if (fresh.length > 0) {
       result.push({ key: 'new', title: 'New', data: fresh, hiddenCount: 0, pendingCount: 0 });
     }
-    if (!requestsHidden && visibleRequests.length > 0) {
+    // Real requests show in <FriendRequestsInbox /> above; the mock ones are off.
+    if (SHOW_MOCK_REQUESTS && !requestsHidden && visibleRequests.length > 0) {
       result.push({
         key: 'requests',
         title: 'Pending friend requests',
@@ -274,6 +278,7 @@ export default function NotificationsScreen() {
         ListHeaderComponent={
           <>
             {filter === 'unread' ? <FilterChips value={filter} onChange={changeFilter} /> : null}
+            <FriendRequestsInbox />
             <MovesInbox />
           </>
         }

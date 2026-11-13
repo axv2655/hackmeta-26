@@ -11,6 +11,7 @@ import { GlassSurface } from '@/components/ui/Glass';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { useCityAt } from '@/lib/city';
+import { useLocation } from '@/lib/location';
 import { selection, tap } from '@/lib/haptics';
 import { useLive } from '@/lib/live';
 import { mapMoves, type Coordinate } from '@/lib/mock/moves';
@@ -35,6 +36,14 @@ export default function MovesScreen() {
   // The header names the city at the center of what you're looking at.
   const [center, setCenter] = useState<Coordinate>(HOME_CAMERA.center);
   const city = useCityAt(center, 'Nearby');
+
+  // First GPS fix: fly to it and reload what's around you.
+  const hasFix = useLocation((s) => s.coords !== null);
+  useEffect(() => {
+    if (!hasFix) return;
+    mapRef.current?.recenter();
+    void useLive.getState().load();
+  }, [hasFix]);
   const router = useRouter();
   const mine = useMyMoves((s) => s.mine);
   const focusId = useMyMoves((s) => s.focusId);
@@ -52,6 +61,7 @@ export default function MovesScreen() {
   // trigger loads (lib/realtime.ts).
   useFocusEffect(
     useCallback(() => {
+      void useLocation.getState().start(); // asks once, in context
       void useLive.getState().load();
       const timer = setInterval(() => void useLive.getState().load(), 20000);
       return () => clearInterval(timer);

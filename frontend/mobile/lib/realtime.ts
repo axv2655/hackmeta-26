@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { BACKEND_URL } from './backend';
+import { useFriends } from './friends';
 import { useLive } from './live';
 import { useSession } from './session';
 import { useInbox, type MoveNotification } from './store/inbox';
@@ -23,7 +24,11 @@ function reloadMovesSoon() {
 }
 
 function handle(event: Envelope) {
-  if (event.type === 'notification') useInbox.getState().arrive(event.data as MoveNotification);
+  if (event.type === 'notification') {
+    useInbox.getState().arrive(event.data as MoveNotification);
+    const kind = (event.data as { type?: string }).type ?? '';
+    if (kind.startsWith('friend_')) void useFriends.getState().load();
+  }
   if (MOVE_EVENTS.has(event.type) || event.type === 'notification') reloadMovesSoon();
 }
 

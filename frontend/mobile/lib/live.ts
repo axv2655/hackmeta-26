@@ -3,7 +3,8 @@ import { create } from 'zustand';
 import { bitmojiPoseFor } from './mock/bitmoji';
 import { avatars } from './mock/assets';
 import { users as mockUsers } from './mock';
-import { mapMoves, myPosition, type MapMove, type MoveCategory } from './mock/moves';
+import { coarse, here, kmBetween } from './location';
+import { mapMoves, type MapMove, type MoveCategory } from './mock/moves';
 import type { User } from './mock/types';
 import { api, useSession, type UserLite } from './session';
 
@@ -78,11 +79,7 @@ function ago(iso: string): string {
 }
 
 function miles(lat: number, lng: number): string {
-  const rad = Math.PI / 180;
-  const dLat = (lat - myPosition.latitude) * rad;
-  const dLng = (lng - myPosition.longitude) * rad;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(myPosition.latitude * rad) * Math.cos(lat * rad) * Math.sin(dLng / 2) ** 2;
-  return `${(12742 * Math.asin(Math.sqrt(a)) * 0.621).toFixed(1)} mi`;
+  return `${(kmBetween(here(), { latitude: lat, longitude: lng }) * 0.621).toFixed(1)} mi`;
 }
 
 const area = (address: string) => address.split(',').pop()?.trim() || 'Nearby';
@@ -138,7 +135,8 @@ export const useLive = create<LiveState>()((set, get) => ({
   online: false,
   load: async () => {
     const me = useSession.getState().userId;
-    const near = `lat=${myPosition.latitude}&lng=${myPosition.longitude}&radius_km=25`;
+    const at = coarse(here());
+    const near = `lat=${at.latitude}&lng=${at.longitude}&radius_km=25`;
     try {
       const [live, marks] = await Promise.all([
         api<MoveWire[]>(`/moves/nearby?${near}`),

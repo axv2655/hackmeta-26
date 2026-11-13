@@ -1,24 +1,64 @@
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 
 import { ScreenHeader } from '@/components/fb/ScreenHeader';
 import { useTabBarHeight } from '@/components/fb/TabBar';
-import { Avatar } from '@/components/ui/Avatar';
+import { PersonRow } from '@/components/friends/PersonRow';
 import { Icon } from '@/components/ui/Icon';
-import { IconButton } from '@/components/ui/IconButton';
-import { PressableScale } from '@/components/ui/PressableScale';
-import { friends, type User } from '@/lib/mock';
+import { searchPeople, useFriends, type Person } from '@/lib/friends';
 import { colors, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
-const INITIAL_RECENT: User[] = friends.slice(0, 5);
+const SETTLE_MS = 250;
 
+/**
+ * Find people by name or @username and add them; with nothing typed, your
+ * friend requests and friends. Backed by `GET /users/search`.
+ */
 export default function SearchScreen() {
   const tabBarHeight = useTabBarHeight();
   const [query, setQuery] = useState('');
-  const [recent, setRecent] = useState<User[]>(INITIAL_RECENT);
+  const [results, setResults] = useState<Person[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const incoming = useFriends((s) => s.incoming);
+  const outgoing = useFriends((s) => s.outgoing);
+  const friends = useFriends((s) => s.friends);
+  const loaded = useFriends((s) => s.loaded);
 
-  const q = query.trim().toLowerCase();
-  const rows = q ? friends.filter((u) => u.name.toLowerCase().includes(q)) : recent;
+  useFocusEffect(
+    useCallback(() => {
+      void useFriends.getState().load();
+    }, []),
+  );
+
+  const q = query.trim();
+  useEffect(() => {
+    if (!q) {
+      setResults(null);
+      setFailed(false);
+      return;
+    }
+    let live = true;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchPeople(q);
+        if (live) {
+          setResults(found);
+          setFailed(false);
+        }
+      } catch {
+        if (live) setFailed(true);
+      } finally {
+        if (live) setSearching(false);
+      }
+    }, SETTLE_MS);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [q]);
 
   return (
     <View style={styles.root}>
@@ -35,50 +75,69 @@ export default function SearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search Facebook"
+            placeholder="Search people on Facebook"
             placeholderTextColor={colors.placeholder}
             style={styles.input}
             returnKeyType="search"
             clearButtonMode="while-editing"
             autoCorrect={false}
-            accessibilityLabel="Search Facebook"
+            autoCapitalize="none"
+            accessibilityLabel="Search people"
           />
+          {searching ? <ActivityIndicator size="small" color={colors.textSecondary} /> : null}
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle} accessibilityRole="header">
-            {q ? 'People' : 'Recent'}
-          </Text>
-        </View>
-
-        {rows.map((user) => (
-          <PressableScale
-            key={user.id}
-            style={styles.row}
-            scaleTo={0.98}
-            pressedOpacity={0.7}
-            accessibilityLabel={user.name}
-          >
-            <Avatar source={user.avatar} size={48} />
-            <Text style={styles.name} numberOfLines={1}>
-              {user.name}
-            </Text>
-            {q ? null : (
-              <IconButton
-                name="close"
-                size={18}
-                color={colors.textSecondary}
-                accessibilityLabel={`Remove ${user.name} from recent searches`}
-                onPress={() => setRecent((list) => list.filter((u) => u.id !== user.id))}
-              />
-            )}
-          </PressableScale>
-        ))}
-
-        {rows.length === 0 ? (
-          <Text style={styles.empty}>{q ? `No results for "${query.trim()}"` : 'No recent searches'}</Text>
-        ) : null}
+        {q ? (
+          <>
+            <Section title="People" />
+            {(results ?? []).map((p) => (
+              <PersonRow key={p.user.id} person={p} />
+            ))}
+            {failed ? <Text style={styles.empty}>Can't search right now. Check your connection.</Text> : null}
+            {results && results.length === 0 && !failed ? (
+              <Text style={styles.empty}>{`No one called "${q}" yet. Ask them to sign up!`}</Text>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {incoming.length > 0 ? (
+              <>
+                <Section title="Friend requests" count={incoming.length} />
+                {incoming.map((p) => (
+                  <PersonRow key={p.user.id} person={p} subtitle="Wants to be friends" />
+                ))}
+              </>
+            ) : null}
+            {outgoing.length > 0 ? (
+              <>
+                <Section title="Sent requests" />
+                {outgoing.map((p) => (
+                  <PersonRow key={p.user.id} person={p} />
+                ))}
+              </>
+            ) : null}
+            <Section title="Your friends" count={friends.length || undefined} />
+            {friends.map((p) => (
+              <PersonRow key={p.user.id} person={p} />
+            ))}
+            {loaded && friends.length === 0 ? (
+              <Text style={styles.empty}>Search for people above to add your first friend.</Text>
+            ) : null}
+            {!loaded ? <ActivityIndicator style={styles.loading} color={colors.textSecondary} /> : null}
+          </>
+        )}
       </ScrollView>
+    </View>
+  );
+}
+
+function Section({ title, count }: { title: string; count?: number }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle} accessibilityRole="header">
+        {title}
+        {count ? <Text style={styles.count}>{`  ${count}`}</Text> : null}
+      </Text>
     </View>
   );
 }
@@ -104,18 +163,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   sectionTitle: { ...typeScale.sectionTitle, fontSize: 20, lineHeight: 25, fontWeight: '700' },
-  row: {
-    minHeight: 64,
-    paddingLeft: layout.gutter + spacing.xs,
-    paddingRight: spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  name: { ...typeScale.row, flex: 1 },
+  count: { color: colors.badgeRed, fontSize: 17 },
   empty: {
     ...typeScale.rowSub,
     paddingHorizontal: layout.gutter + spacing.xs,
     paddingVertical: spacing.lg,
   },
+  loading: { marginTop: spacing.lg },
 });

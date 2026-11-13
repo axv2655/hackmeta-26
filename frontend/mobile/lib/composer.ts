@@ -1,7 +1,8 @@
 import { api as backendFetch, postJson as post, useSession } from './session';
 import { bitmojiPoseFor } from './mock/bitmoji';
 import { currentUser, friends as mockFriends, users as mockUsers } from './mock';
-import { mapMoves, myPosition, type MapMove, type MoveCategory } from './mock/moves';
+import { coarse, here, kmBetween } from './location';
+import { mapMoves, type MapMove, type MoveCategory } from './mock/moves';
 import type { ImageRef } from './mock/types';
 
 /**
@@ -86,7 +87,7 @@ const place = (m: MarkWire): Place => ({
 export async function loadComposer(): Promise<ComposerData> {
   try {
     const [draft, friendRows, circles] = await Promise.all([
-      backendFetch<DraftWire>('/muse/compose-move', post({ lat: myPosition.latitude, lng: myPosition.longitude, heuristic: true })),
+      backendFetch<DraftWire>('/muse/compose-move', post({ lat: coarse(here()).latitude, lng: coarse(here()).longitude, heuristic: true })),
       backendFetch<{ user: UserLite }[]>('/friends'),
       backendFetch<CircleWire[]>('/circles'),
     ]);
@@ -235,11 +236,7 @@ export function toMapMove(move: PostedMove): MapMove {
 
 /** Distance from the user's own (on-device) position, in km. */
 function km(lat: number, lng: number): number {
-  const rad = Math.PI / 180;
-  const dLat = (lat - myPosition.latitude) * rad;
-  const dLng = (lng - myPosition.longitude) * rad;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(myPosition.latitude * rad) * Math.cos(lat * rad) * Math.sin(dLng / 2) ** 2;
-  return 12742 * Math.asin(Math.sqrt(a));
+  return kmBetween(here(), { latitude: lat, longitude: lng });
 }
 
 /** Everyone a Move would reach: chosen groups' members plus chosen friends. */

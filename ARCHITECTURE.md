@@ -1160,6 +1160,12 @@ type Notification = { id: string; type: string; title: string; body: string;
 | GET | `/auth/users` | everyone, for name lookups |
 | POST | `/auth/signup` | `{name, username, password}` → `{user, username}`; befriends everyone already here |
 | POST | `/auth/login` | `{username, password}` → `{user, username}` (403 on a wrong password) |
+| GET | `/users/search?q=` | people by name or @username, each with `relation` (friend, outgoing, incoming, none) |
+| GET | `/friends/requests` | `{incoming, outgoing}` pending requests |
+| POST | `/friends/requests` | `{user_id}`: add friend (accepts if they already asked you); notifies them |
+| POST | `/friends/requests/{user_id}/accept` | accept; notifies them |
+| DELETE | `/friends/requests/{user_id}` | decline theirs or cancel yours |
+| DELETE | `/friends/{user_id}` | unfriend |
 | POST | `/me/push-tokens` | `{token, sandbox}`: this phone's APNs device token; every stored notification is also pushed to it when `APNS_*` is configured |
 | DELETE | `/me/push-tokens/{token}` | on logout |
 | GET | `/areas/city?lat&lng` | city at the map's center for the Moves header, `{name, region}`; rounded to ~1 km, reverse-geocoded (Nominatim, `GEOCODER_URL`) with a cache, falls back to the configured areas |

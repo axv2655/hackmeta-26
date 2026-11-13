@@ -27,6 +27,20 @@
         {
           "mode": "development"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Moves uses your location to show what friends are doing near you and to suggest places. Your exact location never leaves your phone."
+        }
+      ],
+      [
+        "./plugins/withManualSigning",
+        {
+          "teamId": "DVX8YZ9GG9",
+          "profile": "HackMeta26 Development",
+          "identity": "Apple Development"
+        }
       ]
     ],
     "userInterfaceStyle": "light",

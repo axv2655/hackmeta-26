@@ -201,7 +201,7 @@ function OutNow({ moves, onSelect }: { moves: MapMove[]; onSelect: (id: string) 
           <PressableScale key={m.id} onPress={() => onSelect(m.id)} style={styles.outItem} scaleTo={0.94}>
             <BitmojiFace userId={m.user.id} size={64} color={moveMeta(m).color} />
             <Text style={styles.outName} numberOfLines={1}>
-              {m.mine ? 'You' : m.user.firstName}
+              {m.mine ? 'Me' : m.user.firstName}
             </Text>
             <Text style={styles.outMeta} numberOfLines={1}>
               {moveMeta(m).label}

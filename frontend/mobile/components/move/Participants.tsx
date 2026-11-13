@@ -24,7 +24,7 @@ function Group({ title, people, myId }: { title: string; people: Participant[]; 
           >
             <PersonAvatar user={p.user} size={48} />
             <Text style={styles.name} numberOfLines={1}>
-              {p.user.id === myId ? 'You' : p.user.first_name}
+              {p.user.id === myId ? 'Me' : p.user.first_name}
             </Text>
           </Pressable>
         ))}

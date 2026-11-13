@@ -156,7 +156,7 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
         >
           <AvatarPin
             image={bitmojiFor(m.user.id, m.pose)}
-            name={m.mine ? 'You' : m.user.firstName}
+            name={m.mine ? 'Me' : m.user.firstName}
             detail={statusDetail(m)}
             badge={moveMeta(m)}
             status={m.status}

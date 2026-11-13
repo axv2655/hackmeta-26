@@ -130,7 +130,7 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
       const sel = mv.id === selectedId;
       const icon = pinIcon({
         img: uri(bitmojiFor(mv.user.id, mv.pose)),
-        name: mv.mine ? 'You' : mv.user.firstName,
+        name: mv.mine ? 'Me' : mv.user.firstName,
         detail: detailOf(mv),
         status: mv.status,
         me: mv.mine,

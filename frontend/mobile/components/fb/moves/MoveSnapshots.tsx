@@ -50,12 +50,12 @@ export function MoveSnapshots({ move, id, sample, ghost }: Props) {
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
           {local.map((s, i) => (
-            <Polaroid key={s.uri} tilt={i} by="You" note={s.state === 'sending' ? 'Sharing...' : s.state === 'failed' ? 'Not shared' : null}>
+            <Polaroid key={s.uri} tilt={i} by="Me" note={s.state === 'sending' ? 'Sharing...' : s.state === 'failed' ? 'Not shared' : null}>
               <Image source={{ uri: s.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
             </Polaroid>
           ))}
           {items.map((m, i) => (
-            <Polaroid key={m.id} tilt={local.length + i} by={m.author.id === myId ? 'You' : m.author.first_name} onPress={openAll}>
+            <Polaroid key={m.id} tilt={local.length + i} by={m.author.id === myId ? 'Me' : m.author.first_name} onPress={openAll}>
               <MomentImage moment={m} style={StyleSheet.absoluteFill} />
             </Polaroid>
           ))}

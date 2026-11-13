@@ -55,7 +55,7 @@ export function MoveCard({ move, sample, onPull, onClose }: MoveCardProps) {
             </View>
             {move.mine ? <YoursTag /> : null}
           </View>
-          <Text style={styles.name}>{move.mine ? 'You' : move.user.name}</Text>
+          <Text style={styles.name}>{move.mine ? 'Me' : move.user.name}</Text>
           <Text style={[styles.status, move.status === 'there' && styles.live]}>{statusText(move)}</Text>
         </View>
         <Pressable onPress={onClose} hitSlop={10} style={styles.close} accessibilityLabel="Close">
@@ -96,7 +96,7 @@ export function MoveCard({ move, sample, onPull, onClose }: MoveCardProps) {
 function People({ move, ghost, counts }: { move: MapMove; ghost: boolean; counts: string | null }) {
   const myId = useSession((s) => s.userId);
   if (move.joined.length === 0) return null;
-  const names = move.joined.map((u) => (u.id === myId ? 'You' : u.firstName));
+  const names = move.joined.map((u) => (u.id === myId ? 'Me' : u.firstName));
   return (
     <View style={styles.joinedRow}>
       <View style={styles.faces}>

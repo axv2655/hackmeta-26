@@ -38,7 +38,7 @@ export function MoveRow({ move, first, onPress, onPull }: MoveRowProps) {
       <BitmojiFace userId={move.user.id} color={moveMeta(move).color} ghost={ghost} />
       <View style={styles.body}>
         <Text style={styles.name} numberOfLines={1}>
-          {move.mine ? 'You' : move.user.firstName}
+          {move.mine ? 'Me' : move.user.firstName}
           <Text style={[styles.status, !ghost && move.status === 'there' && styles.live]}>{`  ${statusText(move)}`}</Text>
         </Text>
         <Text style={styles.title} numberOfLines={1}>

@@ -136,7 +136,7 @@ npm run dev
 ```
 
 Vite normally serves <http://localhost:5173>. This is a separate client from Expo
-web and currently runs on local demo data.
+web and uses the same backend (Vite proxies `/api` to it in dev; see frontend/web/README.md).
 
 To host desktop web on the mobile backend's existing server, run
 `docker compose up -d --build backend` from the repository root. The combined

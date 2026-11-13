@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import * as L from 'lucide-react'
+import { useMedia } from './api'
 
 // Snapshots: Instagram-Instants-style photos taken live while you are in a Move.
-// They stay in this page's state (the web prototype runs on local demo data).
+// Each one is posted to the backend as a Moment of that Move (see Moves.jsx).
 
 /** Full-screen viewfinder with one shutter. Calls onCapture with a JPEG data URL. */
 export function SnapshotCamera({ onCapture, onClose }) {
@@ -63,32 +64,14 @@ export function SnapStrip({ snaps, canSnap, onSnap, empty }) {
     <section className="snap-strip" aria-label="Snapshots">
       <div className="row between"><h4>Snapshots</h4>{canSnap && <button className="btn-gray snap-btn" onClick={onSnap}><L.Camera size={16} /> Snapshot</button>}</div>
       {snaps.length > 0
-        ? <div className="snap-row">{snaps.map(([src, by], i) => <figure key={src} className="snap" style={{ '--tilt': `${i % 2 ? 2 : -2}deg` }}><img src={src} alt={`Snapshot by ${by}`} /><figcaption>{by}</figcaption></figure>)}</div>
+        ? <div className="snap-row">{snaps.map(([src, by], i) => <figure key={src} className="snap" style={{ '--tilt': `${i % 2 ? 2 : -2}deg` }}><MediaImg src={src} alt={`Snapshot by ${by}`} /><figcaption>{by}</figcaption></figure>)}</div>
         : <p className="muted small">{empty}</p>}
     </section>
   )
 }
 
-/** Clicking "Me": your own Move and its snapshots, or a nudge to share one. */
-export function MeCard({ face, mine, audience, snaps, onSnap, onClose }) {
-  return (
-    <div className="mv-card">
-      <button className="icon-btn mv-close" aria-label="Close" onClick={onClose}><L.X size={18} /></button>
-      <div className="mv-card-top">
-        {face}
-        <div>
-          <span className="mv-chip snap-you">You</span>
-          <h2>{mine ? 'Your Move' : 'You'}</h2>
-          <span className={`mv-status ${mine ? 'mv-live' : 'muted'}`}>{mine ? 'Live now' : 'Not on a Move'}</span>
-        </div>
-      </div>
-      {mine
-        ? <>
-          <p className="mv-title">“{mine}”</p>
-          {audience && <p className="row muted mv-place"><L.Eye size={16} /> {audience}</p>}
-          <SnapStrip snaps={snaps} canSnap onSnap={onSnap} empty="Capture the moment. Friends who can see your Move will see it here." />
-        </>
-        : <p className="muted">Share what you're up to below. Once you're on a Move, you can take snapshots and they show up here.</p>}
-    </div>
-  )
+/** <img> for a Moment photo; a gray box until the authorized fetch lands. */
+export function MediaImg({ src, ...rest }) {
+  const url = useMedia(src)
+  return url ? <img src={url} {...rest} /> : <span className={`media-wait ${rest.className ?? ''}`} role="img" aria-label={rest.alt || undefined} />
 }

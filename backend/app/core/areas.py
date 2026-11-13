@@ -4,16 +4,17 @@ Only a label ever leaves this module's callers (`last_area`); coordinates are
 used for one comparison and dropped (ARCHITECTURE.md 12.1). The single
 supported region is the bounding envelope of the seeded Marks, rounded outward
 to 3 decimals; anywhere else has no label, so a query from another city is
-never called "UT Dallas".
+never called "Menlo Park".
 """
 
 from dataclasses import dataclass
 
-CENTER = (32.9857, -96.7502)
-"""Demo area center (UT Dallas). Change it to the venue where the demo phones
-physically are; every seed Mark is placed relative to it (ARCHITECTURE.md 18)."""
+CENTER = (37.4850, -122.1482)
+"""Demo area center: Hacker Square on the Meta campus, 1 Hacker Way, Menlo
+Park. Change it to the venue where the demo phones physically are; every seed
+Mark is placed relative to it (ARCHITECTURE.md 18)."""
 
-HOME_AREA = "UT Dallas"
+HOME_AREA = "Menlo Park"
 COARSE_DECIMALS = 3
 """Precision a client's `lat/lng` is rounded to before any server use."""
 
@@ -30,7 +31,7 @@ class Area:
         return self.south <= lat <= self.north and self.west <= lng <= self.east
 
 
-AREAS: tuple[Area, ...] = (Area(HOME_AREA, 32.814, 33.063, -96.853, -96.681),)
+AREAS: tuple[Area, ...] = (Area(HOME_AREA, 37.41, 37.623, -122.384, -122.142),)
 
 
 def coarse(value: float) -> float:

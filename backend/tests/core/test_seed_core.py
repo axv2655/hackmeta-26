@@ -284,9 +284,14 @@ def test_jordan_hosts_an_open_pickleball_move_with_three_others(
     assert not rules.is_stale(move, NOW)
 
 
-def test_only_the_two_demo_moves_are_live(world: Session) -> None:
+def test_only_the_demo_moves_are_live(world: Session) -> None:
     live = world.exec(select(Move.id).where(Move.status == "live")).all()
-    assert set(live) == {ids.MOVE_TONY_KUMO, ids.MOVE_JORDAN_PICKLEBALL}
+    assert set(live) == {
+        ids.MOVE_TONY_KUMO,
+        ids.MOVE_JORDAN_PICKLEBALL,
+        ids.MOVE_DEV_MPK21,
+        ids.MOVE_PRIYA_SQUARE,
+    }
 
 
 # --- Ghosts and Moments -------------------------------------------------------
@@ -350,7 +355,11 @@ def test_audiences_follow_the_privacy_rules(world: Session) -> None:
 def test_strangers_and_mom_see_no_friend_moves(world: Session) -> None:
     moves = SqlMoveRepository(world)
     assert moves.list_live_visible(ids.MOM) == []
-    assert [m.id for m in moves.list_live_visible(ids.ANISH)] == [ids.MOVE_TONY_KUMO]
+    assert {m.id for m in moves.list_live_visible(ids.ANISH)} == {
+        ids.MOVE_TONY_KUMO,
+        ids.MOVE_DEV_MPK21,
+        ids.MOVE_PRIYA_SQUARE,
+    }
     assert moves.get_visible(ids.MOVE_TONY_KUMO, ids.JORDAN) is None
 
 

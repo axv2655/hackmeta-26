@@ -833,16 +833,16 @@ def test_opted_in_nearby_changes_only_the_area_label(
     )
     scene.ok(opted)
     before = _dump(engine)
-    lat, lng = 32.9857123, -96.7502456  # inside the demo region
+    lat, lng = 37.4850123, -122.1482456  # inside the demo region
     for path in ("/moves/nearby", "/marks/nearby"):
         assert scene.get("eve", path, lat=lat, lng=lng).status_code == 200
     after = _dump(engine)
 
     assert [t for t in after if after[t] != before[t]] == ["users"]
-    assert "UT Dallas" in repr(after["users"]) and "UT Dallas" not in repr(
+    assert "Menlo Park" in repr(after["users"]) and "Menlo Park" not in repr(
         before["users"]
     )
-    assert "9857" not in repr(after) and "7502" not in repr(after)
+    assert "4850123" not in repr(after) and "1482456" not in repr(after)
 
 
 def test_other_users_area_is_never_shown(scene: Scene) -> None:

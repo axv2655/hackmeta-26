@@ -459,7 +459,7 @@ def test_autojoin_replace_failure_preserves_preferences(users, monkeypatch):
 
 # --- coarse area label (12.1) ---------------------------------------------------
 
-DALLAS = (32.9857123, -96.7502456)  # inside the demo region
+CAMPUS = (37.4850123, -122.1482456)  # Hacker Square: inside the demo region
 ELSEWHERE = (30.2849371, -97.7341288)  # Austin: not a supported area
 
 
@@ -473,35 +473,35 @@ def opt_in(users: UserService, value: bool = True) -> None:
 
 
 def test_coarse_area_labels_only_the_supported_region() -> None:
-    assert coarse_area(*DALLAS) == "UT Dallas"
+    assert coarse_area(*CAMPUS) == "Menlo Park"
     assert coarse_area(*ELSEWHERE) is None
     assert coarse_area(0.0, 0.0) is None
-    # rounding happens first: 32.8134 -> 32.813 is outside, 32.8139 -> 32.814 in
-    assert coarse_area(32.8134, -96.75) is None
-    assert coarse_area(32.8139, -96.75) == "UT Dallas"
-    assert coarse_area(32.8141, -96.75) == "UT Dallas"
+    # rounding happens first: 37.4094 -> 37.409 is outside, 37.4096 -> 37.410 in
+    assert coarse_area(37.4094, -122.2) is None
+    assert coarse_area(37.4096, -122.2) == "Menlo Park"
+    assert coarse_area(37.4101, -122.2) == "Menlo Park"
 
 
 def test_near_area_requires_consent(users: UserService, world: Session) -> None:
-    users.record_near_area("anish", *DALLAS)
+    users.record_near_area("anish", *CAMPUS)
     assert last_area(world) is None
 
     opt_in(users)
-    users.record_near_area("anish", *DALLAS)
-    assert last_area(world) == "UT Dallas"
+    users.record_near_area("anish", *CAMPUS)
+    assert last_area(world) == "Menlo Park"
 
 
 def test_near_area_stores_only_label(
     users: UserService, world: Session, engine: Engine
 ) -> None:
     opt_in(users)
-    users.record_near_area("anish", *DALLAS)
+    users.record_near_area("anish", *CAMPUS)
 
     with Session(engine) as fresh:
         stored = repr([tuple(r) for r in fresh.exec(select(User))])
         stored += repr([tuple(r) for r in fresh.exec(select(UserSettings))])
-    assert "UT Dallas" in stored
-    assert "32.985" not in stored and "96.750" not in stored
+    assert "Menlo Park" in stored
+    assert "37.485" not in stored and "122.148" not in stored
 
 
 def test_unknown_region_does_not_store_false_area(
@@ -510,19 +510,19 @@ def test_unknown_region_does_not_store_false_area(
     opt_in(users)
     users.record_near_area("anish", *ELSEWHERE)
     assert last_area(world) is None
-    users.record_near_area("anish", *DALLAS)
+    users.record_near_area("anish", *CAMPUS)
     users.record_near_area("anish", *ELSEWHERE)  # a stale label is not kept
     assert last_area(world) is None
 
 
 def test_opt_out_clears_last_area(users: UserService, world: Session) -> None:
     opt_in(users)
-    users.record_near_area("anish", *DALLAS)
-    assert last_area(world) == "UT Dallas"
+    users.record_near_area("anish", *CAMPUS)
+    assert last_area(world) == "Menlo Park"
 
     opt_in(users, False)
     assert last_area(world) is None
-    users.record_near_area("anish", *DALLAS)  # no consent, no record
+    users.record_near_area("anish", *CAMPUS)  # no consent, no record
     assert last_area(world) is None
 
 
@@ -530,13 +530,13 @@ def test_opt_out_clears_last_area(users: UserService, world: Session) -> None:
 def test_nearby_endpoints_record_label_with_consent(
     client: TestClient, world: Session, path: str
 ) -> None:
-    params = {"lat": DALLAS[0], "lng": DALLAS[1]}
+    params = {"lat": CAMPUS[0], "lng": CAMPUS[1]}
     assert client.get(path, params=params).status_code == 200
     assert last_area(world) is None  # opted out: nothing recorded
 
     client.patch("/api/v1/me/settings", json={"location_opt_in": True})
     assert client.get(path, params=params).status_code == 200
-    assert last_area(world) == "UT Dallas"
+    assert last_area(world) == "Menlo Park"
     body = client.get("/api/v1/me").json()
     assert not {"lat", "lng", "last_area"} & set(body["user"])
 

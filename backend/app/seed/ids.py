@@ -51,6 +51,7 @@ CLIMBING_GYM = "mk_climbing_gym"  # the fading Thursday climbing crew
 PICKLEBALL_COURT = "mk_pickleball_court"  # Jordan's open Move
 FOUNDERS_HALL = "mk_founders_hall"  # study spot
 LAST_NIGHT_SPOT = "mk_last_night_spot"  # ghosts + seeded Moments from last night
+HACKER_SQUARE = "mk_hacker_square"  # campus courtyard (Priya's walk)
 QUIET_CAFE = "mk_quiet_cafe"  # Reel at a Mark with nobody there
 CAPTION_CAFE = "mk_caption_cafe"  # Reel with no geotag; caption names it
 
@@ -58,6 +59,8 @@ CAPTION_CAFE = "mk_caption_cafe"  # Reel with no geotag; caption names it
 MOVE_TONY_KUMO = "mv_tony_kumo"
 MOVE_JORDAN_PICKLEBALL = "mv_jordan_pickleball"
 MOVE_LAST_NIGHT = "mv_last_night"  # ended; source of the ghosts
+MOVE_DEV_MPK21 = "mv_dev_mpk21"  # live study Move on the Meta campus
+MOVE_PRIYA_SQUARE = "mv_priya_square"  # live walk, just started, nobody yet
 
 # --- Reels --------------------------------------------------------------------
 REEL_KUMO = "rl_kumo"  # geotagged at Kumo: friends-there path

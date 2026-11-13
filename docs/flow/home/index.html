@@ -1,0 +1,242 @@
+<title>Moves Home Flow Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: a wide review board. Stages run left to right as lanes of phone frames,
+   red numbered pins sit on the screenshots, and a ranked findings list follows. */
+:root {
+  --bg: #eef1f6;
+  --panel: #ffffff;
+  --ink: #141a24;
+  --muted: #5b6577;
+  --line: #d5dbe5;
+  --accent: #0866ff;
+  --pin: #e0352b;
+  --p0: #e0352b; --p0-bg: #fde8e6;
+  --p1: #b86e00; --p1-bg: #fff2dc;
+  --p2: #4b5a72; --p2-bg: #e7ebf2;
+  --display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f131a; --panel: #171c25; --ink: #e7ebf2; --muted: #98a3b6; --line: #2a3240;
+  --accent: #5b9bff; --pin: #ff5a4f;
+  --p0: #ff6b61; --p0-bg: #3a1714; --p1: #f0a640; --p1-bg: #36260b; --p2: #a9b5c9; --p2-bg: #232b38;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f131a; --panel: #171c25; --ink: #e7ebf2; --muted: #98a3b6; --line: #2a3240;
+  --accent: #5b9bff; --pin: #ff5a4f;
+  --p0: #ff6b61; --p0-bg: #3a1714; --p1: #f0a640; --p1-bg: #36260b; --p2: #a9b5c9; --p2-bg: #232b38;
+  color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1440px; margin: 0 auto; padding-block: 40px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 48px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 4vw, 44px); letter-spacing: -0.02em; }
+h2 { font-size: 24px; letter-spacing: -0.01em; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+header { display: grid; gap: 12px; max-width: 76ch; }
+header p { margin: 0; color: var(--muted); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 500; }
+
+.tally { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { font-family: var(--mono); font-size: 12px; font-weight: 500; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.chip.p0 { color: var(--p0); background: var(--p0-bg); }
+.chip.p1 { color: var(--p1); background: var(--p1-bg); }
+.chip.p2 { color: var(--p2); background: var(--p2-bg); }
+
+/* Stage lanes */
+.stage { display: grid; gap: 16px; }
+.stage-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.stage-head p { margin: 0; color: var(--muted); }
+.lane { display: flex; gap: 28px; overflow-x: auto; padding: 4px 4px 16px; scroll-snap-type: x proximity; }
+.screen { flex: 0 0 236px; display: grid; gap: 10px; align-content: start; scroll-snap-align: start; position: relative; }
+.screen + .screen::before { content: ""; position: absolute; left: -24px; top: 240px; width: 20px; height: 2px; background: var(--line); }
+.screen + .screen::after { content: ""; position: absolute; left: -10px; top: 236px; border: 5px solid transparent; border-left-color: var(--line); }
+.label { display: flex; gap: 8px; align-items: baseline; }
+.label .id { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 500; }
+.label .name { font-family: var(--display); font-weight: 700; font-size: 15px; }
+.phone { position: relative; border-radius: 30px; overflow: hidden; background: #000; border: 5px solid #1b1f27;
+  box-shadow: 0 1px 2px rgba(20,26,36,.08), 0 8px 24px rgba(20,26,36,.10); aspect-ratio: 1206 / 2622; max-width: 100%; }
+.phone img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pin { position: absolute; transform: translate(-50%, -50%); width: 24px; height: 24px; border-radius: 50%;
+  background: var(--pin); color: #fff; font: 600 12px/24px var(--mono); text-align: center;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.9), 0 2px 6px rgba(0,0,0,.3); }
+.caption { margin: 0; font-size: 13.5px; color: var(--muted); }
+.notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13.5px; }
+.notes li { display: grid; grid-template-columns: 22px 1fr; gap: 6px; align-items: start; }
+.notes .n { width: 18px; height: 18px; border-radius: 50%; background: var(--pin); color: #fff; font: 600 10.5px/18px var(--mono); text-align: center; margin-top: 2px; }
+.notes.ok .n { background: var(--accent); }
+
+/* Findings */
+.findings { display: grid; gap: 12px; }
+.table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; min-width: 820px; font-size: 14px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--mono); color: var(--pin); font-weight: 600; white-space: nowrap; }
+td.where { font-family: var(--mono); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+td .fix { color: var(--muted); display: block; margin-top: 4px; }
+code { font-family: var(--mono); font-size: .9em; background: var(--p2-bg); padding: 1px 5px; border-radius: 4px; }
+
+.gaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.gap { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 6px; align-content: start; }
+.gap h3 { font-size: 16px; }
+.gap p { margin: 0; color: var(--muted); font-size: 14px; }
+.assets p { margin: 0; color: var(--muted); max-width: 80ch; }
+@media (prefers-reduced-motion: reduce) { .lane { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Design review · iPhone 17 Pro · prod backend</span>
+    <h1>Moves: the Home flow, screen by screen</h1>
+    <p>A brand-new account (Justin Smith) walked from sign-up through onboarding, Home, pulling up to a friend's Move, posting a Move, and the map. Red pins mark problems, blue pins mark things that work. The table ranks every problem.</p>
+    <div class="meta"><span>Build <b>Expo SDK 57 dev client</b></span><span>Backend <b>meta.anishalle.com</b></span><span>Captured <b>Nov 13, 2026</b></span><span>Screens <b>20</b></span></div>
+    <div class="tally" id="tally"></div>
+  </header>
+
+  <div id="stages"></div>
+
+  <section class="gaps-section stage">
+    <div class="stage-head"><span class="eyebrow">What the flow is missing</span><h2>Gaps, not bugs</h2></div>
+    <div class="gaps" id="gaps"></div>
+  </section>
+
+  <section class="findings">
+    <div class="stage-head"><span class="eyebrow">Ranked</span><h2>All findings</h2><p>P0 hurts the demo or breaks a product rule. P1 confuses a first-time user. P2 is polish.</p></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Pri</th><th>Problem and suggested fix</th><th>Screen</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
+
+  <section class="assets stage">
+    <div class="stage-head"><span class="eyebrow">For mockups and slides</span><h2>Raw captures</h2></div>
+    <p>Full-resolution 1206 × 2622 PNGs of every screen are in <code>docs/flow/home/raw/</code> in the repo, named by step (for example <code>12-move-detail.png</code>). Screens 00–01 still show the dev-tools gear and an 8:59 clock; every other capture has it hidden and the status bar set to 9:41.</p>
+  </section>
+</div>
+
+<script>
+// Findings: id, priority, title, fix, screen ids
+const F = [
+  [1,'p0','The map shows a "Me · now" avatar at your current spot.','It reads as live location, which product rule 2 forbids. Show places and Moves only, or a neutral "you are around here" area with no person on it.',['S19']],
+  [2,'p0','"See map" from Home opens on San Francisco with "0 friends out", but every friend Move is in Menlo Park.','Frame the map around the Moves the user just saw, or around the Move they tapped from.',['S19']],
+  [3,'p0','The audience line ("Visible to 1 person: Anish") only appears after scrolling, while "Make Move" is already enabled.','Product rule 4: pin the audience line right above the Make Move button so it is always on screen when posting.',['S15','S16']],
+  [4,'p0','"Muse ranked · heuristic" and "Muse · heuristic" are shown to users.','Judges will read "heuristic" as "the AI didn\'t run". Hide the fallback tag in the UI (keep it in logs or the Muse stats card), and check Muse is answering on prod.',['S11','S15']],
+  [5,'p0','The Circle emoji picker shows "?" boxes instead of emoji.','The list in EmojiChips.tsx is real emoji, so this may be the simulator font. Check on a real phone before the demo; if it reproduces, it is a blocker.',['S08']],
+  [6,'p1','The notification prompt fires on the first onboarding screen, before anything explains why.','Ask in context (after the first Pull up, or when posting a Move). usePush() registers on every sign-in from the root layout.',['S02']],
+  [7,'p1','"Get started with Moves" repeats Find friends, Make a Circle, Turn on location, all just finished in onboarding.','Hide steps that are already done (friends > 0, a Circle exists, location granted). Today the card only hides once it is dismissed and friends > 0.',['S10']],
+  [8,'p1','After posting, your own live Move appears nowhere on Home.','Add a "You\'re live at SFO Departures · 1 can see it" banner at the top of Home that opens the Move.',['S18','S10']],
+  [9,'p1','Counts disagree on the same card: "There 4 · On the way 2" next to "5 going".','Use one count, or update "going" when you Pull up.',['S14']],
+  [10,'p1','Home shows a stock woman\'s photo for Justin Smith; the Move page shows "JS" initials.','Use one avatar source. New accounts should get the initials avatar everywhere.',['S10','S18']],
+  [11,'p1','The composer guesses the place from GPS ("Is this SFO Departures?") and drafts all-lowercase text: "running errands at sfo departures".','Capitalize drafts and place names. Order Muse picks by friends\' places, not by distance alone; "errand spot, new to you" for an airport reads as filler.',['S15']],
+  [12,'p1','After posting: "Poke them", "No suggestions this time", and a "Pick someone to poke" button.','"Poke" is a new word in a product with a fixed vocabulary. Say "Tell friends" and explain the empty state ("Muse had no one to suggest; pick anyone below").',['S17']],
+  [13,'p1','Pull up gives no confirmation: the button changes to "I\'m here / Take it back" and nothing else happens.','Show a toast ("Jordan knows you\'re on the way") and give "Take it back" a clearer name like "Not going".',['S13']],
+  [14,'p1','"Moves from friends" includes Jordan Brooks, who is not a friend (an Open Move).','Either rename the section ("Moves near you") or label Open Moves from non-friends on the card.',['S11']],
+  [15,'p1','On your own Move you are listed "On the way" and the main button is "I\'m here".','The poster is usually already there. Default the creator to "There", or ask once.',['S18']],
+  [16,'p2','Confirming a friend request removes the row with no feedback, then shows "No requests right now".','Turn the row into "Friends ✓" for a moment, then collapse it.',['S07']],
+  [17,'p2','"Create Circle" is enabled with zero members, and the member list scrolls behind the button.','Disable until someone is picked ("Pick at least one person"), and pad the list so the last row clears the button.',['S08','S09']],
+  [18,'p2','System prompts say "hackmeta-26".','Set the iOS display name (CFBundleDisplayName) to Facebook.',['S02','S05']],
+  [19,'p2','Onboarding step 1 has both "Skip" and "Not now", plus four bullets of copy.','Keep one exit. Cut to the two ideas the demo needs: post a Move, friends pull up.',['S03']],
+  [20,'p2','"Fill: Off / 5 min / 10 min" and the long Open Move copy are hard to read at a glance.','Explain Fill in one line ("Make it a Flare that ends in 5 min if nobody joins") or move it under "More options".',['S16']],
+];
+
+const P = { p0: 'P0', p1: 'P1', p2: 'P2' };
+// Screens grouped by stage. pins: [findingNo, x%, y%] on the screenshot; ok: positive notes.
+const STAGES = [
+  { eyebrow: 'Stage 1', title: 'Sign up', note: 'Fresh install against prod. No demo accounts on prod, so a new account.', screens: [
+    { id:'S00', file:'00-login', name:'Log in', cap:'Clear and familiar. Only "Create new account" helps a new user.', pins:[], ok:['Familiar Facebook login, disabled button until filled.'] },
+    { id:'S01', file:'01-signup', name:'Make your account', cap:'Name, username, password. No password rules shown.', pins:[], ok:['Short form, one primary action.'] },
+  ]},
+  { eyebrow: 'Stage 2', title: 'Onboarding', note: 'Four steps: what Moves is, location, friends, Circle.', screens: [
+    { id:'S02', file:'02-push-prompt', name:'Push prompt', cap:'Fires the moment you land on step 1.', pins:[[6,50,47],[18,50,42]] },
+    { id:'S03', file:'03-onboarding-1', name:'What Moves is', cap:'Good pitch, heavy copy.', pins:[[19,90,11]], ok:['"You always see who sees it" sets up the privacy story.'] },
+    { id:'S04', file:'04-onboarding-2', name:'A place, not you', cap:'Best screen in the flow: explains location before asking.', pins:[], ok:['Asks for location in context, with a real "Not now".'] },
+    { id:'S05', file:'05-location-prompt', name:'Location prompt', cap:'System sheet. Purpose string is good.', pins:[[18,50,36]] },
+    { id:'S06', file:'06-onboarding-3', name:'Find your friends', cap:'Seeded requests from Anish, Priya, Tony.', pins:[], ok:['Requests first, then people you may know.'] },
+    { id:'S07', file:'07-onboarding-3-after', name:'Friends confirmed', cap:'Rows vanish silently.', pins:[[16,25,42]] },
+    { id:'S08', file:'08-onboarding-4', name:'Pick a Circle', cap:'Emoji row is broken.', pins:[[5,50,54],[17,50,86]] },
+    { id:'S09', file:'09-onboarding-4-filled', name:'Circle filled', cap:'"Reach 1 person" updates live, a nice touch.', pins:[[17,50,83]], ok:['Live reach count under the name.'] },
+  ]},
+  { eyebrow: 'Stage 3', title: 'Home', note: 'The feed with Moves inserted at the top.', screens: [
+    { id:'S10', file:'10-home-top', name:'Home, top', cap:'Make a Move chip, stories, Get started card.', pins:[[10,8,17],[7,50,62]], ok:['"Make a Move" chip sits right under the composer.'] },
+    { id:'S11', file:'11-home-moves', name:'Moves from friends', cap:'Carousel of Move cards with Pull up.', pins:[[4,26,59],[14,30,44]], ok:['Pull up is one tap from Home.'] },
+  ]},
+  { eyebrow: 'Stage 4', title: 'Join a Move', note: 'Tap a card, then Pull up.', screens: [
+    { id:'S12', file:'12-move-detail', name:'Move detail', cap:'Who, where, who is in. Clear hierarchy.', pins:[], ok:['Open Move tag says exactly who can find it.'] },
+    { id:'S13', file:'13-pulled-up', name:'Pulled up', cap:'You join "On the way". No confirmation.', pins:[[13,72,50]] },
+    { id:'S14', file:'14-home-going', name:'Back on Home', cap:'Card flips to "Going".', pins:[[9,30,61]] },
+  ]},
+  { eyebrow: 'Stage 5', title: 'Make a Move', note: 'Composer, send step, your live Move.', screens: [
+    { id:'S15', file:'15-composer', name:'Composer', cap:'Where, What, Who. Audience is off-screen.', pins:[[11,40,22],[4,40,38],[3,50,92]] },
+    { id:'S16', file:'16-composer-who', name:'Composer, scrolled', cap:'Audience line finally visible.', pins:[[3,50,83],[20,25,72]], ok:['Audience line names the exact person.'] },
+    { id:'S17', file:'17-send-step', name:'Your Move is live', cap:'Muse found nobody to suggest.', pins:[[12,30,26]] },
+    { id:'S18', file:'18-my-move', name:'Your Move', cap:'Live, audience card, End Move.', pins:[[15,50,47],[10,10,17],[8,50,82]], ok:['"Visible to 1: Roommates, Anish" on the page.'] },
+  ]},
+  { eyebrow: 'Stage 6', title: 'See map', note: '"See map" from Home.', screens: [
+    { id:'S19', file:'19-see-map', name:'Map', cap:'San Francisco, 0 friends out, an avatar on your spot.', pins:[[1,50,50],[2,22,11]], ok:['"Ask Muse to plan a Move" is a strong entry point.'] },
+  ]},
+];
+
+const GAPS = [
+  ['Muse never shows up on Home', 'A new account sees no Muse suggestion card and no Flare. The core AI only appears as "heuristic" tags. Add a Demo Control trigger that drops one suggestion card on Home for the demo.'],
+  ['No "you are live" state', 'Once a Move is posted, Home has no trace of it. Users need a persistent way back to their live Move to see who is coming and to end it.'],
+  ['No feedback after Pull up', 'Nothing tells you the poster was told, or how to get there. A toast plus a directions link would close the loop.'],
+  ['Map and Home disagree', 'Home says friends are out in Menlo Park; the map says 0 friends out in San Francisco. Pick one area and use it on both.'],
+];
+
+const byNum = Object.fromEntries(F.map(f => [f[0], f]));
+const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
+
+const counts = { p0: 0, p1: 0, p2: 0 }; F.forEach(f => counts[f[1]]++);
+const tally = document.getElementById('tally');
+['p0','p1','p2'].forEach(p => tally.append(el('span', 'chip ' + p, `${counts[p]} × ${P[p]}`)));
+
+const root = document.getElementById('stages');
+STAGES.forEach(st => {
+  const sec = el('section', 'stage');
+  const head = el('div', 'stage-head');
+  head.append(el('span', 'eyebrow', st.eyebrow), el('h2', null, st.title), el('p', null, st.note));
+  const lane = el('div', 'lane');
+  st.screens.forEach(s => {
+    const card = el('article', 'screen');
+    const lab = el('div', 'label'); lab.append(el('span', 'id', s.id), el('span', 'name', s.name));
+    const phone = el('div', 'phone');
+    const img = el('img'); img.src = `shots/${s.file}.jpg`; img.alt = `${s.id} ${s.name}`; img.loading = 'lazy';
+    phone.append(img);
+    s.pins.forEach(([n, x, y]) => { const p = el('span', 'pin', String(n)); p.style.left = x + '%'; p.style.top = y + '%'; p.title = byNum[n][2]; phone.append(p); });
+    card.append(lab, phone, el('p', 'caption', s.cap));
+    if (s.pins.length) {
+      const ul = el('ul', 'notes');
+      [...new Set(s.pins.map(p => p[0]))].forEach(n => { const li = el('li'); li.append(el('span', 'n', String(n)), el('span', null, byNum[n][2])); ul.append(li); });
+      card.append(ul);
+    }
+    if (s.ok && s.ok.length) {
+      const ul = el('ul', 'notes ok');
+      s.ok.forEach(t => { const li = el('li'); li.append(el('span', 'n', '✓'), el('span', null, t)); ul.append(li); });
+      card.append(ul);
+    }
+    lane.append(card);
+  });
+  sec.append(head, lane);
+  root.append(sec);
+});
+
+const gaps = document.getElementById('gaps');
+GAPS.forEach(([t, d]) => { const g = el('div', 'gap'); g.append(el('h3', null, t), el('p', null, d)); gaps.append(g); });
+
+const rows = document.getElementById('rows');
+F.forEach(([n, p, t, fix, scr]) => {
+  const tr = el('tr');
+  const td = el('td'); td.append(document.createTextNode(t)); td.append(el('span', 'fix', fix));
+  tr.append(el('td', 'num', String(n)), (() => { const c = el('td'); c.append(el('span', 'chip ' + p, P[p])); return c; })(), td, el('td', 'where', scr.join(', ')));
+  rows.append(tr);
+});
+</script>

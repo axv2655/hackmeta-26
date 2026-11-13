@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { cubicBezier, FadeIn, useReducedMotion } from 'react-native-reanimated';
 
 import { Icon } from '@/components/ui/Icon';
+import { isMetaMenuId, MetaMenuIcon } from '@/components/ui/MetaMenuIcon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection } from '@/lib/haptics';
 import type { MenuRow } from '@/lib/mock';
@@ -45,7 +46,12 @@ export function AccordionSection({ row, leading, defaultOpen = false, onPressIte
         style={styles.header}
       >
         <View style={styles.headerIcon}>
-          {leading ?? <Icon name={row.icon} size={HEADER_ICON} color={colors.textSecondary} />}
+          {leading ??
+            (isMetaMenuId(row.id) ? (
+              <MetaMenuIcon id={row.id} size={HEADER_ICON} />
+            ) : (
+              <Icon name={row.icon} size={HEADER_ICON} color={colors.textSecondary} />
+            ))}
         </View>
         <Text style={styles.title} numberOfLines={1}>
           {row.label}
@@ -78,9 +84,13 @@ export function AccordionSection({ row, leading, defaultOpen = false, onPressIte
               accessibilityLabel={item.label}
               style={styles.item}
             >
-              <View style={styles.itemIcon}>
-                <Icon name={item.icon} size={22} color={colors.text} />
-              </View>
+              {isMetaMenuId(item.id) ? (
+                <MetaMenuIcon id={item.id} size={36} />
+              ) : (
+                <View style={styles.itemIcon}>
+                  <Icon name={item.icon} size={22} color={colors.text} />
+                </View>
+              )}
               <Text style={styles.itemLabel} numberOfLines={1}>
                 {item.label}
               </Text>

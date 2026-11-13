@@ -23,6 +23,7 @@ EXPECTED = {
     # messages
     "move_invites",
     "credentials",
+    "auth_sessions",
     "mcp_tokens",
     "push_tokens",
     "friend_requests",

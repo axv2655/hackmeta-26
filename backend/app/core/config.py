@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Unset: no /demo routes, system time. "on": Demo Control and a shiftable
     # clock. "offline": same, and Muse is replaced by its fake client.
     DEMO_MODE: Literal["on", "offline"] | None = None
+    # On: requests must carry a login session token (core/session_auth.py); a
+    # bare X-User-Id is ignored. Off: the mock "pick a user" flow still works.
+    AUTH_REQUIRE_SESSION: bool = False
 
     # Muse model API (ARCHITECTURE.md 3.2); read only by the muse lane.
     MUSE_BASE_URL: HttpUrl | None = None

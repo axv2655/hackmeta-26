@@ -94,7 +94,9 @@ function zoneHeaders(): [string, string][] {
  */
 export async function backendFetch<T = unknown>(path: string, options: BackendFetchOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  // FormData (photo uploads) sets its own multipart Content-Type with the boundary.
+  const json = options.body && !(options.body instanceof FormData);
+  if (json && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   for (const [name, value] of zoneHeaders()) headers.set(name, value);
   let res: FetchResponse;
   try {
@@ -125,7 +127,7 @@ export function errorMessage(e: unknown): string {
   return 'Something went wrong';
 }
 
-/** Glasses calls. They take the user id because this module cannot import the session store. */
+/** Glasses calls. They take the auth headers (`authHeaders()`) because this module cannot import the session store. */
 export const api = {
   /**
    * "Hey Meta, start a Move": turn an utterance into a draft. Posts nothing.
@@ -133,27 +135,27 @@ export const api = {
    * nearest-Mark lookup and never stores them. Takes the user id because this module
    * cannot import the session store (it imports us).
    */
-  glassesCommand: (userId: string, body: { utterance: string; lat?: number; lng?: number }) =>
+  glassesCommand: (auth: Record<string, string>, body: { utterance: string; lat?: number; lng?: number }) =>
     backendFetch<GlassesDraft>('/glasses/command', {
       method: 'POST',
       body: JSON.stringify(body),
-      headers: { 'X-User-Id': userId },
+      headers: auth,
     }),
   /**
    * Tell the server where this phone is (coarse, ~100 m) so the glasses/MCP flow can
    * pick the nearest place. Kept in memory for 30 minutes, only with location sharing on.
    */
-  glassesLocation: (userId: string, point: { lat: number; lng: number }) =>
+  glassesLocation: (auth: Record<string, string>, point: { lat: number; lng: number }) =>
     backendFetch<{ stored: boolean }>('/glasses/location', {
       method: 'POST',
       body: JSON.stringify(point),
-      headers: { 'X-User-Id': userId },
+      headers: auth,
     }),
   /** Post the pending draft. Repeating it returns the same Move; 409 means "say it again". */
-  glassesConfirm: (userId: string, draftId?: string | null) =>
+  glassesConfirm: (auth: Record<string, string>, draftId?: string | null) =>
     backendFetch<GlassesPosted>('/glasses/confirm', {
       method: 'POST',
       body: JSON.stringify({ draft_id: draftId ?? null }),
-      headers: { 'X-User-Id': userId },
+      headers: auth,
     }),
 };

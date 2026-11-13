@@ -35,6 +35,14 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Moves uses the camera so you can snap the Move you're at. Snapshots only go to people who can already see that Move.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "./plugins/withManualSigning",
         {
           "teamId": "DVX8YZ9GG9",

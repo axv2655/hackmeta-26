@@ -6,6 +6,7 @@
     "@gorhom/bottom-sheet": "^5.2.14",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.33",
+    "expo-camera": "~57.0.6",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.24",
     "expo-dev-client": "~57.0.21",
@@ -24,6 +25,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
+    "leaflet": "^1.9.4",
     "lucide-react-native": "^1.72.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -46,6 +48,7 @@
   },
   "private": true,
   "devDependencies": {
+    "@types/leaflet": "^1.9.12",
     "@types/react": "~19.2.4",
     "typescript": "~6.0.3"
   }

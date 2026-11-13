@@ -17,6 +17,7 @@ from app.api.deps import ContainerDep
 from app.api.deps_core import UserServiceDep
 from app.core.db import SessionDep
 from app.models.users import UserLite
+from app.repositories.sessions import SessionStore
 from app.services.accounts import AccountService
 
 router = APIRouter(tags=["auth"])
@@ -36,6 +37,8 @@ class LoginIn(BaseModel):
 class AccountOut(BaseModel):
     user: UserLite
     username: str
+    # Send as "Authorization: Bearer <session_token>" on every request.
+    session_token: str
 
 
 @router.get("/auth/users")
@@ -47,7 +50,10 @@ def list_login_users(service: UserServiceDep) -> list[UserLite]:
 def signup(body: SignupIn, session: SessionDep, container: ContainerDep) -> AccountOut:
     accounts = AccountService(session, container.clock)
     user, username = accounts.signup(body.name, body.username, body.password)
-    return AccountOut(user=UserLite.model_validate(user), username=username)
+    token = SessionStore(session, container.clock).issue(user.id)
+    return AccountOut(
+        user=UserLite.model_validate(user), username=username, session_token=token
+    )
 
 
 @router.post("/auth/login")
@@ -55,4 +61,7 @@ def login(body: LoginIn, session: SessionDep, container: ContainerDep) -> Accoun
     user, username = AccountService(session, container.clock).login(
         body.username, body.password
     )
-    return AccountOut(user=UserLite.model_validate(user), username=username)
+    token = SessionStore(session, container.clock).issue(user.id)
+    return AccountOut(
+        user=UserLite.model_validate(user), username=username, session_token=token
+    )

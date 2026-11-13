@@ -21,9 +21,14 @@ export type AvatarPinProps = {
   /** User ids of the people already there (the avatar trail). */
   trail?: string[];
   selected?: boolean;
+  /** The signed-in user (their "Me" pin or their own Move): bigger. */
+  me?: boolean;
 };
 
 const BODY = 66;
+const BODY_ME = 86;
+const SELECTED_SCALE = 1.35;
+const SELECTED_SCALE_ME = 1.12;
 const TRAIL_MAX = 3;
 
 /**
@@ -31,9 +36,11 @@ const TRAIL_MAX = 3;
  * shadow, with a name label under its feet. Ghosts (were there in the last
  * day) are gray. A live pin carries small faces of the people already there.
  */
-export function AvatarPin({ image, name, detail, badge, status = 'there', extraCount = 0, trail = [], selected = false }: AvatarPinProps) {
+export function AvatarPin({ image, name, detail, badge, status = 'there', extraCount = 0, trail = [], selected = false, me = false }: AvatarPinProps) {
   const ghost = status === 'ghost';
-  const size = selected ? BODY * 1.2 : BODY;
+  const isMe = me || status === 'me';
+  const base = isMe ? BODY_ME : BODY;
+  const size = selected ? base * (isMe ? SELECTED_SCALE_ME : SELECTED_SCALE) : base;
   const faces = ghost ? [] : trail.slice(0, TRAIL_MAX);
 
   return (

@@ -1,3 +1,4 @@
+import { requireOptionalNativeModule } from 'expo';
 import { Linking, Platform, Share } from 'react-native';
 
 import { BACKEND_URL } from './backend';
@@ -34,38 +35,51 @@ export function connectPrompt(token: string, url: string = MCP_URL): string {
   ].join('\n');
 }
 
-type ClipboardModule = { setStringAsync: (text: string) => Promise<boolean> };
+type NativeClipboard = {
+  setStringAsync?: (text: string, options: { inputFormat: 'plainText' }) => Promise<boolean>;
+};
 
 /**
- * expo-clipboard is loaded lazily: a dev build made before it was added has
- * no native module, and then we fall back to the share sheet (which has Copy).
+ * The native clipboard, or null when this build doesn't include it (a dev
+ * build made before expo-clipboard was added). Looked up optionally instead of
+ * importing expo-clipboard, whose import throws when the module is missing.
  */
-function clipboard(): ClipboardModule | null {
+function nativeClipboard(): NativeClipboard | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('expo-clipboard') as ClipboardModule;
+    return requireOptionalNativeModule<NativeClipboard>('ExpoClipboard');
   } catch {
     return null;
   }
 }
 
-/** Copies `text`. Resolves 'copied', or 'shared' when it fell back to the share sheet. */
-export async function copyText(text: string): Promise<'copied' | 'shared'> {
-  if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-    await navigator.clipboard.writeText(text);
-    return 'copied';
-  }
-  const native = clipboard();
-  if (native) {
-    try {
-      await native.setStringAsync(text);
-      return 'copied';
-    } catch {
-      // Native module missing at call time: share sheet below.
+async function tryClipboard(text: string): Promise<boolean> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof navigator === 'undefined' || !navigator.clipboard) return false;
+      await navigator.clipboard.writeText(text);
+      return true;
     }
+    const native = nativeClipboard();
+    if (!native?.setStringAsync) return false;
+    await native.setStringAsync(text, { inputFormat: 'plainText' });
+    return true;
+  } catch {
+    return false;
   }
-  await Share.share({ message: text });
-  return 'shared';
+}
+
+/**
+ * Copies `text`. Never throws: 'copied', 'shared' when it fell back to the
+ * share sheet (which has Copy), or 'failed' when neither worked.
+ */
+export async function copyText(text: string): Promise<'copied' | 'shared' | 'failed'> {
+  if (await tryClipboard(text)) return 'copied';
+  try {
+    await Share.share({ message: text });
+    return 'shared';
+  } catch {
+    return 'failed';
+  }
 }
 
 export async function openMuse(): Promise<void> {

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/ui/Icon';
-import { isMetaShortcut, MetaShortcutIcon } from '@/components/ui/MetaShortcutIcon';
+import { isMetaMenuId, MetaMenuIcon } from '@/components/ui/MetaMenuIcon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import type { MenuShortcut } from '@/lib/mock';
 import { colors, fontWeights, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
@@ -9,6 +9,7 @@ import { colors, fontWeights, radius, shadows, spacing, type as typeScale } from
 export const TILE_HEIGHT = 96;
 const TILE_ICON = 24;
 const ICON_WELL = 40;
+const META_ICON = 36;
 
 /** The accent at 10% opacity; colors that are not #RRGGBB fall back to the page gray. */
 function softFill(color: string): string {
@@ -27,7 +28,7 @@ export type ShortcutTileProps = {
 /** White 16pt-rounded shortcut tile: colored icon on a soft tinted well top-left, label bottom-left. */
 export function ShortcutTile({ shortcut, onPress, isNew = false, tagline }: ShortcutTileProps) {
   const badge = isNew ? 'New' : shortcut.badge;
-  const metaName = shortcut.id.replace('shortcut-', '');
+  const { id } = shortcut;
 
   return (
     <PressableScale
@@ -38,10 +39,10 @@ export function ShortcutTile({ shortcut, onPress, isNew = false, tagline }: Shor
       style={styles.tile}
     >
       <View style={styles.top}>
-        {/* Soft fill: the tile's accent at low opacity behind the glyph. */}
-        <View style={[styles.iconWell, { backgroundColor: softFill(shortcut.color) }]}>
-          {isMetaShortcut(metaName) ? (
-            <MetaShortcutIcon name={metaName} size={TILE_ICON} />
+        {/* Facebook's own full-color icon where it has one; else our glyph on a soft accent fill. */}
+        <View style={[styles.iconWell, !isMetaMenuId(id) && { backgroundColor: softFill(shortcut.color) }]}>
+          {isMetaMenuId(id) ? (
+            <MetaMenuIcon id={id} size={META_ICON} />
           ) : <Icon name={shortcut.icon} size={TILE_ICON} color={shortcut.color} />}
         </View>
         {isNew ? (

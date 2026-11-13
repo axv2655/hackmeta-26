@@ -62,7 +62,7 @@ async def test_participants_cluster_and_quiet_hours_never_notified(
     got = nudged(world)
     # anish is a participant, priya is co-present with tony, dev is in quiet hours
     assert set(got) == {"maya", "riley", "sam"}
-    assert got["maya"].body.startswith("Hey Maya,")
+    assert got["maya"].body.startswith("Tony posted ")
     assert got["maya"].data["move_id"] == "mv1"
     assert got["maya"].data["route"] == "/move/mv1"
     published = ports["events"].of_type("notification")
@@ -102,7 +102,7 @@ async def test_confirmed_notify_list_forces_in_and_out(
     await hooks.on_move_created.fire("mv2")
     got = nudged(world)
     assert set(got) == {"dev", "sam"}  # outsider is not in the audience
-    assert got["sam"].body.startswith("Hey Sam")
+    assert got["sam"].body.startswith("Tony posted ")
 
 
 async def test_works_with_null_proximity_and_fake_muse(engine, world, clock) -> None:
@@ -114,7 +114,7 @@ async def test_works_with_null_proximity_and_fake_muse(engine, world, clock) -> 
     assert set(nudged(world)) == {"maya"}  # cap ceil(2/2) = 1, best affinity
 
 
-async def test_muse_written_copy_is_used(engine, world, clock, ports) -> None:
+async def test_poking_never_waits_on_muse(engine, world, clock, ports) -> None:
     def answer(system, prompt):
         rows = prompt.split("Candidates:\n")[1].splitlines()[1:]
         first = rows[0].split("|")[0]
@@ -124,7 +124,9 @@ async def test_muse_written_copy_is_used(engine, world, clock, ports) -> None:
     client = FakeMuseClient({"notify_picker": answer})
     _, hooks, _, _ = f.wire(engine, clock, client, **ports)
     await hooks.on_move_created.fire("mv1")
-    assert nudged(world)["maya"].body == "Hey Maya, Tony's at Kumo rn"
+    assert [c for c in client.calls if "notify" in str(c)] == []
+    bodies = {n.body for n in nudged(world).values()}
+    assert len(bodies) == 1 and next(iter(bodies)).startswith("Tony posted ")
 
 
 async def test_join_tells_creator_and_nudges_joiners_close_friends(
@@ -205,7 +207,7 @@ def test_notify_preview_route_sends_nothing(engine, world, clock) -> None:
     picks = r.json()
     # audience maya, riley, dev, sam (cap 2); dev is in quiet hours
     assert [p["user"]["id"] for p in picks] == ["maya", "riley"]
-    assert picks[0]["copy"].startswith("Hey Maya")
+    assert "posted" in picks[0]["copy"] and "Hey" not in picks[0]["copy"]
     assert "lat" not in picks[0]["user"]
     assert world.exec(select(Notification)).all() == []
     assert events.published == []

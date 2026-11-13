@@ -40,6 +40,7 @@ def request(**kw) -> NotifyRequest:
         candidates=CANDS,
         audience_size=8,
         there=[("tony", "Tony"), ("anish", "Anish")],
+        use_muse=True,  # these tests cover the Muse path; the default is below
     )
     return NotifyRequest(**{**base, **kw})
 
@@ -83,7 +84,10 @@ async def test_valid_output_parses_and_restores_names() -> None:
     r, _ = runner(alias_answer("maya", "priya"))
     result = await pick(r, request())
     assert [p.user_id for p in result.picks] == ["maya", "priya"]
-    assert result.picks[0].copy == "Hey Maya, Tony's at Kumo"
+    assert (
+        result.picks[0].copy
+        == 'Tony posted "getting matcha" at Kumo. Anish\'s already there.'
+    )
     assert result.picks[0].reason == "matcha regular"
     assert "{u" not in result.skipped_note
 
@@ -99,7 +103,7 @@ async def test_cap_is_enforced_and_forced_adds_go_on_top() -> None:
     result = await pick(r, request(audience_size=3, force_ids=frozenset({"dev"})))
     ids = [p.user_id for p in result.picks]
     assert ids == ["maya", "priya", "dev"]  # cap 2, then the forced (busy) pick
-    assert result.picks[-1].copy.startswith("Hey Dev")
+    assert result.picks[-1].copy.startswith("Tony posted")
 
 
 async def test_dropped_ids_never_picked() -> None:
@@ -108,16 +112,33 @@ async def test_dropped_ids_never_picked() -> None:
     assert [p.user_id for p in result.picks] == ["priya"]
 
 
-async def test_copy_without_hey_first_name_gets_template() -> None:
+async def test_copy_is_the_fixed_line_never_muse_output() -> None:
     def answer(system, prompt):
         return {"picks": [{"user": "u3", "copy": "yo come thru", "reason": ""}]}
 
     r, _ = runner(answer)
     [p] = (await pick(r, request())).picks
-    assert (
-        p.copy
-        == 'Hey Maya, Tony posted "getting matcha" at Kumo. Anish\'s already there.'
-    )
+    assert p.copy == 'Tony posted "getting matcha" at Kumo. Anish\'s already there.'
+
+
+async def test_default_is_deterministic_and_never_calls_muse() -> None:
+    r, client = runner(alias_answer("priya"))
+    first = await pick(r, request(use_muse=False))
+    again = await pick(r, request(use_muse=False))
+    assert client.calls == []
+    # top of the affinity ranking: never busy, unverified stretch skipped, cap 4
+    assert [p.user_id for p in first.picks] == ["maya", "priya", "sam"]
+    assert first.picks == again.picks
+    assert {p.source for p in first.picks} == {"heuristic"}
+    assert {p.copy for p in first.picks} == {
+        'Tony posted "getting matcha" at Kumo. Anish\'s already there.'
+    }
+
+
+async def test_fill_timer_goes_into_the_line() -> None:
+    r, _ = runner("unused")
+    [p, *_] = (await pick(r, request(use_muse=False, join_minutes=10, there=()))).picks
+    assert p.copy == 'Tony posted "getting matcha" at Kumo. 10 min to join.'
 
 
 async def test_garbage_output_triggers_fallback() -> None:
@@ -126,7 +147,9 @@ async def test_garbage_output_triggers_fallback() -> None:
     assert len(client.calls) == 2
     # top N by affinity, never busy, unverified stretch skipped; cap 4 + forced
     assert [p.user_id for p in result.picks] == ["maya", "priya", "sam", "riley"]
-    assert all(p.copy.startswith(f"Hey {p.user_id.title()},") for p in result.picks)
+    assert {p.copy for p in result.picks} == {
+        'Tony posted "getting matcha" at Kumo. Anish\'s already there.'
+    }
 
 
 async def test_all_invalid_aliases_is_rejected_then_falls_back() -> None:

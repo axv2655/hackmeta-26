@@ -835,6 +835,12 @@ make Muse's work visible to judges and make the app honest with users.
 
 ### 10.3 Notify picker (P0) — `agents/notify_picker.py`
 
+> **As built:** the pick is deterministic by default. It takes the top of the affinity ranking from 10.1 under the
+> same hard rules (cap, never busy, one verified stretch), with no model call, so the poke step is instant. Every
+> nudge reads one fixed line: `{creator} posted "{text}" at {Mark}.` plus the minutes left to join when the Move has
+> a fill timer and who is already there. Muse can still make the pick when a request sets `use_muse`; it never
+> writes the line. The description below is the Muse path.
+
 - **When**: Move creation, second-order joins, composer preview (`POST /muse/notify-preview`).
 - **Input**: Move (text, category, Mark, time), creator, candidate rows from 10.1, who is already there, cap N.
 - **Output**: `{ "picks": [{ "user": "u3", "copy": "...", "reason": "..." }], "skipped_note": "..." }`

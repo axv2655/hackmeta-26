@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type BottomSheet from '@gorhom/bottom-sheet';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, Extrapolation } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { MovesMap, type MovesMapHandle } from '@/components/moves/MovesMap';
 import { MovesSheet, SHEET_COLLAPSED, useSheetBottomInset } from '@/components/moves/MovesSheet';
@@ -10,7 +11,8 @@ import { GlassSurface } from '@/components/ui/Glass';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection, tap } from '@/lib/haptics';
-import { getMapMove, mapMoves } from '@/lib/mock/moves';
+import { mapMoves } from '@/lib/mock/moves';
+import { useMyMoves } from '@/lib/store/moves';
 import { colors } from '@/lib/theme';
 
 /**
@@ -28,17 +30,37 @@ export default function MovesScreen() {
   const sheetIndex = useSharedValue(0);
   const [settledIndex, setSettledIndex] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const router = useRouter();
+  const mine = useMyMoves((s) => s.mine);
+  const focusId = useMyMoves((s) => s.focusId);
+  // The user's own posted Moves sit on top of the (mock) world.
+  const moves = useMemo(() => [...mine, ...mapMoves], [mine]);
 
-  const selected = selectedId ? getMapMove(selectedId) ?? null : null;
+  const selected = selectedId ? moves.find((m) => m.id === selectedId) ?? null : null;
 
-  const select = useCallback((id: string) => {
-    const move = getMapMove(id);
-    if (!move) return;
-    tap();
-    setSelectedId(id);
-    sheetRef.current?.snapToIndex(1);
-    mapRef.current?.focus(move.mark.coordinate);
-  }, []);
+  const select = useCallback(
+    (id: string) => {
+      const move = moves.find((m) => m.id === id);
+      if (!move) return;
+      tap();
+      setSelectedId(id);
+      sheetRef.current?.snapToIndex(1);
+      mapRef.current?.focus(move.mark.coordinate);
+    },
+    [moves],
+  );
+
+  // Coming back from the composer: open the Move that was just posted. Clear
+  // the request only when the timer fires; clearing it first would re-run this
+  // effect and cancel the timer. The wait lets the composer finish dismissing.
+  useEffect(() => {
+    if (!focusId) return;
+    const timer = setTimeout(() => {
+      useMyMoves.getState().focus(null);
+      select(focusId);
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [focusId, select]);
 
   const clear = useCallback(() => {
     setSelectedId((current) => {
@@ -52,7 +74,7 @@ export default function MovesScreen() {
   // Floating map controls slide up out of the way when the sheet goes full height.
   const controlsStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateY: interpolate(sheetIndex.value, [1, 2], [0, -(insets.top + 140)], Extrapolation.CLAMP) },
+      { translateY: interpolate(sheetIndex.value, [1, 2], [0, -(insets.top + 200)], Extrapolation.CLAMP) },
     ],
   }));
 
@@ -60,7 +82,7 @@ export default function MovesScreen() {
     <View style={styles.root}>
       <MovesMap
         ref={mapRef}
-        moves={mapMoves}
+        moves={moves}
         selectedId={selectedId}
         onSelect={select}
         onClear={clear}
@@ -71,7 +93,7 @@ export default function MovesScreen() {
       <Animated.View pointerEvents="box-none" style={[styles.top, { top: insets.top + 6 }, controlsStyle]}>
         <GlassSurface radius={22} style={styles.titlePill}>
           <Text style={styles.title}>Richardson</Text>
-          <Text style={styles.subtitle}>{mapMoves.filter((m) => m.status !== 'ghost').length} friends out · 73°</Text>
+          <Text style={styles.subtitle}>{moves.filter((m) => m.status !== 'ghost').length} friends out · 73°</Text>
         </GlassSurface>
 
         <GlassSurface radius={26} style={styles.controls}>
@@ -95,12 +117,25 @@ export default function MovesScreen() {
           >
             <Icon name="navigation" size={21} color={colors.blue} />
           </PressableScale>
+          <View style={styles.controlDivider} />
+          {/* Make a Move (ARCHITECTURE.md 7.2): where, what, who; then notify or share. */}
+          <PressableScale
+            accessibilityLabel="Make a Move"
+            onPress={() => {
+              selection();
+              router.push('/move/new');
+            }}
+            style={styles.controlButton}
+            scaleTo={0.9}
+          >
+            <Icon name="message-plus" size={22} color={colors.blue} />
+          </PressableScale>
         </GlassSurface>
       </Animated.View>
 
       <MovesSheet
         ref={sheetRef}
-        moves={mapMoves}
+        moves={moves}
         selected={selected}
         onSelect={select}
         onClose={clear}

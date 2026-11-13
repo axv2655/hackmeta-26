@@ -209,3 +209,43 @@ def test_notify_preview_route_sends_nothing(engine, world, clock) -> None:
     assert "lat" not in picks[0]["user"]
     assert world.exec(select(Notification)).all() == []
     assert events.published == []
+
+
+def test_post_then_notify_route_sends_only_the_confirmed_list(
+    engine, world, clock, ports
+) -> None:
+    ports["moves"].put(move_snap("mv3", "tony", notify_user_ids=()), AUDIENCE)
+    app, _ = f.make_app(engine, clock, **ports)
+    with TestClient(app) as client:
+        h = {"X-User-Id": "tony"}
+        r = client.post(
+            "/api/v1/moves/mv3/notify", headers=h, json={"user_ids": ["sam", "zed"]}
+        )
+        assert r.status_code == 200
+        assert [p["user"]["id"] for p in r.json()] == ["sam"]  # zed: not in audience
+        again = client.post(
+            "/api/v1/moves/mv3/notify", headers=h, json={"user_ids": ["sam"]}
+        )
+        assert again.json() == []  # already nudged
+        other = {"X-User-Id": "maya"}
+        body = {"user_ids": ["sam"]}
+        assert (
+            client.post(
+                "/api/v1/moves/mv3/notify", headers=other, json=body
+            ).status_code
+            == 403
+        )
+        assert (
+            client.post("/api/v1/moves/nope/notify", headers=h, json=body).status_code
+            == 404
+        )
+    assert set(nudged(world)) == {"sam"}
+
+
+async def test_empty_notify_list_at_creation_nudges_nobody(
+    engine, world, clock, ports
+) -> None:
+    ports["moves"].put(move_snap("mv4", "tony", notify_user_ids=()), AUDIENCE)
+    _, hooks, _, _ = f.wire(engine, clock, **ports)
+    await hooks.on_move_created.fire("mv4")
+    assert nudged(world) == {}

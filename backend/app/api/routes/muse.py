@@ -1,7 +1,7 @@
 """Muse routes (ARCHITECTURE.md 14.2). Muse lane: M4, M5, M8.
 
 POST /muse/notify-preview (M4), POST /muse/compose-move (M5),
-POST /muse/suggest-spots (M8)
+POST /muse/suggest-spots (M8), POST /moves/{id}/notify (composer step 2)
 
 (The issues name separate `muse_compose.py` / `muse_spots.py` modules; the
 frozen `api/main.py` on this branch includes only this one, so all three
@@ -10,7 +10,7 @@ live here.)
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.db import SessionDep
@@ -43,6 +43,37 @@ async def notify_preview(
         category=body.category,
         circle_ids=body.circle_ids,
         user_ids=body.user_ids,
+    )
+    return picks_out(session, picks)
+
+
+class NotifyMoveBody(BaseModel):
+    """Who to nudge now. Posted Moves start with nobody notified when the
+    composer sends `notify_user_ids: []`; this sends the confirmed list."""
+
+    user_ids: list[str]
+
+
+@router.post("/moves/{move_id}/notify")
+async def notify_move(
+    move_id: str,
+    body: NotifyMoveBody,
+    session: SessionDep,
+    user: CurrentUser,
+    lane: LaneDep,
+) -> list[dict[str, Any]]:
+    """Nudge exactly `user_ids` (only audience members; anyone already nudged
+    for this Move is skipped). Only the creator may send. Returns who was
+    nudged, with Muse's line and reason for each."""
+    move = lane.container.moves.get(move_id)
+    if move is None or move.status != "live":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Move not found")
+    if move.creator_id != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the creator can notify")
+    audience = lane.container.moves.audience_ids(move_id)
+    force = set(body.user_ids) & audience
+    picks = await lane.call(
+        NotifyService, "notify_move", move_id, force, audience - force
     )
     return picks_out(session, picks)
 

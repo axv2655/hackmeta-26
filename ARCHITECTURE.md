@@ -525,6 +525,17 @@ Server on `POST /moves`:
 4. Run the notify pipeline (section 9.2) for the rest.
 5. Publish `move.created` to every audience member's socket.
 
+**As built (two steps, `app/move/new.tsx`).** The Moves map has a message-plus button
+under the map-style and center buttons. Step 1 is only where, a short description
+(Muse's draft plus alternate chips) and who (Circles / Facebook Groups with a "Group"
+tag, plus friends), with the AudienceLine. **Make Move** posts with
+`notify_user_ids: []`, so nobody is poked yet. Step 2 ("Your Move is live") shows
+Muse's picks from `/muse/notify-preview` (with reasons) plus anyone picked by hand,
+pre-checked; **Poke N** calls `POST /moves/{id}/notify {user_ids}`, which pokes only
+audience members not already poked. **Share link** sends the no-login `/m/{token}`
+page from the user's own phone (9.4). **Done** opens the new Move's card on the map.
+Without a backend the composer runs on the mock world and the Move stays local.
+
 ### 7.3 Pull up, arrive, leave
 
 State machine for `move_participants.status`:
@@ -1163,6 +1174,7 @@ type Notification = { id: string; type: string; title: string; body: string;
 | POST | `/audience/preview` | `{circle_ids, user_ids}` → `AudienceSummary` |
 | POST | `/muse/compose-move` | `{lat?, lng?, mark_id?, seed_text?}` → `MoveDraft` |
 | POST | `/muse/notify-preview` | `{mark_id, text, circle_ids, user_ids}` → `NotifyPick[]` |
+| POST | `/moves/{id}/notify` | `{user_ids}` → pokes that list now (creator only, audience only, skips anyone already poked) |
 | POST | `/muse/suggest-spots` | `{user_ids, category?}` → Marks with reasons |
 | POST | `/moves` | create (body: `mark_id`, text/category/audience fields from `MoveDraft`, plus `open`, `origin`, `notify_user_ids`; do not send a nested Mark) |
 | GET | `/moves/nearby?lat&lng&radius_km` | visible live Moves, Muse-ranked |

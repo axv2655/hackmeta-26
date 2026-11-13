@@ -309,6 +309,8 @@ function MoveCard({
       <View style={styles.actions}>
         {ghost ? (
           <Button title="See Moments" icon="images" variant="primary" style={styles.flex} />
+        ) : move.user.id === currentUser.id ? (
+          <Button title="Your Move" icon="check" variant="tinted" style={styles.flex} />
         ) : (
           <Button
             title={pulled ? "You're going" : 'Pull up'}

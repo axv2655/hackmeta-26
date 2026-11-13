@@ -32,6 +32,11 @@ export default function RootLayout() {
             options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
           />
           <Stack.Screen name="post/share" />
+          {/* Make a Move from the Moves map (ARCHITECTURE.md 7.2). */}
+          <Stack.Screen
+            name="move/new"
+            options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+          />
           <Stack.Screen name="+not-found" />
         </Stack>
         <SplashOverlay />

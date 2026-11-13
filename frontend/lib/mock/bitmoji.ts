@@ -54,3 +54,24 @@ const byUser: Record<string, BitmojiSet> = {
 export function bitmojiFor(userId: string, pose: BitmojiPose = 'walk'): ImageRef {
   return (byUser[userId] ?? a)[pose];
 }
+
+/** The pose that fits a Move's category, for pins of newly posted Moves. */
+export function bitmojiPoseFor(category: string): BitmojiPose {
+  switch (category) {
+    case 'study':
+      return 'study';
+    case 'gym':
+      return 'gym';
+    case 'music':
+      return 'music';
+    case 'party':
+      return 'dance';
+    case 'shopping':
+      return 'strut';
+    case 'coffee':
+    case 'food':
+      return 'snack';
+    default:
+      return 'walk';
+  }
+}

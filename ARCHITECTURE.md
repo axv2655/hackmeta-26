@@ -19,6 +19,17 @@ Facebook surface; we never touch production Facebook code.
 
 ### 1.2 The idea
 
+The audience goal is to give young adults a reason to use Facebook alongside
+Instagram: a place to share everyday activities and spontaneously spend time with
+friends. Moves complements their existing social habits. Mobile is the primary
+experience; web supports moments when someone already has a laptop open, such as
+studying at a library or café.
+
+The starting hypothesis is that people who enjoy the awareness of friends offered
+by location sharing may value an explicit, low-pressure invitation to join them.
+Moves shares activities at chosen places under the privacy rules in 1.5; it does
+not continuously track people. Adoption and conversion remain hypotheses to test.
+
 RSVPs are friction: "Am I free Wednesday? I don't know. But I know if I'm free *now*."
 People don't want to create events or choose from options. They already share what they
 are doing. So:

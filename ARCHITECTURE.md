@@ -173,7 +173,14 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 
 ### 3.2 Muse API: first thing to verify
 
-The exact Muse API shape is **not known in this repo**. Before building any agent:
+**Current model choice:** `muse-spark-1.3` is the default for all text agents to
+reduce inference cost. `MUSE_MODEL` can override it. Existing deployments must
+replace any `MUSE_MODEL=muse-wonder-1.0` setting and restart the backend; changing
+the source default does not override an environment value. If vision is enabled,
+set `MUSE_VISION_MODEL=muse-spark-1.3` as well. No key still means the fake client.
+
+The HTTP adapter uses the Messages-compatible API documented in
+`docs/BACKEND_TASKS.md` section 7. Before enabling a model with a deployment's key:
 
 1. Get base URL, auth scheme, model id, and whether it supports JSON/structured output, tool calls, and image input.
 2. Put them in `backend/.env` (`MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL`, optional `MUSE_VISION_MODEL`).

@@ -168,14 +168,14 @@ async def test_http_client_speaks_anthropic_messages() -> None:
     client = HttpMuseClient(
         "https://muse.test/",
         "k",
-        "muse-wonder-1.0",
+        "muse-spark-1.3",
         transport=httpx.MockTransport(handler),
     )
     out = await client.complete("[t] sys", "prompt", max_tokens=100)
     assert out.text == '{"word": "hi"}' and out.input_tokens == 12
     assert seen["url"] == "https://muse.test/v1/messages"
     assert seen["auth"] == "Bearer k"
-    assert seen["body"]["model"] == "muse-wonder-1.0"
+    assert seen["body"]["model"] == "muse-spark-1.3"
     assert seen["body"]["max_tokens"] > 100  # thinking headroom on top
     assert seen["body"]["messages"][0]["content"] == [
         {"type": "text", "text": "prompt"}
@@ -217,14 +217,16 @@ async def test_http_client_sends_images_only_with_vision() -> None:
     assert image_source("https://x/y.jpg") == {"type": "url", "url": "https://x/y.jpg"}
 
 
-def test_offline_and_unconfigured_use_the_fake_client() -> None:
+def test_offline_and_unconfigured_use_the_fake_client(monkeypatch) -> None:
+    monkeypatch.delenv("MUSE_MODEL", raising=False)
     configured = dict(
         MUSE_BASE_URL="https://api.meta.ai",
         MUSE_API_KEY="k",
-        MUSE_MODEL="muse-wonder-1.0",
         _env_file=None,
     )
-    assert isinstance(client_from_settings(Settings(**configured)), HttpMuseClient)
+    client = client_from_settings(Settings(**configured))
+    assert isinstance(client, HttpMuseClient)
+    assert client.model == "muse-spark-1.3"
     assert isinstance(
         client_from_settings(Settings(**configured, DEMO_MODE="offline")),
         FakeMuseClient,

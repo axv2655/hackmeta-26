@@ -574,7 +574,8 @@ function MovesMap({ selectedId, onSelect, onClear, mapRef, mine }) {
   useEffect(() => {
     const map = Leaflet.map(el.current, { zoomControl: false })
     focus(map, MV_HOME, 15, false)
-    Leaflet.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', { maxZoom: 20, attribution: '&copy; Stadia Maps &copy; OpenMapTiles &copy; OpenStreetMap contributors' }).addTo(map)
+    // CARTO Positron: keyless on any domain (Stadia only serves localhost without a key).
+    Leaflet.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 20, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }).addTo(map)
     Leaflet.control.zoom({ position: 'bottomright' }).addTo(map)
     MOVES.forEach((m, i) => {
       markers.current[m.id] = Leaflet.marker(m.at, { icon: pinIcon({ img: bit(m.user, m.pose), name: first(m.user), detail: pinDetail(m), cat: m.cat, status: m.status, extra: m.joined.length, delay: i * 70 }), title: `${first(m.user)} at ${m.place}`, zIndexOffset: pinZ(m) }).addTo(map).on('click', () => onSelect(m.id))

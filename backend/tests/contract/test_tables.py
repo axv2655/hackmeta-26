@@ -22,6 +22,7 @@ EXPECTED = {
     # messages
     "move_invites",
     "credentials",
+    "push_tokens",
 }  # fmt: skip
 
 

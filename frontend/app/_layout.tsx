@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { InAppBanner } from '@/components/InAppBanner';
 import { SplashOverlay } from '@/components/fb/SplashOverlay';
+import { usePush } from '@/lib/push';
 import { useRealtime } from '@/lib/realtime';
 import { useSession } from '@/lib/session';
 import { colors } from '@/lib/theme';
@@ -19,6 +20,7 @@ export const unstable_settings = {
 export default function RootLayout() {
   // Live data: one socket for the signed-in user, and everyone's names.
   useRealtime();
+  usePush();
   useEffect(() => {
     void useSession.getState().loadUsers();
   }, []);

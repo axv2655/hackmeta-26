@@ -1,7 +1,8 @@
 # Self-hosting the backend (homelab: NGINX terminates TLS in front of it).
 #
 #   backend/.env   DATABASE_URL and friends (see backend/.env.example)
-#   .env           BACKEND_PORT, PUBLIC_BASE_URL for this host
+#   .env           BACKEND_PORT, PUBLIC_BASE_URL and APNS_* for this host
+#   secrets/       AuthKey_XXXX.p8 for Apple push (gitignored, mounted read-only)
 #
 #   docker compose up -d --build
 #   docker compose exec backend python -m app.seed.seed   # wipes and reseeds!
@@ -13,10 +14,15 @@ services:
     environment:
       FASTAPI_ENV: production
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      APNS_KEY_PATH: ${APNS_KEY_PATH:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_TOPIC: ${APNS_TOPIC:-}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:
       - backend-data:/data
+      - ./secrets:/run/secrets:ro
 
 volumes:
   backend-data:

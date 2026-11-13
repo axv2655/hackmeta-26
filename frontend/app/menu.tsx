@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { warning } from '@/lib/haptics';
 import { useLive } from '@/lib/live';
+import { unregisterPush } from '@/lib/push';
 import { currentUser, logoutRow, type MenuShortcut } from '@/lib/mock';
 import { useSession } from '@/lib/session';
 import { useInbox } from '@/lib/store/inbox';
@@ -44,6 +45,7 @@ export default function MenuScreen() {
   // layout then shows the login screen.
   const logOut = useCallback(() => {
     setLogoutVisible(false);
+    unregisterPush(); // still signed in here, so the DELETE carries the user
     useMyMoves.setState({ mine: [], focusId: null });
     useInbox.setState({ items: [], banner: null });
     useLive.setState({ moves: null, online: false });

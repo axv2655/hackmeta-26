@@ -45,5 +45,13 @@ class Settings(BaseSettings):
     # any Nominatim-compatible server. Empty: only the configured AREAS answer.
     GEOCODER_URL: str = "https://nominatim.openstreetmap.org"
 
+    # Apple push (APNs) with a token-based .p8 key. Unset key: no pushes, the
+    # app still gets everything in-app over the socket.
+    APNS_KEY_PATH: str | None = None  # path to AuthKey_XXXX.p8
+    APNS_KEY_ID: str | None = None
+    APNS_TEAM_ID: str | None = None
+    APNS_TOPIC: str | None = None  # the app's bundle id
+    APNS_SANDBOX: bool = True  # development-signed builds use the sandbox
+
 
 settings = Settings()

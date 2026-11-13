@@ -249,3 +249,22 @@ async def test_empty_notify_list_at_creation_nudges_nobody(
     _, hooks, _, _ = f.wire(engine, clock, **ports)
     await hooks.on_move_created.fire("mv4")
     assert nudged(world) == {}
+
+
+class RecordingPush:
+    def __init__(self) -> None:
+        self.sent: list[tuple[tuple[str, ...], str, dict[str, str]]] = []
+
+    async def push(self, user_ids, title, body, data) -> None:
+        self.sent.append((tuple(user_ids), title, dict(data)))
+
+
+async def test_every_stored_notification_is_also_pushed(
+    engine, world, clock, ports
+) -> None:
+    push = RecordingPush()
+    _, hooks, _, _ = f.wire(engine, clock, push=push, **ports)
+    await hooks.on_move_created.fire("mv1")
+    got = nudged(world)
+    assert {users[0] for users, _, _ in push.sent} == set(got)
+    assert all(data["move_id"] == "mv1" for _, _, data in push.sent)

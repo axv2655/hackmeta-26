@@ -18,6 +18,7 @@ from app.ports import (
     MuseGateway,
     Notifier,
     ProximityGateway,
+    PushSender,
     TimeControl,
     UserGateway,
 )
@@ -30,6 +31,7 @@ from app.ports_null import (
     NullMuseGateway,
     NullNotifier,
     NullProximityGateway,
+    NullPushSender,
     NullTimeControl,
     NullUserGateway,
 )
@@ -44,6 +46,7 @@ class Container:
     marks: MarkGateway = field(default_factory=NullMarkGateway)  # core C6
     users: UserGateway = field(default_factory=NullUserGateway)  # core C7
     notifier: Notifier = field(default_factory=NullNotifier)  # muse M4
+    push: PushSender = field(default_factory=NullPushSender)  # APNs
     muse: MuseGateway = field(default_factory=NullMuseGateway)  # muse M1+
     proximity: ProximityGateway = field(default_factory=NullProximityGateway)  # S1
     calendar: CalendarGateway = field(default_factory=NullCalendarGateway)  # S5

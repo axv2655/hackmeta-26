@@ -288,6 +288,16 @@ class EventPublisher(Protocol):
 
 
 @runtime_checkable
+class PushSender(Protocol):
+    """Phone pushes (APNs) for a notification that was just stored. Never
+    raises: a failed push must not break the notification."""
+
+    async def push(
+        self, user_ids: Iterable[str], title: str, body: str, data: dict[str, str]
+    ) -> None: ...
+
+
+@runtime_checkable
 class Notifier(Protocol):
     """Implemented by muse (M4). Stores a notification, publishes it, and
     returns its id. Put the Move id in `data["move_id"]` when there is one."""

@@ -91,6 +91,7 @@ class MuseNotifier:
             session.refresh(row)
             payload = notification_dict(row)
         await self.lane.container.events.publish([user_id], "notification", payload)
+        await self.lane.container.push.push([user_id], title, body, payload["data"])
         return payload["id"]
 
 

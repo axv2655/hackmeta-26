@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "ios": {
-      "bundleIdentifier": "com.anishalle.hackmeta26"
+      "bundleIdentifier": "com.alanroybal.hackmeta26"
     },
     "plugins": [
       "expo-router",
@@ -20,6 +20,12 @@
           "image": "./assets/splash-icon.png",
           "backgroundColor": "#ffffff",
           "imageWidth": 120
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "mode": "development"
         }
       ]
     ],

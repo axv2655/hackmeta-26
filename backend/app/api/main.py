@@ -22,6 +22,7 @@ from app.api.routes import (
     notifications,
     proximity,
     pseudo_groups,
+    push,
     ratings,
     reels,
     suggestions,
@@ -61,3 +62,4 @@ api_router.include_router(demo.router)
 
 # messages (ARCHITECTURE.md 9.4, 9.5)
 api_router.include_router(invites.router)
+api_router.include_router(push.router)

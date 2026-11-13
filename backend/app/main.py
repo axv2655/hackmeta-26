@@ -14,10 +14,15 @@ from app.container import Container
 from app.core.config import settings
 from app.core.logging import redact_nearby_queries
 from app.hooks import Hooks
-from app.lanes import Registrar, core, muse, surfaces
+from app.lanes import Registrar, core, muse, push, surfaces
 from app.scheduler.loop import Scheduler
 
-LANES: tuple[Registrar, ...] = (core.register, surfaces.register, muse.register)
+LANES: tuple[Registrar, ...] = (
+    core.register,
+    surfaces.register,
+    muse.register,
+    push.register,
+)
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:

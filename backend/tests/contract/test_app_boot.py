@@ -27,6 +27,7 @@ PORT_IMPLS = {
     ports.MuseGateway: ports_null.NullMuseGateway,
     ports.ProximityGateway: ports_null.NullProximityGateway,
     ports.CalendarGateway: ports_null.NullCalendarGateway,
+    ports.PushSender: ports_null.NullPushSender,
 }
 
 

@@ -56,6 +56,13 @@ class NullEventPublisher:
         pass
 
 
+class NullPushSender:
+    async def push(
+        self, user_ids: Iterable[str], title: str, body: str, data: dict[str, str]
+    ) -> None:
+        pass
+
+
 class NullNotifier:
     async def send(
         self,

@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@gorhom/bottom-sheet": "^5.2.14",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.33",
     "expo-constants": "~57.0.24",
     "expo-font": "~57.0.4",

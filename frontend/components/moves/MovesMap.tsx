@@ -21,9 +21,11 @@ export type MovesMapProps = {
   /** Bottom space covered by the sheet, so centering and the legal label clear it. */
   bottomPadding: number;
   topPadding: number;
+  /** The map's center once a pan or zoom settles (for the city name). */
+  onCenterChange?: (center: Coordinate) => void;
 };
 
-const HOME_CAMERA = {
+export const HOME_CAMERA = {
   // The Meta campus (Menlo Park): Hacker Square, MPK 20 and MPK 21 in view.
   center: { latitude: 37.4800, longitude: -122.1540 },
   pitch: 35,
@@ -43,7 +45,7 @@ function statusDetail(m: MapMove): string {
  * their Move (never GPS); the current user's "Me now" pin is local only.
  */
 export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function MovesMap(
-  { moves, selectedId, onSelect, onClear, bottomPadding, topPadding },
+  { moves, selectedId, onSelect, onClear, bottomPadding, topPadding, onCenterChange },
   ref,
 ) {
   const mapRef = useRef<MapView>(null);
@@ -78,6 +80,7 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
       showsUserLocation={false}
       toolbarEnabled={false}
       mapPadding={{ top: topPadding, bottom: bottomPadding, left: 0, right: 0 }}
+      onRegionChangeComplete={(region) => onCenterChange?.({ latitude: region.latitude, longitude: region.longitude })}
       onPress={(e) => {
         // Marker taps also bubble a map press on iOS; only clear on empty map.
         if (e.nativeEvent.action !== 'marker-press') onClear();

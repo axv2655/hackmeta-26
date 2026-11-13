@@ -31,6 +31,7 @@ export function useRealtime() {
   const userId = useSession((s) => s.userId);
 
   useEffect(() => {
+    if (!userId) return; // signed out: no socket
     let socket: WebSocket | null = null;
     let closed = false;
     let attempt = 0;

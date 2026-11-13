@@ -782,13 +782,54 @@ function Moves() {
   )
 }
 
+// ---- Skeleton loaders: one shimmer block, composed into a placeholder per page layout
+const Skel = ({ w = '100%', h = 14, r = 8, className = '' }) => <span className={`skel ${className}`} style={{ width: w, height: h, borderRadius: r }} />
+const times = (n, fn) => Array.from({ length: n }, (_, i) => fn(i))
+const SkelRow = ({ size = 36 }) => <div className="skel-row"><Skel w={size} h={size} r="50%" /><span className="grow"><Skel w="70%" /><Skel w="45%" h={10} /></span></div>
+const SkelSide = ({ dark }) => <aside className={`side-nav${dark ? ' dark' : ''}`}><Skel w={160} h={28} /><Skel h={36} r={18} />{times(7, (i) => <SkelRow key={i} />)}</aside>
+
+function PageSkeleton({ view }) {
+  const body = view === 'Home' ? (
+    <div className="layout">
+      <div className="left-rail">{times(8, (i) => <SkelRow key={i} />)}</div>
+      <main className="feed">
+        <div className="stories">{times(5, (i) => <Skel key={i} className="skel-story" w={140} h={250} r={12} />)}</div>
+        <div className="card"><SkelRow size={40} /></div>
+        {times(2, (i) => <div key={i} className="card"><SkelRow size={40} /><Skel w="90%" /><Skel w="60%" /><Skel h={300} /></div>)}
+      </main>
+      <div className="right-rail">{times(6, (i) => <SkelRow key={i} />)}</div>
+    </div>
+  ) : view === 'Video' ? (
+    <div className="page reels"><SkelSide dark /><div className="reel-stage"><Skel className="skel-reel" w="auto" h="calc(100vh - 96px)" r={12} /></div></div>
+  ) : view === 'Moves' ? (
+    <main className="moves-main skel-map">
+      <aside className="mv-glass mv-panel"><Skel h={44} r={22} /><div className="skel-circles">{times(4, (i) => <Skel key={i} w={64} h={64} r="50%" />)}</div>{times(5, (i) => <SkelRow key={i} size={52} />)}</aside>
+    </main>
+  ) : (
+    <div className="page">
+      <SkelSide />
+      <main className="page-main"><Skel w={200} h={24} /><div className="grid listings">{times(10, (i) => <div key={i}><Skel className="skel-sq" h="auto" /><Skel w="50%" h={18} /><Skel w="80%" /></div>)}</div></main>
+    </div>
+  )
+  return <div role="status" aria-busy="true" aria-label={`Loading ${view}`}>{body}</div>
+}
+
 export default function App() {
   const [view, setView] = useState('Home')
   const [posts, setPosts] = useState(INITIAL_POSTS)
   const update = (id, fn) => setPosts((ps) => ps.map((p) => (p.id === id ? fn(p) : p)))
+  const [loaded, setLoaded] = useState([])
+  const loading = !loaded.includes(view)
+  useEffect(() => {
+    if (!loading) return
+    // shortcut: simulated first-visit load (pages are static demo data), drive this from fetch state once pages load real data
+    const t = setTimeout(() => setLoaded((l) => [...l, view]), 600)
+    return () => clearTimeout(t)
+  }, [view, loading])
   return (
     <>
       <TopNav view={view} setView={setView} />
+      {loading ? <PageSkeleton view={view} /> : <>
       {view === 'Friends' && <FriendsPage />}
       {view === 'Video' && <Reels />}
       {view === 'Marketplace' && <Marketplace />}
@@ -807,6 +848,7 @@ export default function App() {
         </main>
         <RightRail />
       </div>}
+      </>}
     </>
   )
 }

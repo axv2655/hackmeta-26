@@ -363,6 +363,20 @@ button.mv-glass:active, .mv-act:active, .mv-out-item:active, .mv-pull:active, .m
 .mv-shared { margin: 0; padding: 8px 14px; border-radius: 18px; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #1c7c3a; animation: mv-rise .2s ease-out; }
 .mv-shared.hide { display: none; }
 
+/* skeleton loaders */
+.skel { display: block; max-width: 100%; margin-bottom: 8px; background: linear-gradient(100deg, #e4e6eb 30%, #f4f5f7 50%, #e4e6eb 70%); background-size: 200% 100%; animation: skel 1.4s linear infinite; }
+@keyframes skel { from { background-position: 200% 0; } to { background-position: 0 0; } }
+.skel-row { display: flex; align-items: center; gap: 12px; padding: 8px; }
+.skel-row .skel { margin-bottom: 6px; }
+.skel-row > .skel { margin: 0; flex-shrink: 0; }
+.skel-story { flex: 0 0 140px; margin: 0; }
+.skel-sq { aspect-ratio: 1; }
+.skel-reel { aspect-ratio: 9 / 16; max-width: 100%; }
+.skel-circles { display: flex; gap: 14px; margin: 16px 4px; }
+.reels .skel, .side-nav.dark .skel { background-image: linear-gradient(100deg, #242526 30%, #3a3b3c 50%, #242526 70%); }
+/* real loading states: photos and map tiles shimmer until they arrive */
+.listing-img, .ad-img, .skel-map, .moves-map.leaflet-container { background: linear-gradient(100deg, #e4e6eb 30%, #f4f5f7 50%, #e4e6eb 70%); background-size: 200% 100%; animation: skel 1.4s linear infinite; }
+
 @media (prefers-reduced-motion: reduce) { .moves-main *, .moves-main *::after, .mv-share, .skel, .listing-img, .ad-img, .skel-map, .moves-map.leaflet-container, .layout, .page, .moves-main { animation: none !important; } .moves-main * { transition: none !important; } }
 .mv-acts h3 { margin: 2px 4px 10px; font-size: 17px; }
 .mv-acts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

@@ -221,6 +221,7 @@ class CommandResult:
     place_source: PlaceSource | None = None
     needs_place: bool = False
     expires_at: datetime | None = None
+    draft: MoveDraftOut | None = None  # for in-process callers; routes never echo it
 
 
 @dataclass(frozen=True, slots=True)
@@ -265,11 +266,30 @@ class GlassesService:
         if intent.intent != "start_move" or not intent.text:
             return CommandResult(understood=False, spoken=NO_START)
 
-        nearest = self._nearest(lat, lng)
-        draft = await self._compose(
-            user_id, intent.text, nearest.id if nearest else None
-        )
-        draft, mark, source = self._place(user_id, draft, nearest)
+        return await self.draft_from_text(user_id, intent.text, lat, lng)
+
+    async def draft_from_text(
+        self,
+        user_id: str,
+        text: str,
+        lat: float | None = None,
+        lng: float | None = None,
+        *,
+        place: MarkSnapshot | None = None,
+        user_ids: tuple[str, ...] = (),
+    ) -> CommandResult:
+        """Hold a pending draft for already-understood Move text (no intent
+        parsing). `place` is an explicit Mark and wins over coordinates;
+        `user_ids` replaces Muse's audience picks. Creates no Move."""
+        text = clean(text, MAX_TEXT)
+        nearest = None if place else self._nearest(lat, lng)
+        pinned = place or nearest
+        draft = await self._compose(user_id, text, pinned.id if pinned else None)
+        if user_ids:
+            draft = replace(draft, user_ids=user_ids, circle_ids=())
+        draft, mark, source = self._place(user_id, draft, pinned)
+        if place is not None and mark is not None and source == "nearby":
+            source = "named"
         if mark is None:
             # Nowhere to post: hold no draft, ask. Confirm then answers 409.
             return CommandResult(
@@ -278,6 +298,7 @@ class GlassesService:
                 text=draft.text,
                 category=draft.category,
                 needs_place=True,
+                draft=draft,
             )
         pending = self._drafts.put(user_id, draft)
         return CommandResult(
@@ -289,6 +310,7 @@ class GlassesService:
             place=mark.name,
             place_source=source,
             expires_at=pending.expires_at,
+            draft=draft,
         )
 
     async def confirm(self, user_id: str, draft_id: str | None = None) -> ConfirmResult:

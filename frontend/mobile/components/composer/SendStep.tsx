@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MuseBadge } from '@/components/common/MuseBadge';
-import { ReasonLine } from '@/components/common/ReasonLine';
 import { ScreenHeader } from '@/components/fb/ScreenHeader';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -21,7 +19,7 @@ import { toggleId } from './hooks';
 
 type Props = { move: Move; input: MoveInput; onFinish: () => void };
 
-/** Step 2: poke the people Muse picked (each with its reason and honest badge), or share a link. */
+/** Step 2: poke the suggested people (ranked by who you hang out with, each with its reason), or share a link. */
 export function SendStep({ move, input, onFinish }: Props) {
   const insets = useSafeAreaInsets();
   const me = useMe();
@@ -77,11 +75,11 @@ export function SendStep({ move, input, onFinish }: Props) {
   );
 
   function done() {
-    const museIds = (picks ?? []).map((p) => p.user.id);
-    if (sent || museIds.length === 0) return onFinish();
-    Alert.alert('Post without poking anyone?', 'Muse picked people who might pull up. They only see it on the map unless you poke them.', [
+    const suggestedIds = (picks ?? []).map((p) => p.user.id);
+    if (sent || suggestedIds.length === 0) return onFinish();
+    Alert.alert('Post without poking anyone?', 'Nobody gets a notification unless you poke them. They can still see it on the map.', [
       { text: 'Skip', style: 'cancel', onPress: onFinish },
-      { text: 'Poke them', onPress: () => void send(chosen.length ? chosen : museIds).then((ok) => ok && onFinish()) },
+      { text: 'Poke them', onPress: () => void send(chosen.length ? chosen : suggestedIds).then((ok) => ok && onFinish()) },
     ]);
   }
 
@@ -124,17 +122,16 @@ export function SendStep({ move, input, onFinish }: Props) {
         {picks === null ? <ActivityIndicator style={styles.loading} /> : null}
         {pickError ? (
           <PressableScale onPress={() => setAttempt((n) => n + 1)} accessibilityRole="button">
-            <Text style={section.error}>Couldn't get Muse's picks: {pickError} · Tap to retry</Text>
+            <Text style={section.error}>Couldn't load suggestions: {pickError} · Tap to retry</Text>
           </PressableScale>
         ) : null}
         {picks && picks.length > 0 ? (
           <View style={styles.pickHead}>
-            <Text style={section.sub}>Muse picked who's most likely to pull up.</Text>
-            <MuseBadge source={picks.every((p) => p.source === 'muse') ? 'muse' : 'heuristic'} />
+            <Text style={section.sub}>Most likely to pull up</Text>
           </View>
         ) : null}
         {picks && picks.length === 0 && !pickError ? (
-          <Text style={section.sub}>Muse didn't pick anyone this time. You can still poke people below.</Text>
+          <Text style={section.sub}>No suggestions this time. You can still poke people below.</Text>
         ) : null}
         {(picks ?? []).map((p) => row(p.user))}
         {picks !== null && others.length ? <Text style={styles.sublabel}>Everyone else who can see it</Text> : null}
@@ -190,10 +187,13 @@ function PersonRow({ user, pick, on, poked, disabled, onPress }: RowProps) {
           <Text style={typeScale.name} numberOfLines={1}>
             {user.name}
           </Text>
-          {pick ? <MuseBadge source={pick.source} /> : null}
         </View>
         {poked ? <Text style={section.sub}>Poked</Text> : null}
-        {!poked && pick ? <ReasonLine text={pick.reason} source={pick.source} /> : null}
+        {!poked && pick ? (
+          <Text style={section.sub} numberOfLines={1}>
+            {pick.reason}
+          </Text>
+        ) : null}
         {!poked && pick?.copy ? (
           <Text style={section.meta} numberOfLines={2}>
             They'll get: “{pick.copy}”

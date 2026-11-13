@@ -25,6 +25,7 @@ A user with an empty `move_categories` hears about every category.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Collection, Iterable, Sequence
 from datetime import datetime
 from typing import Any
@@ -54,6 +55,13 @@ def in_quiet_hours(settings: UserSettings | None, now: datetime) -> bool:
     if start is None or end is None or start == end:
         return False
     return start <= hour < end if start < end else hour >= start or hour < end
+
+
+def minutes_left(deadline: datetime | None, now: datetime) -> int | None:
+    """Whole minutes until `deadline`, rounded up; None when there is none left."""
+    if deadline is None or deadline <= now:
+        return None
+    return math.ceil((deadline - now).total_seconds() / 60)
 
 
 def notification_dict(n: Notification) -> dict[str, Any]:
@@ -162,6 +170,7 @@ class NotifyService:
             there=[p.user_id for p in move.participants if p.status == "there"],
             force=set(force_ids) & candidate_ids,
             drop=set(drop_ids),
+            join_minutes=minutes_left(move.fill_deadline, self.lane.now()),
         )
         people = People.load(self.session, [move.creator_id])
         for p in picks:
@@ -246,6 +255,7 @@ class NotifyService:
         there: list[str],
         force: set[str],
         drop: set[str],
+        join_minutes: int | None = None,
     ) -> list[NotifyPickOut]:
         candidate_ids = candidate_ids - (
             self._not_interested(candidate_ids, category) - force
@@ -277,6 +287,7 @@ class NotifyService:
                 there=[(u, people.first(u)) for u in there if u != creator_id],
                 force_ids=frozenset(force),
                 drop_ids=frozenset(drop),
+                join_minutes=join_minutes,
             ),
         )
         return result.picks
@@ -308,7 +319,7 @@ class NotifyService:
                 c.user_id,
                 "friend_pulling_up",
                 f"{joiner} is pulling up",
-                f"Hey {c.first_name}, {joiner}'s pulling up to {creator}'s Move: "
+                f"{joiner}'s pulling up to {creator}'s Move: "
                 f'"{move.text}" at {move.mark.name}.',
                 {**_move_data(move), "joiner_id": joiner_id},
             )

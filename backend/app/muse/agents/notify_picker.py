@@ -1,19 +1,23 @@
-"""Notify picker (ARCHITECTURE.md 10.3): who gets a nudge for a Move, and the
-one personal line each of them reads.
+"""Notify picker (ARCHITECTURE.md 10.3): who gets a nudge for a Move.
+
+Deterministic by default: the pick is the top of the affinity ranking Python
+already computed, so the poke step never waits on a model, and every nudge
+reads the same fixed line (who, what, where, time left to join). Muse can
+still make the pick when a request sets `use_muse`; it never writes the line.
 
 Input is already filtered by the pipeline (audience minus participants,
 co-present cluster, quiet hours, already notified). Hard rules hold whether
-Muse answered or the fallback ran:
+Muse answered or the ranking ran:
 
 - cap `min(8, ceil(audience / 2))` picks, forced picks on top;
 - never someone busy, never an unknown alias, never a dropped id;
 - at most one stretch pick, and only if verified. A stretch pick has no
   hangouts in 90 days while others in the pool do (with no history at all,
   nobody is a stretch);
-- every copy starts with "Hey {first_name}"; a bad line gets the template.
+- the copy is always `template_copy`, never model output.
 
 Each pick carries `source`: "muse" only when Muse answered and chose that
-person itself; fallback picks and creator-forced picks say "heuristic".
+person itself; ranked picks and creator-forced picks say "heuristic".
 """
 
 from __future__ import annotations
@@ -68,6 +72,10 @@ class NotifyRequest:
     force_ids: frozenset[str] = frozenset()
     drop_ids: frozenset[str] = frozenset()
     agent: str = AGENT
+    join_minutes: int | None = None
+    """Minutes left on the fill timer, when the Move has one."""
+    use_muse: bool = False
+    """False: rank by affinity, no model call. True: Muse picks, ranking on failure."""
 
 
 @dataclass(frozen=True)
@@ -78,11 +86,12 @@ class NotifyResult:
     by_id: dict[str, Candidate] = field(default_factory=dict)
 
 
-def template_copy(req: NotifyRequest, first_name: str) -> str:
+def template_copy(req: NotifyRequest) -> str:
+    """The one fixed line everyone gets: who, what, where, time left to join."""
     there = [name for uid, name in req.there if uid != req.creator_id]
-    line = (
-        f'Hey {first_name}, {req.creator_first} posted "{req.text}" at {req.mark_name}.'
-    )
+    line = f'{req.creator_first} posted "{req.text}" at {req.mark_name}.'
+    if req.join_minutes:
+        line += f" {req.join_minutes} min to join."
     if len(there) == 1:
         line += f" {there[0]}'s already there."
     elif there:
@@ -153,6 +162,9 @@ async def pick(runner: MuseRunner, req: NotifyRequest) -> NotifyResult:
             skipped_note="",
         )
 
+    if not req.use_muse:
+        return finalize(fallback())
+
     out, used_fallback = await runner.run_agent_meta(
         req.agent,
         req.creator_id,
@@ -209,8 +221,7 @@ def _make(
     p: Pick | None,
     source: str = "heuristic",
 ) -> NotifyPickOut:
-    copy = book.restore(p.line).strip() if p and p.line else ""
-    if not copy.lower().startswith(f"hey {c.first_name.lower()}"):
-        copy = template_copy(req, c.first_name)
     reason = book.restore(p.reason).strip() if p and p.reason else ""
-    return NotifyPickOut(c.user_id, copy, reason or template_reason(c), source)
+    return NotifyPickOut(
+        c.user_id, template_copy(req), reason or template_reason(c), source
+    )

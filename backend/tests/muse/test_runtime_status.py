@@ -174,15 +174,16 @@ def test_notify_preview_picks_say_heuristic_on_fallback(engine, world, clock):
     assert picks and all(p["source"] == "heuristic" for p in picks)
 
 
-def test_notify_preview_picks_say_muse_when_muse_picked(engine, world, clock):
+def test_notify_preview_is_ranked_without_calling_muse(engine, world, clock):
     def answer(system: str, prompt: str) -> dict:
         row = prompt.split("Candidates:\n", 1)[1].splitlines()[1]
         return {"picks": [{"user": row.split("|", 1)[0].strip(), "reason": "r"}]}
 
     client = FakeMuseClient({"notify_picker": answer})
     picks = preview(engine, clock, world, client)
-    assert len(picks) == 1 and picks[0]["source"] == "muse"
-    assert picks[0]["copy"].startswith("Hey ")
+    assert client.calls == []
+    assert picks and {p["source"] for p in picks} == {"heuristic"}
+    assert "posted" in picks[0]["copy"]
 
 
 def test_notify_pick_out_defaults_to_heuristic() -> None:

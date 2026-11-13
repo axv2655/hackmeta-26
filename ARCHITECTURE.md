@@ -46,7 +46,7 @@ are doing. So:
 
 ### 1.3 Growth loop (the pitch)
 
-Share a Move → the right people get a personal nudge → they pull up → moments are captured
+Share a Move → the right people get a personal poke → they pull up → moments are captured
 → ghosts and moments on the map create FOMO for people who missed it → they pull up next
 time or start their own Move → ratings and leaderboards keep them coming back. This turns
 Facebook Groups into personal, curated, real-world experiences for people in their 20s.
@@ -60,6 +60,7 @@ Reels watch time becomes real-world engagement.
 | Mark | A place pin on the map. Has a category that sets its icon. |
 | Saved Mark | A Mark a user saved (from the map or a Reel). |
 | Pull up | Join a Move ("I'm going"). |
+| Flare | A Move with a short fill window (5 to 10 min), usually proposed by Muse for a calendar gap. |
 | Ghost | The gray avatar left at a Mark after a user leaves a Move. Tapping shows Moments. |
 | Moment | A photo or clip captured during a Move. |
 | Circle | A user-defined audience group ("Roommates", "HS friends"). Maps to a Facebook Group in the real product. |
@@ -75,7 +76,7 @@ These came from both mentors as the biggest risk. Every feature must obey them.
 3. **Never fully public.** A Move goes to Circles and people the poster chooses. "Open" only widens discovery to physically nearby people over BLE, and only when the poster turns it on.
 4. **It is always obvious who will see a post.** The composer shows an audience line ("Visible to 9 people: Roommates, Priya, Tony") before posting, and every Move card shows who can see it to the poster.
 5. **Everything proximity-based is a one-tap prompt by default.** Silent auto-join only happens for people a user has explicitly put on their auto-join list.
-6. **Muse proposes, the user disposes.** Muse never posts a Move without a tap. It can send *you* a suggestion. The same holds for voice: the glasses connector (11.4) only drafts until the user says an explicit confirm.
+6. **Muse proposes, the user disposes.** Muse never posts a Move or sends a flare without a tap. It can send *you* a suggestion.
 7. **Moments need approval.** Anyone tagged in a Moment approves it before it is visible beyond the people who were in the Move.
 
 **Velocity note (team decision):** build these rules in as written, but do not let
@@ -94,7 +95,6 @@ privacy edge cases block feature work. There is a dedicated **privacy pass at th
 - Marketplace pickup Moves and the safety check-in. Pitch line only (section 11.3).
 - The auto recap Reel. Ghosts and Moments already carry the FOMO.
 - Glasses "save this place" and POV moments. Pitch-only, nothing built. The glasses build is limited to the MCP connector tools in 11.4 (draft, confirm, share, pull up, friends nearby, active Move).
-- Flares (short fill-window Moves) and the Muse calendar-gap agent. Removed; Muse's proactive story is revive (10.8) and nobody-bit (10.9).
 - Crew and Movers leaderboards.
 
 ---
@@ -115,6 +115,7 @@ One day. Build P0 end to end first, then P1 in order. P2 only if P0 and P1 are d
 | **P0** | Privacy: Circles, audience preview, settings, verified badge | 12 |
 | **P0** | Seed data and Demo Control panel | 15 |
 | **P1** | Reel → "Start a Move here" chip and sheet | 11.1 |
+| **P1** | Saved Reel → Muse calendar flare (the autonomous agent story) | 11.2 |
 | **P1** | Ghosts, Moments, ghost sheet | 7.4 |
 | **P1** | Proximity: one-tap join prompt, FOMO notification skip (simulated path first) | 8 |
 | **P1** | Post-Move rating (one tap + pairwise), taste profile, ranked lists, Top spots board | 10.7, 13 |
@@ -126,7 +127,7 @@ One day. Build P0 end to end first, then P1 in order. P2 only if P0 and P1 are d
 | **P2** | Open Moves discovered by people nearby over BLE | 8.5 |
 
 **Demo-safety rule:** every P1/P2 feature that depends on hardware or timing (BLE, push,
-calendar, voice, the nobody-bit timer) must have a trigger in the Demo Control panel
+calendar, voice, fill timers) must have a trigger in the Demo Control panel
 (section 15) that fires the same code path deterministically.
 
 ---
@@ -145,7 +146,7 @@ calendar, voice, the nobody-bit timer) must have a trigger in the Demo Control p
 │ services        use cases: moves, notify, proximity, ratings, leaderboards, reels           │
 │ muse/           MuseClient port + adapter, one module per agent, prompts, fallbacks     │
 │ realtime/       ConnectionHub: user_id → sockets, publish(event)                        │
-│ scheduler/      asyncio loop: move expiry, nobody-bit follow-up, revive scan                   │
+│ scheduler/      asyncio loop: move expiry, empty-flare follow-up, flare scan, revive scan       │
 │ repositories    SQLModel over Postgres (DATABASE_URL); SQLite file when unset           │
 └───────────────┬─────────────────────────────────────────────────────────────────────────┘
                 │ HTTPS
@@ -166,6 +167,7 @@ calendar, voice, the nobody-bit timer) must have a trigger in the Demo Control p
 | Push | In-app banners from WebSocket events + `expo-notifications` **local** notifications for lock-screen effect | Remote push needs credentials and a dev build; local notifications give the same visual. |
 | Auth | Username + password accounts (`/auth/signup`, `/auth/login`, scrypt-hashed in `credentials`); the app keeps the account on the device and sends its id as `X-User-Id`. Seeded people log in as their first name with password `moves` | Light enough for a demo; the header is still trusted, so it is not real security. Verified badge is a seeded flag. |
 | AI | Muse behind a `MuseClient` port, JSON-only outputs, heuristic fallback for every agent | Muse is essential, but a failed call must never break the live demo. |
+| Local time | Each phone sends `X-Timezone` and `X-UTC-Offset` on every request; the server remembers the zone per user in memory (`core/timezones.py`) and uses it for every time it writes into copy, including background Muse scans and quiet hours. US Central only when a user has never reported a zone. | "Free til 2:50" must match the clock on the phone reading it, wherever that person is. A zone name is not a location. |
 | Places | Seeded `marks` table for the demo area, plus user-created Marks | No external Places API dependency. |
 | Hosting | Laptop on the same Wi-Fi (`--host 0.0.0.0`) with a tunnel as backup (`EXPO_PUBLIC_BACKEND_URL`) | Already supported by `frontend/lib/backend.js`. |
 
@@ -208,6 +210,7 @@ hackmeta-26/
 │   │   │   ├── moves.py  notify.py  proximity.py  moments.py  ratings.py
 │   │   │   ├── leaderboards.py  reels.py
 │   │   │   ├── circles.py  marks.py  calendar.py  glasses.py
+│   │   ├── mcp_server.py           remote MCP server at /mcp (section 11.4); tools in services/mcp_tools.py
 │   │   ├── muse/
 │   │   │   ├── client.py           MuseClient Protocol, HttpMuseClient, FakeMuseClient
 │   │   │   ├── runner.py           run_agent(): prompt, call, parse, validate, log, fallback
@@ -215,12 +218,8 @@ hackmeta-26/
 │   │   │   ├── prompts/            one .md per agent
 │   │   │   └── agents/
 │   │   │       ├── notify_picker.py  move_writer.py  move_ranker.py
-│   │   │       ├── place_resolver.py  taste.py  revive.py
+│   │   │       ├── flare.py  place_resolver.py  taste.py  revive.py
 │   │   │       ├── nobody_bit.py  route.py  intent.py
-│   │   ├── mcp/                    remote MCP server mounted at /mcp (section 11.4): Streamable
-│   │   │                           HTTP, stateless, bearer auth (MCP_TOKEN); tool handlers call
-│   │   │                           the same services as the REST routes. Exact file names are
-│   │   │                           set by the MCP build; this folder is the boundary.
 │   │   ├── realtime/hub.py         ConnectionHub
 │   │   ├── scheduler/loop.py       periodic jobs
 │   │   ├── api/
@@ -255,7 +254,7 @@ hackmeta-26/
     │   ├── leaderboards.tsx
     │   ├── circles/index.tsx  circles/[id].tsx
     │   ├── privacy.tsx
-    │   ├── glasses.tsx             fallback voice screen (Ray-Bans as a Bluetooth headset); primary glasses path is the /mcp connector
+        │   ├── glasses.tsx             fallback voice screen (Ray-Bans as a Bluetooth headset); primary glasses path is the /mcp connector
     │   └── demo.tsx                Demo Control panel
     ├── components/
     │   ├── fb/                     mock Facebook chrome (header, tab bar, post card)
@@ -341,6 +340,7 @@ marks
 
 saved_marks
   user_id, mark_id, source: map | reel, source_ref (reel id), note, saved_at
+  flared_at (nullable)              last time Muse proposed this save, to avoid repeats
 ```
 
 **Mark categories** (each has its own icon and color; the list is closed):
@@ -369,10 +369,12 @@ moves
   text                              "getting matcha, who's down?"
   category                          Mark category or override
   status: live | ended | cancelled
+  kind: move | flare
   open: bool                        discoverable by nearby strangers over BLE; default false
   starts_at                         now
+  fill_deadline (nullable)          flares: now + 5–10 min
   ends_at (nullable)                set when ended; scheduler auto-ends (section 7.3)
-  origin: manual | map | reel | revive | glasses | nobody_bit
+  origin: manual | map | reel | saved_flare | free_time | revive | glasses | nobody_bit
   origin_ref (nullable)             reel id, suggestion id
   created_at
 
@@ -431,7 +433,7 @@ pseudo_groups                       Muse-inferred clusters, never shown as real 
   fading: bool
 
 suggestions                         anything Muse proposes to a user
-  id, user_id, type: revive | route | reel_move | nobody_bit
+  id, user_id, type: flare | free_time | revive | route | reel_move | nobody_bit
   payload: json                     draft Move + reasoning chips
   status: pending | accepted | dismissed | expired
   created_at, expires_at
@@ -443,13 +445,17 @@ notifications
 muse_runs                           audit + cost log for every Muse call
   id, agent, user_id, input_tokens, output_tokens, latency_ms
   ok: bool, used_fallback: bool, prompt_hash, output: json, created_at
+
+muse_mutes                          crews the owner told Muse to stop suggesting (F31)
+  owner_id, members_key             sorted member ids joined by "," (owner excluded), so a
+  created_at                        mute survives pseudo-group recomputes; revive and flare
+                                    crew picks skip it
 ```
 
 ### 5.5 Mocked Facebook surfaces
 
 ```text
-calendar_events    user_id, title, starts_at, ends_at, location     (mock calendar; read only by the
-                   notify picker's busy/free signal, section 10.1)
+calendar_events    user_id, title, starts_at, ends_at, location     (mock calendar)
 reels              id, author_name, video_url, thumb_url, caption, geotag_mark_id (nullable),
                    resolved_mark_id (nullable, written by place resolver), likes
 saved_reels        user_id, reel_id, saved_at
@@ -504,7 +510,7 @@ Use the design skills in `.claude/skills/` (`apple-design`, `emil-design-eng`,
 - Above the map: a horizontally scrolling "For you" strip of the top 3 ranked Moves with
   Muse's one-line reason ("Tony + Priya · you've been here 4 times").
 - Tap a pin → `MoveSheet` bottom sheet: Mark name, Move text, who's there, who's on the
-  way, audience line (to the creator), **I'm going** button,
+  way, audience line (to the creator), fill timer for flares, **I'm going** button,
   Save Mark, and Moments row.
 - Floating **Share a Move** button opens the composer.
 - Realtime: subscribe to `move.created`, `move.updated`, `move.ended`,
@@ -522,11 +528,11 @@ Target: under 10 seconds, two taps when Muse's draft is right.
 3. **Who.** Circle chips (defaults from `default_circle_ids`) plus individual friends.
    Under them, the **AudienceLine**: "Visible to 9 people: Roommates, Climbing, Priya".
    Tapping it lists every name. Blocked users are excluded and never listed.
-4. **Muse's notify list.** "Muse will nudge 4 of them: Anish, Priya, Tony, Maya" with a
+4. **Muse's notify list.** "Muse will poke 4 of them: Anish, Priya, Tony, Maya" with a
    reason chip each. The user can add or remove people. Everyone else in the audience
    sees the Move on the map and feed without a notification.
-5. Toggle: **Open to people nearby** (off; explains "people physically near you doing
-   the same thing can see this").
+5. Toggles: **Open to people nearby** (off; explains "people physically near you doing
+   the same thing can see this"), **Fill window** (off / 5 / 10 min).
 6. **Post** → `POST /moves`.
 
 Server on `POST /moves`:
@@ -560,7 +566,7 @@ State machine for `move_participants.status`:
 - **I'm going**: `POST /moves/{id}/join`. Server adds participant, publishes
   `participant.changed`, and notifies the creator and current participants
   ("Priya is pulling up"). Then it runs a *second-order notify*: the joiner's own
-  close friends who are in the Move's audience and haven't been notified get a nudge
+  close friends who are in the Move's audience and haven't been notified get a poke
   ("Priya's pulling up to Tony's Move at Kumo"). This is the "your friends get notified"
   half of the solo-discovery loop. It never widens the audience.
 - **Arrive**: detected on device. `lib/geofence.ts` compares the device position to the
@@ -568,17 +574,26 @@ State machine for `move_participants.status`:
   `POST /moves/{id}/arrive`. The server never receives the coordinates. Manual
   "I'm here" button is always available. BLE co-presence with someone already `there`
   also counts as arrival.
-- **Leave**: `POST /moves/{id}/leave` from the "Leave" button, or from the geofence
-  (outside 150 m for 3 minutes). The participant becomes a ghost.
+- **Leave**: `POST /moves/{id}/leave` (optional body `{quiet?: bool}`) from the "Leave"
+  button, or from the geofence (outside 150 m for 3 minutes).
+  - **Take back** (status still `going`): the participant row is **deleted**, viewers get
+    `participant.changed` with `status: null`, `my_status` is `null`, and the user can
+    Pull up again. No ghost.
+  - **Leave** while `there` (`quiet` false): status becomes `left`; a ghost if
+    `ghost_visible`.
+  - **Leave quietly** (`quiet: true`, any status): the row is deleted, no ghost, no hooks,
+    no notification; `participant.changed` goes only to the leaver.
+  - The creator's own leave keeps the old behaviour (the app offers End instead). After
+    a delete, the `everyone_left` end rule still applies.
 - **End**: a Move ends when the creator ends it, when every participant has left, or by
-  the scheduler 3 hours after `starts_at` with no activity. A Move
-  that gets nobody for 15 minutes triggers the "nobody bit" path (section 10.9) instead of a failure
+  the scheduler 3 hours after `starts_at` with no activity. A Move or flare
+  that gets nobody triggers the "nobody bit" path (section 10.9) instead of a failure
   message.
 - On end, the server writes `hangouts` rows for every pair that was `there`, and sends
   each participant a rating prompt (section 13).
 
 **Solo discovery** is the same machinery from the other side: open the map, tap a Move,
-"I'm going", friends get the second-order nudge.
+"I'm going", friends get the second-order poke.
 
 **Reach beyond the group chat**: Circles like "HS friends" exist so people you would
 never text directly are in the audience. They see the Move on the map and feed; Muse
@@ -589,8 +604,11 @@ decides whether any of them get an actual notification.
 - While `there`: full-color avatar at the Mark's coordinates (never GPS).
 - After `left` or Move end: gray avatar ("ghost mode") at the same Mark for 24 hours, if
   `ghost_visible` is on. Ghost visibility uses the original `move_audience`.
+  **Ghost rule**: a ghost needs `arrived_at IS NOT NULL`, and the status is either `left`
+  or still `there` when the Move ended (people still there at the end ghost). A
+  taken-back Pull up has no row, so it never ghosts. Each ghost carries the Move's `text`.
 - Tap a ghost → `mark/[id].tsx` ghost sheet: "Tony, Maya and Priya were here 2h ago",
-  the Move text, and its **Moments** in a horizontal viewer. CTA: "Nudge me next time
+  the Move text, and its **Moments** in a horizontal viewer. CTA: "Poke me next time
   they're out" (stores a preference that boosts those people in the notify picker).
 - **Moments**: during a Move, any participant can add a photo (`expo-image-picker`
   camera) via `POST /moves/{id}/moments` (multipart). The author tags who is in it.
@@ -728,6 +746,8 @@ send       = store notification, publish over WebSocket
 | `friend_pulling_up` | "Priya's pulling up to Tony's Move." |
 | `joined_your_move` | "Maya is on the way." |
 | `proximity_added` | "Added you to Anish's Move · Undo" |
+| `muse_flare` | "You saved Kumo Matcha. You're free til 3 and it's 10 min away. Send a flare to Anish + Priya?" |
+| `muse_free_time` | "You've got 40 min and Tony's free too. Want to start a Move?" |
 | `muse_revive` | "You, Maya and Dev used to hit the climbing gym on Thursdays. Get everyone back together?" |
 | `rate_move` | "How was Kumo with Tony and Maya?" |
 | `moment_approval` | "Maya tagged you in a moment. OK to share?" |
@@ -848,17 +868,42 @@ make Muse's work visible to judges and make the app honest with users.
   and urgency. The reason line is shown on the "For you" strip.
 - **Fallback**: sort by max participant affinity.
 
-### 10.6 Removed: calendar flare and free-time agents
+### 10.6 Calendar flare and free-time agents (P1) — `agents/flare.py`
 
-Flares, the `flare` / `free_time` suggestion types, the 60 s flare scan, `fill_deadline`,
-`saved_marks.flared_at` and the `muse_flare` / `muse_free_time` notifications are cut. The section
-number stays so existing references resolve. Muse's proactive, unprompted moments are **revive**
-(10.8) and **nobody-bit** (10.9). Saving a Reel still creates a Saved Mark (11.1); it just no longer
-triggers an agent.
+This is the autonomous-agent story. A scheduler job runs every 60 s (and on demand from
+Demo Control) for users with `muse_proactive` on:
 
-Calendar after this cut: nothing computes a free window. The mock `calendar_events` rows
-survive only as a read-only busy/free signal for the notify picker (10.1 `currently`), so
-`CalendarGateway.free_window` and the S5 routes have no consumer (see docs/BACKEND_TASKS.md S5).
+1. Find the user's current **free window** from `calendar_events` (or the device
+   calendar via `expo-calendar`, sent as busy blocks only: start/end, no titles). Need
+   at least 20 minutes.
+2. Gather options: Saved Marks (and saved Reels with a resolved Mark) reachable in the
+   window, with `flared_at` older than 3 days; active Moves nearby; pseudo-group
+   members who are also free.
+3. Ask Muse: is this a good moment, and for what? Output:
+
+```json
+{
+  "act": true,
+  "type": "flare",
+  "mark": "k1",
+  "invite": ["u2", "u5"],
+  "fill_minutes": 10,
+  "text": "matcha before class, who's in?",
+  "message": "You saved Kumo Matcha. You're free til 3 and it's 10 min away. Send a flare to Anish + Priya?",
+  "chips": ["free 2:10–3:00", "10 min away", "you + Anish went to 4 matcha spots last month"]
+}
+```
+
+4. If `act`, store a `suggestions` row and send a `muse_flare` or `muse_free_time`
+   notification. **Tapping yes** calls `POST /suggestions/{id}/accept`, which creates
+   the Move (`kind: flare`, `fill_deadline` set) and runs the notify pipeline with
+   Muse's invite list.
+
+Rules: windows under 60 minutes get a 5 to 10 minute fill window ("beyond that you
+don't have time to even connect"); at most 2 proactive suggestions per user per day;
+never during quiet hours; a dismissed suggestion suppresses that Mark for a week.
+
+Travel time is a straight-line estimate at walking or driving speed. No routing API.
 
 ### 10.7 Taste learning (P1) — `agents/taste.py`
 
@@ -866,7 +911,7 @@ After ratings come in for a Move, Muse updates `taste_profiles` for each rater a
 the pseudo-group that attended. Input: previous summary, the new ratings with vibe tags
 and notes, the Mark's attributes. Output: `{ summary, likes[], dislikes[] }`. The
 profile distinguishes at the level users care about ("coffee shops" versus "aesthetic
-coffee shops with seating"). Profiles feed the Move writer, the ranker, the revive
+coffee shops with seating"). Profiles feed the Move writer, the ranker, the flare
 agent, and **spot suggestions**: `POST /muse/suggest-spots` returns 3 Marks for a group
 with a reason each ("you all rated Kumo 9.1; this is the same vibe, 5 min closer").
 
@@ -890,8 +935,8 @@ with a reason each ("you all rated Kumo 9.1; this is the same vibe, 5 min closer
 Posting a Move and hearing nothing is the same feeling as an unanswered group-chat
 message. We cannot make people free, but the user should still have somewhere to go.
 
-- **When**: a Move has no joiners 15 minutes after posting. That 15-minute trigger is the
-  only one. Scheduler job; also a Demo Control trigger.
+- **When**: a flare reaches `fill_deadline` with no joiners, or a regular Move has no
+  joiners 15 minutes after posting. Scheduler job; also a Demo Control trigger.
 - **Candidates**: live Moves the user is allowed to join right now: Moves already in
   their audience, plus **open Moves** nearby (section 8.5). A Move that is neither is
   never suggested. This is the main reason open Moves stay in scope.
@@ -918,7 +963,7 @@ Kumo from campus. Go together?" Accepting opens a prefilled message. No ride boo
 
 ### 10.12 Cost and latency guardrails
 
-- Hard caps: `max_tokens` per agent (notify 500, ranker 400, writer 150, taste 300).
+- Hard caps: `max_tokens` per agent (notify 500, ranker 400, writer 150, flare 350, taste 300).
 - Candidate lists truncated before the call (25 people, 15 Moves, 10 Marks).
 - User-facing calls (compose, rank) must return in under 2 s perceived: show the
   heuristic result immediately and swap in Muse's result when it lands.
@@ -949,10 +994,14 @@ Kumo from campus. Go together?" Accepting opens a prefilled message. No ride boo
 - Seed: hardcode one Reel whose Mark has an active Move by a friend, so both paths demo.
 - Save button on a Reel → `POST /reels/{id}/save` → creates a Saved Mark (`source: reel`).
 
-### 11.2 Saved Reels (P1; the flare is removed)
+### 11.2 Saved Reel → Muse calendar flare (P1)
 
 - `saved.tsx`: Saved tab with Reel thumbnails; each also appears as a bookmark pin on the map.
-- No agent acts on a save. The earlier "saved Reel → calendar flare" story is cut (10.6).
+- The flare agent (section 10.6) connects saved place + calendar gap + distance + pseudo-group.
+- Demo: mock calendar has one obvious 45-minute gap before a 3:00 class. Demo Control
+  "Fire flare scan" runs the job for the current user. The notification arrives, tap
+  yes, the Move goes out with a 10-minute fill timer, and the second phone gets the poke.
+- Show the **reasoning card** with the chips on the suggestion screen.
 
 ### 11.3 Marketplace (pitch line only, not built)
 
@@ -979,7 +1028,7 @@ FastAPI app at `/mcp`. Meta AI (the assistant on the Ray-Ban Meta glasses) calls
 
 | Tool | Writes? | What it does |
 | --- | --- | --- |
-| `draft_move(text, to?, place?, lat?, lng?)` | **No** | Runs the compose pipeline (7.2): intent from the text, place from `place` or the nearest Marks to coarse `lat/lng` (rounded, never stored), `to` ("the usual crew", names, a Circle) mapped to an audience, Move writer, notify picker. Returns `{draft_id, spoken}` where `spoken` reads back place and audience ("Starting a Move at Fat Straws, nudging Anish, Priya and Tony. Say confirm."). Creates no Move and notifies nobody. |
+| `draft_move(text, to?, place?, lat?, lng?)` | **No** | Runs the compose pipeline (7.2): intent from the text, place from `place` or the nearest Marks to coarse `lat/lng` (rounded, never stored), `to` ("the usual crew", names, a Circle) mapped to an audience, Move writer, notify picker. Returns `{draft_id, spoken}` where `spoken` reads back place and audience ("Starting a Move at Fat Straws, poking Anish, Priya and Tony. Say confirm."). Creates no Move and notifies nobody. |
 | `confirm_move(draft_id, request_id)` | Yes | Posts the draft with `origin=glasses`. **Idempotent**: the same `request_id` (or an already-confirmed draft) returns the same Move, never a second one. Call it **only after the user explicitly confirms** in words; the tool description tells Meta AI so. An expired or unknown `draft_id` is a clear error, not a silent new Move. |
 | `share_move` | Yes (link only) | Creates a share link and line for a live Move (9.4), for people outside the app. |
 | `pull_up` | Yes | Joins a Move the caller can see ("I'm going"); `can_see` still applies. |
@@ -1000,7 +1049,13 @@ FastAPI app at `/mcp`. Meta AI (the assistant on the Ray-Ban Meta glasses) calls
 - **Pitch-only**: "save this place" and POV moments (1.6).
 - **Demo-safety**: `/mcp` can be driven from a laptop with an MCP client or `curl` using the bearer
   token, so the step works with no glasses in the room.
-
+- **Built** (S9 and the MCP server): `app/mcp_server.py` (FastMCP, Streamable HTTP, stateless, JSON
+  responses; Bearer or `X-API-Key`, constant-time compare, 401 otherwise), tools in
+  `services/mcp_tools.py`, glasses logic in `services/glasses.py`. `to` is resolved to friends only
+  (an ambiguous name returns candidates, a non-friend is rejected, nothing is drafted). Every tool is
+  bounded to 8 s and the writes are idempotent on `request_id`. With no coordinates and no place from
+  Muse, the place falls back to a place named in the text, the user's usual Mark, and in DEMO_MODE the
+  demo Mark (`GLASSES_DEMO_MARK_ID`); otherwise the draft asks "Where at?" and nothing is held.
 ---
 
 ## 12. Privacy and trust
@@ -1130,8 +1185,8 @@ type Participant = { user: UserLite; status: 'going'|'there'|'left';
                      joined_via: 'creator'|'tap'|'ble_prompt'|'ble_auto'|'open_ble' };
 
 type Move = { id: string; creator: UserLite; mark: Mark; text: string; category: Category;
-              status: 'live'|'ended'|'cancelled';
-              open: boolean; starts_at: string; ends_at?: string;
+              status: 'live'|'ended'|'cancelled'; kind: 'move'|'flare';
+              open: boolean; starts_at: string; fill_deadline?: string; ends_at?: string;
               participants: Participant[]; my_status?: 'going'|'there'|'left';
               moments_count: number; muse_reason?: string;
               audience?: AudienceSummary /* creator only */ };
@@ -1145,11 +1200,64 @@ type Suggestion = { id: string; type: string; message: string; chips: string[];
                     draft?: MoveDraft; status: string; expires_at: string };
 
 type MoveDraft = { mark: Mark; text: string; category: Category;
-                   circle_ids: string[]; user_ids: string[]; notify: NotifyPick[] };
+                   circle_ids: string[]; user_ids: string[]; notify: NotifyPick[];
+                   fill_minutes?: number; kind: 'move'|'flare' };
 
 type Notification = { id: string; type: string; title: string; body: string;
                       data: Record<string, string>; read_at?: string; created_at: string };
 ```
+
+Added on `mobile/facebook-shell` (the exact shapes are pinned by
+`backend/tests/contract/fixtures/core-openapi.json` and
+`backend/tests/contract/test_plan_endpoints.py`):
+
+```ts
+// Honest labels: 'muse' only when the agent answered without falling back.
+type NotifyPick = { user: UserLite; copy: string; reason: string; source: 'muse'|'heuristic' };
+type MoveDraft = { mark: MuseMark|null; text: string; category: Category; kind: 'move'|'flare';
+  alternates: string[]; circle_ids: string[]; user_ids: string[]; notify: NotifyPick[];
+  fill_minutes: number|null; chips: string[]; nearby_mark_ids: string[]; confirm_place: boolean;
+  source: 'muse'|'heuristic' };
+type MuseMark = { id; name; category; lat; lng; address; photo_url: string|null; vibe_tags: string[] };
+type Suggestion = { id; type: 'flare'|'free_time'|'revive'|'route'|'reel_move'|'nobody_bit';
+  message; chips; draft: MoveDraft|null; status; created_at; expires_at;
+  fill_minutes: number|null; target_move_id: string|null; group_id: string|null;
+  window_start: string|null; window_end: string|null };
+type Ghost = { user: UserLite; move_id: string; at: string; text: string };
+type Relation = 'self'|'friend'|'outgoing'|'incoming'|'none';
+type Person = { user: UserLite; username: string|null; relation: Relation; mutual_count: number };
+type Profile = { user: UserLite; username: string|null; relation: Relation; mutual_count: number;
+  mutual: UserLite[] /* up to 6 */; friend_count: number;
+  moves: { id; text; category; mark: { id; name }; starts_at; my_status }[] };
+type Taste = { summary: string; likes: string[]; dislikes: string[]; updated_at: string };
+type MuseStatus = { client: 'http'|'fake'; live: boolean; model: string|null; vision: boolean;
+  calls: number; muse_calls: number; fallbacks: number; fallback_rate: number;
+  tokens_used: number; budget_tokens: number|null; budget_exhausted: boolean };
+type PseudoGroup = { id; label; members: UserLite[]; pattern; strength: number; fading: boolean;
+  last_hangout_at: string|null; history: number[]; muted: boolean };
+type RatingFace = 'loved'|'fine'|'not_for_us';
+type RatingAnswer = { other_mark_id: string; preferred: 'this'|'other'|'same' };
+type RatingQuestions = { move_id; mark: MuseMark; category; already_rated: boolean;
+  faces: { key: RatingFace; label: string }[]; vibe_tags: string[]; ranked_count: number;
+  first_comparison: MuseMark|null };
+type RatingResult = { mark: MuseMark; category; position: number; total: number; score: number;
+  list: { mark: MuseMark; score: number; position: number }[]; taste: Taste|null };
+type LeaderboardSpot = { position; mark: MuseMark; score; your_score: number|null;
+  friends_score: number|null; rankers: UserLite[] /* up to 3 */ };
+type MyListRow = { position: number; mark: MuseMark; score: number; category: Category };
+type CalendarEvent = { id; title: string|null; starts_at; ends_at; place: string|null };
+type FreeWindow = { start: string; end: string; minutes: number };
+type CalendarDay = { events: CalendarEvent[]; free_window: FreeWindow|null };
+type Reel = { id; author_name; video_url; thumb_url; caption; likes; mark: MuseMark|null;
+  distance_mi: number|null; saved: boolean };   // media 'bundle:<id>' = bundled in the app
+type ReelPlace = { reel_id; mark: MuseMark|null; distance_mi: number|null;
+  active_move: { id; text; creator: UserLite; participants_count; friends_there: UserLite[];
+                 my_status } | null;
+  headline: string; draft: MoveDraft|null /* null after an 8 s timeout */; confirm_place: boolean };
+```
+
+Score bands for rankings: Loved 7.0-10.0, Fine 4.0-6.9, Not for us 0.0-3.9; faces stay
+grouped and `'same'` is a tie.
 
 ### 14.2 Endpoints
 
@@ -1157,24 +1265,29 @@ type Notification = { id: string; type: string; title: string; body: string;
 | --- | --- | --- |
 | GET | `/health` | liveness |
 | GET | `/auth/users` | everyone, for name lookups |
-| POST | `/auth/signup` | `{name, username, password}` → `{user, username}`; befriends everyone already here |
+| POST | `/auth/signup` | `{name, username, password}` → `{user, username}`; sends the new account friend requests from Anish, Priya and Tony (no auto-friending) and adds it to the example Moves' audiences |
 | POST | `/auth/login` | `{username, password}` → `{user, username}` (403 on a wrong password) |
-| GET | `/users/search?q=` | people by name or @username, each with `relation` (friend, outgoing, incoming, none) |
-| GET | `/friends/requests` | `{incoming, outgoing}` pending requests |
+| GET | `/users/search?q=` | `Person[]`: people by name or @username, each with `relation` and `mutual_count` |
+| GET | `/users/{user_id}` | `Profile` (declared after `/users/search`); 404 for an unknown user or a block either way; `moves` are their live Moves you can see, Mark id and name only |
+| GET | `/friends/suggestions?limit=10` | `Person[]`: friends of friends by mutual count, padded with other people by name |
+| GET | `/friends/requests` | `{incoming, outgoing}` pending requests (each with `mutual_count`) |
 | POST | `/friends/requests` | `{user_id}`: add friend (accepts if they already asked you); notifies them |
 | POST | `/friends/requests/{user_id}/accept` | accept; notifies them |
 | DELETE | `/friends/requests/{user_id}` | decline theirs or cancel yours |
-| DELETE | `/friends/{user_id}` | unfriend |
+| DELETE | `/friends/{user_id}` | unfriend; also strips each from the other's Circles and auto-join list |
 | POST | `/me/push-tokens` | `{token, sandbox}`: this phone's APNs device token; every stored notification is also pushed to it when `APNS_*` is configured |
 | DELETE | `/me/push-tokens/{token}` | on logout |
 | GET | `/areas/city?lat&lng` | city at the map's center for the Moves header, `{name, region}`; rounded to ~1 km, reverse-geocoded (Nominatim, `GEOCODER_URL`) with a cache, falls back to the configured areas |
 | GET | `/me` | current user + settings |
+| PATCH | `/me` | `{name}` (1-60 chars, trimmed) → `Me`; 422 otherwise |
+| POST | `/me/verify` | mock "Verify with Facebook": sets `fb_verified` → `Me` |
+| GET | `/me/taste` | `Taste` or JSON `null` |
 | PATCH | `/me/settings` | update `user_settings` |
-| GET | `/friends` | friend list with affinity tier |
+| GET | `/friends` | friend list with affinity tier and `username` |
 | GET/POST | `/circles` | list / create |
-| PATCH/DELETE | `/circles/{id}` | rename, set members / delete |
-| GET/POST/DELETE | `/me/blocks` | hidden-from list |
-| GET/PUT | `/me/autojoin` | auto-join list |
+| PATCH/DELETE | `/circles/{id}` | rename, set members / delete (members must be friends, else 422) |
+| GET/POST/DELETE | `/me/blocks` | hidden-from list; a block also removes the friendship, pending requests, the person from your Circles and auto-join both ways |
+| GET/PUT | `/me/autojoin` | auto-join list (PUT: friends only, else 422) |
 | GET | `/marks/nearby?lat&lng&radius_km` | Marks with saved/ghost info |
 | GET | `/marks/search?q` | name search |
 | POST | `/marks` | create a Mark |
@@ -1182,7 +1295,8 @@ type Notification = { id: string; type: string; title: string; body: string;
 | POST/DELETE | `/marks/{id}/save` | Saved Marks |
 | GET | `/me/saved` | Saved Marks and saved Reels |
 | POST | `/audience/preview` | `{circle_ids, user_ids}` → `AudienceSummary` |
-| POST | `/muse/compose-move` | `{lat?, lng?, mark_id?, seed_text?}` → `MoveDraft` |
+| GET | `/muse/status` | `MuseStatus` (no user data) |
+| POST | `/muse/compose-move` | `{lat?, lng?, mark_id?, seed_text?}` → `MoveDraft` (`source` honest) |
 | POST | `/muse/notify-preview` | `{mark_id, text, circle_ids, user_ids}` → `NotifyPick[]` |
 | POST | `/moves/{id}/notify` | `{user_ids}` → pokes that list now (creator only, audience only, skips anyone already poked) |
 | POST | `/muse/suggest-spots` | `{user_ids, category?}` → Marks with reasons |
@@ -1192,34 +1306,39 @@ type Notification = { id: string; type: string; title: string; body: string;
 | GET | `/moves/{id}` | detail |
 | POST | `/moves/{id}/join` | I'm going |
 | POST | `/moves/{id}/arrive` | status → there |
-| POST | `/moves/{id}/leave` | status → left |
+| POST | `/moves/{id}/leave` | optional `{quiet?}`; take back / leave / leave quietly (section 7.3) |
 | POST | `/moves/{id}/end` | creator ends |
 | GET/POST | `/moves/{id}/moments` | list / upload (multipart: file, caption, repeated `tagged_user_ids`) |
 | POST | `/moments/{id}/approve` | `{approve: bool}` |
-| POST | `/moves/{id}/rating` | submit rating + pairwise answers |
-| GET | `/moves/{id}/rating/questions` | pairwise questions for this user |
-| GET | `/leaderboards/spots?category` | Top spots |
-| GET | `/leaderboards/my-list?category` | personal ranked list |
+| GET | `/moves/{id}/rating/questions` | `RatingQuestions`; 404 when the Move is hidden |
+| POST | `/moves/{id}/rating/next` | `{answers}` → `{next_comparison: MuseMark|null}`; 422 on a stale answer |
+| POST | `/moves/{id}/rating` | `{face, answers, vibe_tags, note}` → `RatingResult`; 403 not a participant/creator, 409 already rated |
+| GET | `/leaderboards/spots?category&limit` | `LeaderboardSpot[]` from you and your friends; `category` optional (unknown → 422) |
+| GET | `/leaderboards/my-list?category` | `MyListRow[]` |
 | GET | `/notifications` | list |
 | POST | `/notifications/read` | mark read |
 | GET | `/suggestions` | pending Muse suggestions |
-| POST | `/suggestions/{id}/accept` | creates the Move (optional edited draft) |
-| POST | `/suggestions/{id}/dismiss` | |
-| GET | `/pseudo-groups` | with fading flag and history |
+| POST | `/suggestions/{id}/accept` | optional `{text?, user_ids?, fill_minutes?}` → `{suggestion, move_id, draft}`; flare `fill_minutes` clamped to 5-10; 404 / 409 closed |
+| POST | `/suggestions/{id}/dismiss` | optional `{never_again?}`; on a revive card it mutes that crew |
+| GET | `/pseudo-groups` | with fading flag, history and `muted` |
 | POST | `/pseudo-groups/{id}/revive` | → `MoveDraft` |
-| POST | `/proximity/token` | rotating BLE token |
-| POST | `/proximity/sightings` | batch sightings |
-| POST | `/proximity/prompt/{move_id}/accept` | join via prompt; body `{always: bool}` |
-| GET | `/calendar` | mock events / free window |
-| PUT | `/calendar/busy` | device busy blocks |
-| GET | `/reels` | mock feed |
-| GET | `/reels/{id}/place` | chip + sheet data |
-| POST/DELETE | `/reels/{id}/save` | save Reel → Saved Mark |
+| POST/DELETE | `/pseudo-groups/{id}/mute` | 204; 404 if not yours |
+| POST | `/proximity/prompt/{move_id}/accept` | optional `{always?}` → `{move_id, status: 'there'}`; 404 hidden, 409 not live; `always` adds the participants who are friends to your auto-join list |
+| GET | `/calendar` | `CalendarDay` (events now-2h to now+12h, free window) |
+| PUT | `/calendar/busy` | `{blocks: {start, end}[]}` replaces your title-less blocks in the next 24 h; 422 end <= start |
+| GET | `/reels?lat&lng` | `Reel[]` (coarse lat/lng used once, never stored) |
+| GET | `/reels/{id}/place?lat&lng` | `ReelPlace` |
+| POST/DELETE | `/reels/{id}/save` | save Reel → Saved Mark (`source='reel'`); unsave removes the Saved Mark only if this reel saved it |
 | POST | `/glasses/command` | fallback voice screen: `{utterance, lat?, lng?}` → draft + spoken confirmation (same compose service as `draft_move`) |
 | POST | `/glasses/confirm` | fallback voice screen: post the drafted Move (idempotent, same store as `confirm_move`) |
 | POST | `/mcp` | **Meta AI connector**: remote MCP server, Streamable HTTP, stateless; `Authorization: Bearer <MCP_TOKEN>`, caller is `MCP_USER_ID`, no `X-User-Id`. Not under `/api/v1`. Tools `draft_move`, `confirm_move`, `share_move`, `pull_up`, `friends_nearby`, `get_my_active_move` (11.4) |
-| WS | `/ws?user_id` | events (section 9.1) |
-| * | `/demo/*` | section 15.2 |
+| WS | `/ws?user_id` | events (section 9.1); new: `proximity.prompt {move_id, mark_name, creator, names, text}`, `rating.prompt {move_id, mark_name}`; `participant.changed` may carry `status: null` |
+| * | `/demo/*` | section 15.2 (404 unless `DEMO_MODE`) |
+
+Not built on this branch: `/proximity/token`, `/proximity/sightings` (real BLE).
+Notification `data.route` values: `/move/{id}`, `/move/{id}/rate`, `/move/{id}/moments`,
+`/suggestion/{id}`, `/friends`, `/user/{id}`. `proximity_added` also carries `undo: "leave"`.
+APNs payloads repeat the data under `body` and set `aps.badge` to the unread count.
 
 Uploaded and seeded Moment media is served through authenticated `/media/{filename}` handlers over `backend/data/uploads`, with `X-User-Id` and the same visibility checks as Moments. The legacy `/api/v1/media/{filename}` URL remains supported. Never publicly mount the private uploads directory. Mark seed images use a separate public allowlisted `/media/seed/marks/{asset_name}` route.
 
@@ -1229,8 +1348,12 @@ Uploaded and seeded Moment media is served through authenticated `/media/{filena
 
 ### 15.1 Seed world (`backend/app/seed/seed.py`)
 
-`uv run python -m app.seed.seed` drops and rebuilds `app.db`. It must produce a world
-where every Muse feature has real signal to reason about:
+`uv run python -m app.seed.seed` drops and rebuilds the database (it wipes real
+accounts). `uv run python -m app.seed.topup` inserts only the missing seed rows (history
+Moves and hangouts, Reels, Anish's clock-relative calendar, ratings and rankings,
+pseudo-groups and Anish's taste) and never drops anything; prefer it on a shared
+database. Calendar rows are relative to seed time, so Demo Control's flare scan writes its
+own block. It must produce a world where every Muse feature has real signal to reason about:
 
 - **Area**: one campus-sized area (default: around UT Dallas / Richardson–Plano; change
   the center constant to the demo venue if needed). 30 to 40 Marks across all
@@ -1253,22 +1376,33 @@ where every Muse feature has real signal to reason about:
   "nobody bit" path); ghosts with seeded Moments at another Mark from last night.
 - **Reels**: 4 clips; one geotagged at Kumo (friends there), one at a Mark with nobody
   (start new), one with no geotag where the caption names the place (resolver demo).
-- **Calendar** for Anish: a few mock classes, used only as the notify picker's busy/free signal; Anish's saved Reel of Kumo saved "3 days ago" (a plain Saved Mark, nothing acts on it).
+- **Calendar** for Anish: classes with a 2:10–3:00 gap; Anish's saved Reel of Kumo saved "3 days ago".
 
 ### 15.2 Demo Control (`demo.tsx`, `/demo/*`, only when `DEMO_MODE` is set)
 
 | Control | Endpoint | Effect |
 | --- | --- | --- |
-| Reset world | `POST /demo/reset` | re-run the seed |
+| Demo state | `GET /demo/state` | `{demo_mode, now, offset_minutes, muse: {client, live}, user_id}` |
+| Reset world | `POST /demo/reset` | **soft**: clock offset 0, example-Move hold list released, example Moves revived and re-timed, cast users' pending suggestions expired, demo calendar blocks and demo co-presence rows removed. Never drops a table or an account |
 | Set demo time | `POST /demo/time` `{iso}` or `{offset_minutes}` | shifts `core/clock.py`; all "now" reads go through the Clock |
+| Fire flare scan | `POST /demo/flare-scan` `{user_id?, window_minutes?}` | inserts a "CS 4349 lecture" block at now + window (default 45), makes sure there is a Saved Mark, then runs section 10.6 forced (skips the memo, daily cap, quiet hours and Mark cooldowns; `muse_proactive` off still wins) |
+| Fire free-time prompt | `POST /demo/free-time` | "Want to start a Move?" |
 | Fire revive scan | `POST /demo/revive-scan` | runs section 10.8 |
-| Simulate co-presence | `POST /demo/copresence` `{user_ids, on}` | injects `source: sim` sightings |
-| Friend posts a Move | `POST /demo/friend-move` `{user_id, mark_id, text}` | a seeded friend posts; notify pipeline runs |
-| Friend pulls up | `POST /demo/friend-join` `{user_id, move_id}` | |
-| End Move | `POST /demo/end-move` `{move_id}` | triggers ghosts + rating prompt |
-| Nobody bit | `POST /demo/nobody-bit` `{move_id}` | skips the 15-minute wait for a Move with no joiners; section 10.9 runs |
-| Route suggestion | `POST /demo/route` `{move_id, user_ids}` | section 10.10 |
-| Muse stats | `GET /demo/muse-stats` | calls, tokens, fallback rate, last outputs |
+| Simulate co-presence | `POST /demo/copresence` `{user_ids (>=2), on}` | upserts `copresence` rows for friend pairs (held 2 h) or deletes them, then sweeps their live Moves → `{pairs, prompted, auto_joined}` |
+| Friend posts a Move | `POST /demo/friend-move` `{user_id, mark_id, text, category?, notify_me?}` | a seeded friend posts to their friends plus you; `notify_me` (default true) force-notifies you |
+| Friend pulls up | `POST /demo/friend-join` `{user_id, move_id, status?}` | `there` joins and arrives, so `arrived_at` is set |
+| Friend leaves | `POST /demo/friend-leave` `{user_id, move_id, quiet?}` | a ghost unless quiet → `{move_id, my_status}` |
+| Friend accepts | `POST /demo/friend-accept` `{user_id}` | that user accepts your pending request → `{relation}`; 404 with no request |
+| End Move | `POST /demo/end-move` `{move_id}` | ghosts, hangouts, rating prompt; an example Move goes on the hold list so the 5-minute refresh does not revive it |
+| Nobody bit | `POST /demo/nobody-bit` `{move_id}` | expires the fill window with no joiners; section 10.9 runs |
+| Muse stats | `GET /demo/muse-stats` | calls, tokens, budget, fallback rate, last outputs |
+
+Example Moves: the 5-minute `example_moves` job stays registered in DEMO_MODE (otherwise
+`end_stale_moves` ends Tony's seeded Kumo Move overnight). `app/services/examples.py` keeps
+an in-memory hold list (`hold`, `release_all`, `held`); `refresh()` skips held ids and
+`/demo/reset` releases them. In DEMO_MODE the autonomous Muse jobs (`muse_flare_scan`,
+`muse_nobody_bit`, `muse_pseudo_groups`) are not registered; Demo Control is the
+deterministic path. `/demo/route` is not built (F22 is out).
 
 **All time reads in the backend go through `core/clock.py`.** Never call
 `datetime.now()` directly in services; the demo depends on shifting time.
@@ -1278,12 +1412,12 @@ where every Muse feature has real signal to reason about:
 1. **Hook** (20 s). Open the mock Facebook app as Anish. "RSVPs are friction. I don't know if I'm free Wednesday. I know I'm free now."
 2. **Reel → Move** (40 s). Scroll Reels, tap "📍 Kumo Matcha", see "Tony + 2 friends are here rn", tap I'm going. Second phone (Priya) gets "Hey Priya, Anish is pulling up to Tony's Move".
 3. **Map and ghosts** (30 s). Moves tab: category Marks, avatar stacks, "For you" with Muse's reasons. Tap a ghost from last night, see the Moments. FOMO.
-4. **Share a Move + proximity** (45 s). Post "study with me" from the composer; show the audience line and Muse's notify list with reasons. The phone next to it gets "You're with Anish. Add yourself?" and the far phone gets the FOMO nudge.
-5. **Muse acts on its own: revive** (45 s). Fire the revive scan: "You, Maya and Dev used to hit Summit Climbing on Thursdays. Get everyone back together?" Show the reasoning card with its chips, tap yes, the composer opens prefilled with the Mark and the crew.
-6. **After the Move** (30 s). End it, rate with one pairwise question, show the leaderboard and the updated taste line.
-7. **Nobody bit** (20 s). A Move gets no joiners for 15 minutes (Demo Control skips the wait); Muse offers Jordan's open pickleball Move. "There's always somewhere to go."
+4. **Share a Move + proximity** (45 s). Post "study with me" from the composer; show the audience line and Muse's notify list with reasons. The phone next to it gets "You're with Anish. Add yourself?" and the far phone gets the FOMO poke.
+5. **Muse acts on its own** (45 s). Fire the flare scan: "You saved Kumo Matcha. You're free til 3 and it's 10 min away. Send a flare to Anish + Priya?" Show the reasoning card, tap yes, 10-minute fill timer.
+6. **After the Move** (30 s). End it, rate with one pairwise question, show the leaderboard and the updated taste line. Then the revive card for the climbing crew.
+7. **Nobody bit** (20 s). A flare expires empty; Muse offers Jordan's open pickleball Move. "There's always somewhere to go."
 8. **Trust** (20 s). Privacy screen: place not person, opt-ins, audience line, hidden-from Mom.
-9. **Glasses, phone in a pocket** (30 s). Wearing the Ray-Bans, phone out of sight: "Hey Meta, send Dhivyesh a move, getting boba." Meta AI calls our `/mcp` connector: `draft_move` reads back the place and who gets nudged, the user says confirm, `confirm_move` posts it, and Dhivyesh's phone gets the nudge. **Backup**: the in-app voice screen (`glasses.tsx`) with the glasses as a Bluetooth headset, or the same call from a laptop MCP client if the glasses or Meta AI fail.
+9. **Glasses, phone in a pocket** (30 s). Wearing the Ray-Bans, phone out of sight: "Hey Meta, send Dhivyesh a move, getting boba." Meta AI calls our `/mcp` connector: `draft_move` reads back the place and who gets poked, the user says confirm, `confirm_move` posts it, and Dhivyesh's phone gets the poke. **Backup**: the in-app voice screen (`glasses.tsx`) with the glasses as a Bluetooth headset, or the same call from a laptop MCP client if the glasses or Meta AI fail.
 10. **Close** (20 s). The Marketplace line, then the growth loop.
 
 Record a backup video of the full flow once it works.
@@ -1292,11 +1426,19 @@ Record a backup video of the full flow once it works.
 
 ## 16. Frontend architecture notes
 
-- **State**: server state in TanStack Query (keys: `['moves','nearby']`, `['move',id]`,
-  `['notifications']`, `['suggestions']`, ...). Realtime events patch or invalidate
-  these keys in one place (`lib/realtime.ts`). Local UI state in component state;
-  session and settings in a small zustand store persisted to AsyncStorage.
-- **Optimistic actions**: join/leave/save update the cache immediately and roll back on error.
+- **State** (`frontend/mobile`): each feature is a zustand store in `lib/<feature>.ts`
+  with `status`/`error`, `load()`, optimistic mutations that roll back and
+  `toast(errorMessage(e))` on failure, and an `onLogout` reset. HTTP calls go through
+  `lib/endpoints.ts` (typed by `lib/types.ts`). `lib/realtime.ts` distributes every
+  envelope through `appEvents`; stores subscribe themselves. After a successful Move
+  mutation, emit `appEvents.emit('moves.changed')`. Session and settings live in a small
+  zustand store persisted to AsyncStorage. TanStack Query is not used.
+- **Screens**: `LoadingState` on first load, `ErrorState` with Retry, `EmptyState` when
+  empty; `StackScreen` for new screens; `useOpenTarget()` for anything notification-like
+  and `composerHref(...)` into the composer.
+- **Demo time**: countdowns use `serverNow()` from `lib/format.ts`, fed by each realtime
+  envelope's `ts` and by `/demo/time` and `/demo/state`.
+- **Optimistic actions**: join/leave/save update the store immediately and roll back on error.
 - **`lib/backend.ts`**: port the existing `backend.js` helper to TypeScript and add the
   `X-User-Id` header from the session. Keep the LAN auto-discovery and
   `EXPO_PUBLIC_BACKEND_URL` override. WebSocket URL derives from the same base.
@@ -1309,10 +1451,52 @@ Record a backup video of the full flow once it works.
   (shows Demo Control in Menu).
 - **Look**: Facebook-like neutrals and blue for chrome; the Moves surface gets its own
   accent and the category colors. Motion: spring the pin avatar stacks on
-  `participant.changed`, haptic on I'm going.
+  `participant.changed`, haptic on I'm going, count-down ring on flare timers.
 - `app.json`: add iOS usage strings (location when-in-use, Bluetooth, calendar, camera,
   microphone, speech recognition), the plugins for the native modules, and the
   expo-router entry.
+
+### 16.1 Route map (`frontend/mobile/app`)
+
+All routes are Stack screens under the signed-in guard in `app/_layout.tsx`.
+
+| Path | File | Presentation | Reached from |
+| --- | --- | --- | --- |
+| `/login` | `app/login.tsx` | screen | signed out |
+| `/onboarding` | `app/onboarding.tsx` | fullScreenModal | after signup; Home first-run card |
+| `/` (Home) | `app/(tabs)/index.tsx` | tab | tab bar |
+| `/reels` | `app/(tabs)/reels.tsx` | tab | tab bar, Menu Reels tile |
+| `/moves` | `app/(tabs)/moves.tsx` | tab | tab bar, Menu Moves tile |
+| `/notifications` | `app/(tabs)/notifications.tsx` | tab | tab bar |
+| `/profile` | `app/(tabs)/profile.tsx` | tab | tab bar, Menu profile card |
+| `/search` | `app/(tabs)/search.tsx` | tab (hidden) | header search, Friends "Find friends" |
+| `/menu` | `app/menu.tsx` | screen | hamburger |
+| `/post/new`, `/post/share` | existing | modal | Home composer |
+| `/move/new` | `app/move/new.tsx` | fullScreenModal | Moves "Make a Move", Home "Make a Move", suggestion accept (draft), Reel "Start a Move here", crew "Notify this crew", Mark "Start a Move here" |
+| `/move/[id]` | `app/move/[id]/index.tsx` | screen | Moves card "Details", notifications/banner/push, Home feed unit, profile Moves, composer Done, suggestion accept (move_id) |
+| `/move/[id]/moments` | `app/move/[id]/moments.tsx` | screen | Move detail Moments row, ghost card "See Moments", Mark detail, `moment_approval` |
+| `/move/[id]/rate` | `app/move/[id]/rate.tsx` | modal | `rate_move` notification/banner, Move detail "Rate it", Demo "End + rate" |
+| `/suggestion/[id]` | `app/suggestion/[id].tsx` | modal | `muse_*` notifications/banner/push, Home Muse card, Moves sheet Muse card, Demo results |
+| `/calendar` | `app/calendar.tsx` | screen | Menu Events tile, suggestion reasoning card, Demo |
+| `/demo` | `app/demo.tsx` | screen | Menu "Demo Control" tile (only when `EXPO_PUBLIC_DEMO=1`) |
+| `/leaderboards` | `app/leaderboards.tsx` | screen | Menu Leaderboards tile, Moves map trophy button, rate result card, Mark detail |
+| `/mark/[id]` | `app/mark/[id].tsx` | screen | Move detail place row, leaderboard rows, Saved list, Reel sheet |
+| `/saved` | `app/saved.tsx` | screen | Menu Saved tile |
+| `/friends` | `app/friends.tsx` | screen | Menu Friends tile, Profile "See all", `friend_request`, Home Add friends card |
+| `/user/[id]` | `app/user/[id].tsx` | screen | PersonRow, Move creators/participants, profile friend tiles, `friend_accepted` |
+| `/profile/edit` | `app/profile/edit.tsx` | modal | Profile "Edit profile" |
+| `/settings` | `app/settings/index.tsx` | screen | Menu gear, "Settings & privacy > Settings" |
+| `/settings/privacy` | `app/settings/privacy.tsx` | screen | Settings, Menu "Privacy shortcuts", onboarding |
+| `/settings/hidden` | `app/settings/hidden.tsx` | screen | Privacy "Hidden from" |
+| `/settings/autojoin` | `app/settings/autojoin.tsx` | screen | Privacy "Auto-join" |
+| `/settings/notifications` | `app/settings/notifications.tsx` | screen | Settings, Notifications tab header menu |
+| `/circles` | `app/circles/index.tsx` | screen | Menu Groups tile, Privacy "Circles", composer "Manage" |
+| `/circles/[id]` | `app/circles/[id].tsx` (`id='new'` creates) | screen | Circles list, composer "+ New Circle" |
+| `/groups` | `app/groups.tsx` (crews) | screen | Menu "Crews" tile, revive suggestion "See your crews" |
+
+Overlays (not routes): `ProximityPrompt` sheet, `Toast`, `OfflineBar`, `InAppBanner` (all mounted in `app/_layout.tsx` by
+fe-shell). Menu tiles with no feature (Memories, Marketplace, Feeds, Pages, Gaming, Birthdays, Fundraisers, Messenger and
+other "Also from Meta" rows, Help rows) open a "Coming soon" sheet instead of doing nothing.
 
 ---
 
@@ -1325,10 +1509,10 @@ from the first hour.
 | Lane | Owns | Delivers |
 | --- | --- | --- |
 | **A. Backend core** | `core/`, `tables.py`, `models.py`, `domain/`, `repositories/`, `services/{moves,marks,circles,moments}.py`, `api/routes/{auth,users,circles,marks,moves,moments,ws}.py`, `realtime/`, `seed/` | DB, seed, Move lifecycle, privacy enforcement, WebSocket hub |
-| **B. Muse** | `muse/**`, `services/notify.py`, `api/routes/{muse,notifications}.py`, `scheduler/`, suggestions, pseudo-groups, taste | Muse client, runner, all agents with fallbacks, notify pipeline, revive/nobody-bit jobs |
+| **B. Muse** | `muse/**`, `services/notify.py`, `api/routes/{muse,notifications}.py`, `scheduler/`, suggestions, pseudo-groups, taste | Muse client, runner, all agents with fallbacks, notify pipeline, flare/revive/nobody-bit jobs |
 | **C. App shell + map** | `frontend/app/(tabs)/**`, `app/_layout.tsx`, `app/login.tsx`, `components/{fb,map,ui}`, `lib/{backend,api,types,realtime,session,notify,theme}.ts` | Mock Facebook shell, map, pins, Move sheet, notifications, banners |
 | **D. Move flows** | `frontend/app/move/**`, `app/mark/**`, `app/{saved,leaderboards,privacy}.tsx`, `app/circles/**`, `components/{move,muse}`, `lib/geofence.ts`; backend `services/{ratings,leaderboards}.py` + routes | Composer, detail, moments, ghosts, rating, leaderboards, privacy screens |
-| **E. Surfaces + proximity** | `frontend/app/{reels tab content,glasses,demo}.tsx`, `lib/proximity/**`, `lib/calendar.ts`; backend `services/{proximity,reels,calendar,glasses}.py` + routes, `mcp/` (the `/mcp` connector, 11.4), `api/routes/demo.py` | Reels chip, real BLE + sim proximity, open Moves, glasses connector and fallback voice screen, Demo Control |
+| **E. Surfaces + proximity** | `frontend/app/{reels tab content,glasses,demo}.tsx`, `lib/proximity/**`, `lib/calendar.ts`; backend `services/{proximity,reels,calendar,glasses}.py` + routes, `mcp_server.py` + `services/mcp_tools.py` (the `/mcp` connector, 11.4), `api/routes/demo.py` | Reels chip, saved-Reel flare surface, real BLE + sim proximity, open Moves, glasses connector and fallback voice screen, Demo Control |
 
 ### 17.1 Build order
 
@@ -1336,9 +1520,9 @@ from the first hour.
 | --- | --- |
 | **M0 Foundations** | Muse API verified with one real call. DB + seed run. expo-router shell with tabs and login picker. Typed API client. WebSocket connects. |
 | **M1 Core loop** | Map shows seeded Moves with category pins. Post a Move from the composer with audience line. Second phone gets a realtime notification written by Muse and can tap I'm going. Arrive/leave works. |
-| **M2 Muse is essential** | Notify picker, Move writer, ranker live with reasons shown. |
+| **M2 Muse is essential** | Notify picker, Move writer, ranker live with reasons shown. Flare scan from Demo Control produces a suggestion that becomes a Move. |
 | **M3 FOMO + retention** | Ghosts and Moments. Rating flow with pairwise, taste profile, Top spots. Revive card. Nobody-bit path. |
-| **M4 Surfaces** | Reel chip both paths. Proximity prompt and FOMO skip (real BLE if it is working, simulated otherwise). |
+| **M4 Surfaces** | Reel chip both paths. Saved Reel flare. Proximity prompt and FOMO skip (real BLE if it is working, simulated otherwise). |
 | **M5 Stretch** | Open Moves over BLE. "Hey Meta" through the `/mcp` connector (voice screen as fallback). Route suggestion. |
 | **Privacy pass** | Section 12.5, after M4. |
 | **M6 Demo hardening** | Full script run twice on real phones on venue Wi-Fi. Offline Muse fallback checked. Backup video recorded. |
@@ -1376,7 +1560,7 @@ the remaining time goes to M6.
 | Venue Wi-Fi blocks phone-to-laptop traffic | Tunnel the backend and set `EXPO_PUBLIC_BACKEND_URL`; or phone hotspot. Test Thursday night. |
 | Lock-screen notifications | Local notifications from socket events; in-app banners are the primary path. |
 | Live demo flakiness | Demo Control for every timed step, seed reset, offline Muse mode, backup video. |
-| "Is the AI essential?" | Lead with features that cannot exist without Muse: who gets notified, the unprompted revive, nobody-bit, taste. Show reasoning chips everywhere. |
+| "Is the AI essential?" | Lead with features that cannot exist without Muse: who gets notified, the autonomous flare, revive, taste. Show reasoning chips everywhere. |
 | Privacy pushback from judges | Section 1.5 rules are visible in the UI: audience line, place-not-person, opt-ins, hidden-from. Privacy pass (12.5) before the demo. |
 | Pairwise ranking algorithm | Team supplies it; placeholder behind the `domain/ranking.py` interface until then. |
 | Glasses path | Primary is the Meta AI connector (`/mcp`): needs a public HTTPS URL, `MCP_TOKEN`, and the connector accepted by Meta AI on the demo glasses. Test early; if it fails the voice screen (glasses as a Bluetooth headset, then phone mic) and a laptop MCP client are the fallbacks. |
@@ -1390,9 +1574,9 @@ the remaining time goes to M6.
 
 | Question | Our answer |
 | --- | --- |
-| Why isn't this just a group chat? | In a group chat you have to *send* something: "who's down?", every time, to one fixed set of people. Most people won't. A Move is a share, not an ask, and the nudge is a notification built for exactly this with a one-tap "I'm going". It also reaches people you would never text. |
+| Why isn't this just a group chat? | In a group chat you have to *send* something: "who's down?", every time, to one fixed set of people. Most people won't. A Move is a share, not an ask, and the poke is a notification built for exactly this with a one-tap "I'm going". It also reaches people you would never text. |
 | What if I post and nobody comes? | Same as a quiet group chat: everyone's busy, and no app can fix that. What we add is the "nobody bit" path: Muse points you to a live Move you can still join. There is always somewhere to go. |
-| Is the AI essential? | Who gets nudged, the unprompted revive of a fading group (your history of who you hang out with, and when), the nobody-bit rescue, and taste learning from ratings all come from Muse. Without it, a quiet group stays quiet. |
+| Is the AI essential? | Who gets poked, the unprompted flare (saved place + calendar gap + distance + your usual people), reviving fading groups, and taste learning from ratings all come from Muse. Without it, saves never become plans. |
 | Is this live location? | No. A Move shows a place you chose to share with people you chose, and it ends when you leave. Location, Bluetooth and calendar are each opt-in. |
 | Why Facebook? | Reels is where young adults already see things they want to do. Reel → Move turns watch time into real-world plans, and Circles turn Groups into curated, in-person experiences. |
 | Is it a dating app? | No. It is about doing things with people you know; open Moves show groups and activities, not profiles to browse. |

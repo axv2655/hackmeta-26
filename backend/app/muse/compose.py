@@ -8,6 +8,9 @@ User-facing calls must feel instant (10.12): the client asks once with
 `heuristic=true` (templates only, no Muse call, returns at once) and again
 without it; the Muse draft replaces the heuristic one when it lands. The
 runner's 60 s cache makes a repeated tap free.
+
+`source` is "muse" only when the writer (and the resolver, when it was asked)
+answered without falling back; otherwise "heuristic".
 """
 
 from __future__ import annotations
@@ -104,12 +107,15 @@ class ComposeService:
         nearby = self.marks.nearest(*coarse, MAX_MARKS) if coarse else []
         mark = self.mark(mark_id)
         confirm = False
+        resolver_fell_back = False
         if mark is None and (seed_text or nearby):
             place = ResolveInput(user_id, candidates=nearby, caption=seed_text)
             if heuristic:
                 res = place_resolver.heuristic(place)
             else:
-                res = await place_resolver.resolve(self.lane.runner, place)
+                res, resolver_fell_back = await place_resolver.resolve_meta(
+                    self.lane.runner, place
+                )
             mark = self.mark(res.mark_id)
             confirm = needs_confirmation(res)
 
@@ -121,9 +127,12 @@ class ComposeService:
             seed_text=seed_text,
         )
         if heuristic:
-            written = move_writer.fallback(inp)
+            written, writer_fell_back = move_writer.fallback(inp), True
         else:
-            written = await move_writer.write(self.lane.runner, inp)
+            written, writer_fell_back = await move_writer.write_meta(
+                self.lane.runner, inp
+            )
+        source = "heuristic" if writer_fell_back or resolver_fell_back else "muse"
 
         settings = self.session.get(UserSettings, user_id)
         chips = [mark.name] if mark else []
@@ -137,5 +146,6 @@ class ComposeService:
             circle_ids=tuple(settings.default_circle_ids if settings else ()),
             chips=tuple(chips),
             nearby_mark_ids=tuple(m.id for m in nearby),
+            source=source,
         )
-        return Composed(draft, mark, confirm, "heuristic" if heuristic else "muse")
+        return Composed(draft, mark, confirm, source)

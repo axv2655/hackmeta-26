@@ -881,6 +881,8 @@ PUBLIC = (
     ("POST", f"{API}/auth/login"),
     # Demo Mark photos: manifest-listed, shared by category, carry no user data.
     ("GET", "/media/seed/marks/{asset_name}"),
+    # Global Muse runtime counters (client, model, token budget): no user data.
+    ("GET", f"{API}/muse/status"),
 )
 PUBLIC_PREFIXES = (
     f"{API}/notes",  # scaffolding sample, not part of the product

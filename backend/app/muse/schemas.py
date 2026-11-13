@@ -61,7 +61,7 @@ class MarkOut(BaseModel):
 
 
 def picks_out(session: Session, picks: list[NotifyPickOut]) -> list[dict[str, Any]]:
-    """API `NotifyPick` dicts: `{user: UserLite, copy, reason}`."""
+    """API `NotifyPick` dicts: `{user: UserLite, copy, reason, source}`."""
     out = []
     for p in picks:
         user = session.get(User, p.user_id)
@@ -71,6 +71,7 @@ def picks_out(session: Session, picks: list[NotifyPickOut]) -> list[dict[str, An
                     "user": MuseUserLite.of(user).model_dump(),
                     "copy": p.copy,
                     "reason": p.reason,
+                    "source": p.source,
                 }
             )
     return out
@@ -113,7 +114,7 @@ class MoveDraftRead(BaseModel):
     chips: list[str] = []
     nearby_mark_ids: list[str] = []
     confirm_place: bool = False
-    source: str = "muse"
+    source: str = "heuristic"
 
     @classmethod
     def of(
@@ -138,5 +139,5 @@ class MoveDraftRead(BaseModel):
             fill_minutes=draft.fill_minutes,
             chips=list(draft.chips),
             nearby_mark_ids=list(draft.nearby_mark_ids),
-            **extra,
+            **{"source": draft.source, **extra},
         )

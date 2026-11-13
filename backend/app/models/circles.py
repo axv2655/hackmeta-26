@@ -24,11 +24,13 @@ class CircleRead(BaseModel):
             members=[UserLite.model_validate(user) for user in view.members],
         )
 
+
 class CircleCreate(BaseModel):
     name: str
     emoji: str = ""
     fb_group_name: str | None = None
     member_ids: list[str] = []
+
 
 class CircleUpdate(BaseModel):
     """Only the fields sent change; `member_ids` replaces the member set."""

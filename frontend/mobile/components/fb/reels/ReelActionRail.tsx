@@ -13,11 +13,12 @@ import BookmarkGlyph from 'lucide-react-native/icons/bookmark';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection, tap } from '@/lib/haptics';
-import { formatCount, type Reel } from '@/lib/mock';
+import { formatCount } from '@/lib/mock';
+import { useReels, type FeedReel } from '@/lib/reels';
 import { colors, fontWeights } from '@/lib/theme';
 
 import { EASE_OUT, RAIL_COLUMN_WIDTH, textShadow } from './constants';
-import { likeCountFor, saveCountFor, useReelsStore, type ReelReaction } from './store';
+import { likeCountFor, reactionFor, saveCountFor, useReelsStore, type ReelReaction } from './store';
 
 const ICON_SIZE = 32;
 const BUTTON_WIDTH = 60;
@@ -137,7 +138,7 @@ function SaveButton({ saved, count, onPress }: SaveButtonProps) {
 }
 
 export type ReelActionRailProps = {
-  reel: Reel;
+  reel: FeedReel;
   onPressComment?: () => void;
   onPressShare?: () => void;
   onPressMore?: () => void;
@@ -146,14 +147,14 @@ export type ReelActionRailProps = {
 
 /** Right-hand column of a reel: like, comment, share and save with counts, then "more" at the bottom. */
 function ReelActionRailBase({ reel, onPressComment, onPressShare, onPressMore, style }: ReelActionRailProps) {
-  const reaction = useReelsStore((s) => s.reactions[reel.id] ?? null);
+  const reaction = useReelsStore((s) => reactionFor(s, reel));
   const setReaction = useReelsStore((s) => s.setReaction);
-  const saved = useReelsStore((s) => s.saved[reel.id] ?? false);
-  const toggleSave = useReelsStore((s) => s.toggleSave);
+  const toggleSave = useReels((s) => s.toggleSave);
+  const saved = reel.saved;
 
   const onToggleSave = () => {
     selection();
-    toggleSave(reel.id);
+    void toggleSave(reel.id);
   };
 
   const toggleLike = () => {

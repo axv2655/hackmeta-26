@@ -78,36 +78,48 @@ export function ProfileTopBar({
         </Animated.View>
 
         <View style={styles.actions}>
-          <IconButton
-            name="pencil"
-            size={24}
-            color={glyph}
-            accessibilityLabel="Edit profile"
-            onPress={onPressEdit}
-            style={!solid && styles.glyphShadow}
-          />
-          <PressableScale
-            onPress={onPressAvatar}
-            scaleTo={0.92}
-            pressedOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Your avatar"
-            style={styles.bubbleTarget}
-          >
-            <View style={[styles.bubble, solid && styles.bubbleSolid]}>
-              <Image source={avatar} style={styles.fill} contentFit="cover" transition={0} />
+          {onPressEdit ? (
+            <IconButton
+              name="pencil"
+              size={24}
+              color={glyph}
+              accessibilityLabel="Edit profile"
+              onPress={onPressEdit}
+              style={!solid && styles.glyphShadow}
+            />
+          ) : null}
+          {onPressAvatar ? (
+            <PressableScale
+              onPress={onPressAvatar}
+              scaleTo={0.92}
+              pressedOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Your avatar"
+              style={styles.bubbleTarget}
+            >
+              <View style={[styles.bubble, solid && styles.bubbleSolid]}>
+                <Image source={avatar} style={styles.fill} contentFit="cover" transition={0} />
+              </View>
+            </PressableScale>
+          ) : (
+            <View style={styles.bubbleTarget} accessible={false}>
+              <View style={[styles.bubble, solid && styles.bubbleSolid]}>
+                <Image source={avatar} style={styles.fill} contentFit="cover" transition={0} />
+              </View>
             </View>
-          </PressableScale>
-          <IconButton
-            name="more"
-            variant="outline"
-            size={16}
-            circleSize={29}
-            color={glyph}
-            accessibilityLabel="More profile options"
-            onPress={onPressMore}
-            style={!solid && styles.glyphShadow}
-          />
+          )}
+          {onPressMore ? (
+            <IconButton
+              name="more"
+              variant="outline"
+              size={16}
+              circleSize={29}
+              color={glyph}
+              accessibilityLabel="More profile options"
+              onPress={onPressMore}
+              style={!solid && styles.glyphShadow}
+            />
+          ) : null}
         </View>
       </View>
     </View>

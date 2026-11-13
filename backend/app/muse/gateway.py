@@ -7,8 +7,10 @@ Each muse task binds its function from `app/lanes/muse.py`:
 and never edits this file. A method nobody has bound answers exactly like
 `NullMuseGateway`, so consumers work before (and without) every agent.
 
-Two extras beyond the port, used inside the muse lane and by Demo Control
-through `getattr`: `notify_preview` and `run_free_time_scan`.
+Extras beyond the port, used inside the muse lane and by Demo Control or the
+hangout recorder through `getattr`: `notify_preview`, `run_free_time_scan`,
+`demo_flare_scan`, `demo_free_time_scan` and `refresh_pseudo_groups`.
+Unbound, they answer `[]`, `None` or `0`.
 """
 
 from __future__ import annotations
@@ -41,6 +43,9 @@ BINDABLE = frozenset(
         "run_revive_scan",
         "run_nobody_bit",
         "run_route",
+        "demo_flare_scan",
+        "demo_free_time_scan",
+        "refresh_pseudo_groups",
     }
 )
 
@@ -153,6 +158,21 @@ class MuseGatewayImpl:
     ) -> SuggestionSnapshot | None:
         fn = self._bound.get("run_route", self._null.run_route)
         return await fn(move_id, user_ids)
+
+    async def demo_flare_scan(self, user_id: str) -> SuggestionSnapshot | None:
+        """Flare scan that skips the cooldown and pacing (Demo Control)."""
+        fn = self._bound.get("demo_flare_scan")
+        return None if fn is None else await fn(user_id)
+
+    async def demo_free_time_scan(self, user_id: str) -> SuggestionSnapshot | None:
+        """Free-time scan that skips the cooldown and pacing (Demo Control)."""
+        fn = self._bound.get("demo_free_time_scan")
+        return None if fn is None else await fn(user_id)
+
+    async def refresh_pseudo_groups(self, user_ids: Sequence[str]) -> int:
+        """Recompute these owners' Pseudo-groups; how many groups changed."""
+        fn = self._bound.get("refresh_pseudo_groups")
+        return 0 if fn is None else int(await fn(list(user_ids)) or 0)
 
     def muse_stats(self) -> dict[str, Any]:
         return self.runner.get_stats()

@@ -2,12 +2,12 @@ import { useCallback } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import { useFriends } from '@/lib/friends';
+import { mutualLabel, useFriends } from '@/lib/friends';
 import { colors, layout, spacing } from '@/lib/theme';
 
 import { PersonRow } from './PersonRow';
 
-/** Real incoming friend requests at the top of Notifications, with Confirm / Delete. */
+/** Real incoming friend requests at the top of Notifications, with Confirm / Delete. Rows open the profile. */
 export function FriendRequestsInbox() {
   const incoming = useFriends((s) => s.incoming);
   useFocusEffect(
@@ -22,7 +22,7 @@ export function FriendRequestsInbox() {
         Friend requests <Text style={styles.count}>{incoming.length}</Text>
       </Text>
       {incoming.map((p) => (
-        <PersonRow key={p.user.id} person={p} subtitle="Wants to be friends" />
+        <PersonRow key={p.user.id} person={p} subtitle={mutualLabel(p.mutual_count) ?? 'Wants to be friends'} />
       ))}
     </View>
   );

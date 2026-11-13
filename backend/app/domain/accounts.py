@@ -12,6 +12,8 @@ from app.domain.errors import Conflict, Forbidden, Invalid
 # Every seeded demo person can log in with their first name and this password.
 SEED_PASSWORD = "moves"
 
+NAME_MAX = 60
+
 _USERNAME = re.compile(r"^[a-z0-9_.]{3,24}$")
 _SCRYPT = {"n": 2**14, "r": 8, "p": 1}
 
@@ -28,6 +30,24 @@ class BadLogin(Forbidden):
 
 class BadSignup(Invalid):
     pass
+
+
+class BadName(Invalid):
+    pass
+
+
+def clean_display_name(raw: str) -> str:
+    """A trimmed display name of 1 to `NAME_MAX` characters."""
+    name = " ".join(raw.split())
+    if not name:
+        raise BadName("Add your name")
+    if len(name) > NAME_MAX:
+        raise BadName(f"Names are at most {NAME_MAX} characters")
+    return name
+
+
+def first_word(name: str) -> str:
+    return name.split()[0]
 
 
 def normalize_username(raw: str) -> str:

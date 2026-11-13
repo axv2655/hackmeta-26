@@ -6,16 +6,17 @@ import { ScreenHeader } from '@/components/fb/ScreenHeader';
 export type ReelsTopBarProps = {
   /** Default: switch to the Search tab. */
   onPressSearch?: () => void;
-  onPressMore?: () => void;
+  /** Default: open Saved (saved Reels and Saved Marks). */
+  onPressSaved?: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
 /**
  * Dark large header floating over the reel: hamburger and "Reels" at the left,
- * search and "more" (outline circle) at the right, all white. It stays put
+ * search and Saved (bookmark) at the right, all white. It stays put
  * while reels page underneath; the top gradient on the media keeps it legible.
  */
-export function ReelsTopBar({ onPressSearch, onPressMore, style }: ReelsTopBarProps) {
+export function ReelsTopBar({ onPressSearch, onPressSaved, style }: ReelsTopBarProps) {
   const router = useRouter();
 
   return (
@@ -29,7 +30,11 @@ export function ReelsTopBar({ onPressSearch, onPressMore, style }: ReelsTopBarPr
             accessibilityLabel: 'Search reels',
             onPress: onPressSearch ?? (() => router.navigate('/search')),
           },
-          { icon: 'more', variant: 'outline', accessibilityLabel: 'More', onPress: onPressMore },
+          {
+            icon: 'bookmark',
+            accessibilityLabel: 'Saved',
+            onPress: onPressSaved ?? (() => router.push('/saved')),
+          },
         ]}
       />
     </View>

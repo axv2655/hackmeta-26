@@ -81,7 +81,9 @@ def test_public_page_and_guest_going(client: TestClient) -> None:
     assert preview.headers["x-robots-tag"] == "noindex"
 
     page = client.get(path)
-    assert "matcha + PSET" in page.text and "Ana and Bo are there" in page.text
+    assert "matcha + PSET" in page.text
+    assert "Ana is there or on the way, +1 other going" in page.text
+    assert "Bo" not in page.text  # other participants are counted, never named
 
     going = client.post(f"{path}/going", data={"name": "Sam"}, follow_redirects=False)
     assert going.status_code == 303

@@ -23,6 +23,17 @@ def pytest_configure() -> None:
     os.environ["MEDIA_DIR"] = tempfile.mkdtemp(prefix="hackmeta-test-media-")
 
 
+@pytest.fixture(autouse=True)
+def _demo_mode_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`backend/.env` may set DEMO_MODE; tests opt in explicitly with
+    `monkeypatch.setattr(settings, "DEMO_MODE", "on")`. Imported here, not at
+    the top, so `Settings()` is built only after `pytest_configure` forced
+    `DB_PATH` to memory."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "DEMO_MODE", None)
+
+
 @pytest.fixture
 def engine() -> Iterator[Engine]:
     engine = create_engine(

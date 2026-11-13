@@ -17,7 +17,8 @@ Side effects run after the commit, and a failing one is logged and skipped:
 * `moment.added` (moment_id, move_id, status) to everyone who can now see
   the Moment; on approval, to those who could not see it before.
 * `moment.approval_needed` (moment_id, move_id) and a `moment_approval`
-  notification through the `Notifier` port, to each tagged user.
+  notification through the `Notifier` port, to each tagged user (its data
+  adds `route: /move/{move_id}/moments` for the deep link).
 
 Media is written to `media_dir` as `<moment id><ext>`, after the type is
 checked against both the declared content type and the file's leading bytes.
@@ -274,8 +275,9 @@ class MomentService:
         )
         author = self.uow.users.get(author_id)
         assert author is not None
+        notice = {**ref, "route": f"/move/{move_id}/moments"}
         for user_id in tags:
-            await self._notify(user_id, author.first_name, ref)
+            await self._notify(user_id, author.first_name, notice)
         return self._view(moment)
 
     async def answer(self, user_id: str, moment_id: str, approve: bool) -> MomentView:

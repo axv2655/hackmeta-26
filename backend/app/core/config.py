@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     MUSE_API_KEY: SecretStr | None = None
     MUSE_MODEL: str | None = None
     MUSE_VISION_MODEL: str | None = None
+    # Input + output tokens one backend process may spend on Muse. Once used,
+    # every agent answers with its heuristic fallback (no network call).
+    MUSE_TOKEN_BUDGET: int = 400000
 
     # Shared invite links (ARCHITECTURE.md 9.4): public origin of the /m/{token}
     # page, e.g. a tunnel. Unset: the URL the request came in on (LAN only).

@@ -1,4 +1,5 @@
 """Session-scoped SQL implementations of cross-lane ports."""
+
 import logging
 
 from sqlalchemy import Engine
@@ -27,6 +28,7 @@ from app.services.marks import MarkService
 from app.services.moves import MoveService
 
 logger = logging.getLogger(__name__)
+
 
 class SqlMoveGateway:
     """`MoveGateway` for other lanes and the scheduler: one short session per
@@ -89,6 +91,7 @@ class SqlMoveGateway:
     async def end_stale(self) -> list[str]:
         with Session(self._engine) as session:
             return await self._service(session).end_stale()
+
 
 class SqlUserGateway:
     """`UserGateway` for other lanes; one short session per call."""

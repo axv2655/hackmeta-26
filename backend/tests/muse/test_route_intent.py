@@ -177,11 +177,12 @@ async def test_route_garbage_falls_back(engine, world, clock, moves) -> None:
     assert len(client.calls) == 2
 
 
-async def test_route_runs_on_join(engine, world, clock, moves) -> None:
+async def test_pull_up_does_not_trigger_route(engine, world, clock, moves) -> None:
+    """F22 is out: a Pull up never creates a "Go together?" suggestion."""
     _, hooks, _, _ = f.wire(engine, clock, moves=moves)
     await hooks.on_move_joined.fire("mv", "dev")
     world.expire_all()
-    assert [s.type for s in world.exec(select(Suggestion)).all()] == ["route"]
+    assert world.exec(select(Suggestion)).all() == []
 
 
 async def test_gateway_parse_intent_bound(engine, clock) -> None:

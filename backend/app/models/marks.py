@@ -50,10 +50,12 @@ class MarkRead(BaseModel):
             friends_score=view.friends_score,
         )
 
+
 class GhostRead(BaseModel):
     user: UserLite
     move_id: str
     at: datetime
+    text: str
 
     @classmethod
     def from_ghost(cls, ghost: Ghost) -> "GhostRead":
@@ -61,7 +63,9 @@ class GhostRead(BaseModel):
             user=UserLite.model_validate(ghost.user),
             move_id=ghost.move_id,
             at=ghost.at,
+            text=ghost.text,
         )
+
 
 class NearbyMarkRead(MarkRead):
     distance_km: float
@@ -74,6 +78,7 @@ class NearbyMarkRead(MarkRead):
             distance_km=round(item.distance_km, 3),
             ghosts=[GhostRead.from_ghost(g) for g in item.ghosts],
         )
+
 
 class MomentRead(BaseModel):
     id: str
@@ -97,9 +102,11 @@ class MomentRead(BaseModel):
             created_at=m.created_at,
         )
 
+
 class TopRankerRead(BaseModel):
     user: UserLite
     score: float
+
 
 class MarkDetailRead(MarkRead):
     ghosts: list[GhostRead]
@@ -124,6 +131,7 @@ class MarkDetailRead(MarkRead):
             ),
         )
 
+
 class MarkCreate(BaseModel):
     name: str
     category: Category
@@ -134,12 +142,14 @@ class MarkCreate(BaseModel):
     price_level: int | None = None
     vibe_tags: list[str] = []
 
+
 class SavedMarkRead(BaseModel):
     mark: MarkRead
     source: SaveSource
     source_ref: str | None
     note: str
     saved_at: datetime
+
 
 class SavedReelRead(BaseModel):
     id: str
@@ -149,6 +159,7 @@ class SavedReelRead(BaseModel):
     caption: str
     mark_id: str | None
     saved_at: datetime
+
 
 class SavedRead(BaseModel):
     marks: list[SavedMarkRead]

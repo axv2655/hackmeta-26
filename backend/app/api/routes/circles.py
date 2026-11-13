@@ -19,12 +19,6 @@ from app.models.circles import (
 router = APIRouter(tags=["circles"])
 
 
-
-
-
-
-
-
 @router.get("/circles")
 def list_circles(me: CurrentUserDep, service: CircleServiceDep) -> list[CircleRead]:
     return [CircleRead.from_view(view) for view in service.list_owned(me.id)]

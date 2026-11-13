@@ -11,8 +11,12 @@ Participant state machine (7.3)::
 
     (none) --join via tap / open_ble--> going --arrive--> there --leave--> left
     (none) --join via ble_prompt / ble_auto / open_ble--------> there
-                                        going --leave------------------> left
+                                        going --leave------------------> (none)
+                         going / there --leave quietly-----------> (none)
 
+* Taking back a Pull up (`going`) and leaving quietly delete the participant
+  (`withdraw`): no ghost, and the user may Pull up again. Only leaving while
+  `there` (not quietly) makes a ghost. The creator always becomes `left`.
 * Joining again is idempotent and never downgrades: `join(going)` while
   `there` is a no-op; `join(there)` while `going` is an arrival.
 * `left` is terminal for that Move (the user is a ghost now); rejoining raises.
@@ -234,6 +238,31 @@ def leave(
     if current.status == "left":
         return None
     return replace(current, status="left", left_at=now)
+
+
+def withdraw(move: MoveSnapshot, user_id: str) -> ParticipantSnapshot:
+    """Take a participant out of the Move entirely: the row is deleted, so no
+    ghost is left and the user may Pull up again later. Used to take back a
+    Pull up (`going`) and to leave quietly (any status). Returns the removed
+    participant. Raises `NotParticipant`, `MoveNotLive`."""
+    return _require_participant(move, user_id)
+
+
+def removes_row(
+    move: MoveSnapshot, current: ParticipantSnapshot, *, quiet: bool
+) -> bool:
+    """True when leaving deletes the participant row (`withdraw`) instead of
+    becoming `left` (a ghost): a quiet leave, or taking back a Pull up while
+    still `going`. The creator always keeps today's `left` behaviour."""
+    if current.user_id == move.creator_id or current.status == "left":
+        return False
+    return quiet or current.status == "going"
+
+
+def without_participant(move: MoveSnapshot, user_id: str) -> MoveSnapshot:
+    """`move` with `user_id`'s entry removed (after `withdraw`)."""
+    kept = tuple(p for p in move.participants if p.user_id != user_id)
+    return replace(move, participants=kept)
 
 
 def with_participant(move: MoveSnapshot, updated: ParticipantSnapshot) -> MoveSnapshot:

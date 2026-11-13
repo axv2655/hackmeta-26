@@ -18,12 +18,15 @@ class UserLite(BaseModel):
     avatar_color: str
     fb_verified: bool
 
+
 class UserRead(UserLite):
     home_area: str
+
 
 class QuietHours(BaseModel):
     start: int = Field(ge=0, le=23)
     end: int = Field(ge=0, le=23)
+
 
 class SettingsRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -37,6 +40,7 @@ class SettingsRead(BaseModel):
     default_circle_ids: list[str]
     move_categories: list[Category]
     quiet_hours: QuietHours | None
+
 
 class SettingsUpdate(BaseModel):
     """Only the fields sent are changed; `quiet_hours: null` clears them."""
@@ -53,9 +57,11 @@ class SettingsUpdate(BaseModel):
     move_categories: list[Category] | None = None
     quiet_hours: QuietHours | None = None
 
+
 class MeRead(BaseModel):
     user: UserRead
     settings: SettingsRead
+
 
 class FriendRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -63,9 +69,20 @@ class FriendRead(BaseModel):
     user: UserLite
     tier: FriendTier
     since: datetime
+    username: str | None = None
+
+
+class ProfileUpdate(BaseModel):
+    """`PATCH /me`: the display name (trimmed, 1 to 60 characters)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+
 
 class BlockCreate(BaseModel):
     user_id: str
+
 
 class AutojoinUpdate(BaseModel):
     user_ids: list[str]

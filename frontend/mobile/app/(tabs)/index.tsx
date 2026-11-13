@@ -10,22 +10,40 @@ import { PeopleYouMayKnow } from '@/components/fb/feed/PeopleYouMayKnow';
 import { PostCard } from '@/components/fb/feed/PostCard';
 import { ReelsUnit } from '@/components/fb/feed/ReelsUnit';
 import { StoriesRow } from '@/components/fb/feed/StoriesRow';
+import { FirstRunCard } from '@/components/home/FirstRunCard';
+import { MakeMoveChip } from '@/components/home/MakeMoveChip';
+import { MovesFeedUnit } from '@/components/home/MovesFeedUnit';
+import { MuseCards } from '@/components/home/MuseCard';
 import { SectionBand } from '@/components/ui/SectionBand';
+import { useFriends } from '@/lib/friends';
+import { useHomeFeed, usePeopleYouMayKnow } from '@/lib/homeFeed';
 import type { FeedItem, Post } from '@/lib/mock';
 import { useFeedStore } from '@/lib/store/feed';
+import { useSuggestions } from '@/lib/suggestions';
 import { colors } from '@/lib/theme';
-
-/** How long the pull-to-refresh spinner stays up. Nothing is fetched: the feed is seeded. */
-const REFRESH_MS = 900;
 
 const keyExtractor = (item: FeedItem) => item.id;
 
-/** Messenger, "..." and the other controls that have no destination in the mock. */
-const noop = () => {};
+/** Everything live on Home, fetched again on pull-to-refresh. */
+function refreshLive(): Promise<unknown> {
+  return Promise.allSettled([
+    useHomeFeed.getState().load(),
+    useSuggestions.getState().load(),
+    usePeopleYouMayKnow.getState().load(),
+    useFriends.getState().load(),
+  ]);
+}
 
+/**
+ * Home: the Facebook feed (static mock posts, ARCHITECTURE 6) with live
+ * inserts at the top: Make a Move, getting started, Moves from friends with
+ * Pull up, and Muse's pending suggestions. People you may know is real
+ * (GET /friends/suggestions) and hides itself when empty.
+ */
 export default function HomeScreen() {
   const router = useRouter();
   const feed = useFeedStore((s) => s.posts);
+  const pymk = usePeopleYouMayKnow((s) => s.people);
   // The feed scrolls under the floating liquid-glass tab bar; the last unit still clears it.
   const tabBarHeight = useTabBarHeight();
 
@@ -33,21 +51,21 @@ export default function HomeScreen() {
   // Tapping the Home tab while it is focused scrolls the feed back to the top.
   useScrollToTop(listRef);
 
-  // Units and posts closed with X are hidden for this session only; the store is left alone.
+  // Units and posts closed with X are hidden until the next refresh; the store is left alone.
   const [hiddenIds, setHiddenIds] = useState<readonly string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(
-    () => () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current);
-    },
-    [],
-  );
+  useEffect(() => {
+    void useSuggestions.getState().load();
+    void usePeopleYouMayKnow.getState().load();
+  }, []);
 
   const data = useMemo(
-    () => (hiddenIds.length === 0 ? feed : feed.filter((item) => !hiddenIds.includes(item.id))),
-    [feed, hiddenIds],
+    () =>
+      feed.filter(
+        (item) => !hiddenIds.includes(item.id) && (item.type !== 'pymk' || pymk.length > 0),
+      ),
+    [feed, hiddenIds, pymk.length],
   );
 
   const hide = useCallback((id: string) => {
@@ -57,17 +75,19 @@ export default function HomeScreen() {
   const hidePost = useCallback((post: Post) => hide(post.id), [hide]);
 
   const openComposer = useCallback(() => router.push('/post/new'), [router]);
+  const openMoveComposer = useCallback(() => router.push('/move/new'), [router]);
   const openReels = useCallback(() => router.navigate('/reels'), [router]);
+  const openFriends = useCallback(() => router.push('/friends'), [router]);
 
-  const handleRefresh = useCallback(() => {
-    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    refreshTimer.current = setTimeout(() => {
-      refreshTimer.current = null;
+    try {
+      await refreshLive();
+    } finally {
       // A refresh brings back anything that was hidden with X.
       setHiddenIds([]);
       setRefreshing(false);
-    }, REFRESH_MS);
+    }
   }, []);
 
   const renderItem = useCallback<ListRenderItem<FeedItem>>(
@@ -76,25 +96,30 @@ export default function HomeScreen() {
         case 'post':
           return <PostCard post={item} onDismiss={hidePost} />;
         case 'pymk':
-          return <PeopleYouMayKnow title={item.title} onDismiss={() => hide(item.id)} />;
+          return <PeopleYouMayKnow title={item.title} people={pymk} onDismiss={() => hide(item.id)} />;
         case 'reels-unit':
           return <ReelsUnit title={item.title} onPressReel={openReels} />;
         default:
           return null;
       }
     },
-    [hide, hidePost, openReels],
+    [hide, hidePost, openReels, pymk],
   );
 
   const header = useMemo(
     () => (
       <View>
         <ComposerBar onPress={openComposer} />
+        <MakeMoveChip onPress={openMoveComposer} />
         <StoriesRow onPressCreate={openComposer} />
+        <SectionBand />
+        <FirstRunCard />
+        <MovesFeedUnit />
+        <MuseCards />
         <SectionBand />
       </View>
     ),
-    [openComposer],
+    [openComposer, openMoveComposer],
   );
 
   const hasItems = data.length > 0;
@@ -102,15 +127,15 @@ export default function HomeScreen() {
     () => (
       <View>
         {hasItems ? <SectionBand /> : null}
-        <AddFriendsCard onPress={noop} />
+        <AddFriendsCard onPress={openFriends} />
       </View>
     ),
-    [hasItems],
+    [hasItems, openFriends],
   );
 
   return (
     <View style={styles.root}>
-      <AppHeader onPressPlus={openComposer} onPressMessenger={noop} />
+      <AppHeader onPressPlus={openComposer} />
       <FlatList
         ref={listRef}
         style={styles.list}

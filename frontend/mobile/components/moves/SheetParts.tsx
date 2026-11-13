@@ -6,7 +6,6 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useTabBarHeight } from '@/components/fb/TabBar';
 import { GlassSurface } from '@/components/ui/Glass';
 import { bitmojiFor } from '@/lib/mock/bitmoji';
-import { CATEGORY_META, type MoveCategory } from '@/lib/mock/moves';
 import { colors } from '@/lib/theme';
 
 export const SHEET_RADIUS = 34;
@@ -51,15 +50,16 @@ export function SheetHandle(_: BottomSheetHandleProps) {
 export function BitmojiFace({
   userId,
   size = 52,
-  category,
+  color,
   ghost = false,
 }: {
   userId: string;
   size?: number;
-  category?: MoveCategory;
+  /** Ring color, usually the Move's category color. */
+  color?: string;
   ghost?: boolean;
 }) {
-  const ring = category ? CATEGORY_META[category].color : colors.blue;
+  const ring = color ?? colors.blue;
   return (
     <View
       style={{

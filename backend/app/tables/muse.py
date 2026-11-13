@@ -82,3 +82,13 @@ class Notification(SQLModel, table=True):
     data: dict[str, str] = Field(default_factory=dict, sa_type=JSON)  # deep link
     read_at: datetime | None = Field(default=None, sa_type=UTCDateTime)
     created_at: datetime = Field(sa_type=UTCDateTime)
+
+
+class MuseMute(SQLModel, table=True):
+    """A crew (by member set) the owner asked Muse to stop suggesting (F31)."""
+
+    __tablename__ = "muse_mutes"
+
+    owner_id: str = Field(foreign_key="users.id", primary_key=True)
+    members_key: str = Field(primary_key=True)  # sorted member ids joined by ","
+    created_at: datetime = Field(sa_type=UTCDateTime)

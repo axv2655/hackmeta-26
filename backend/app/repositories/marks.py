@@ -62,6 +62,7 @@ class GhostCandidate:
     left_at: datetime | None
     move_status: MoveStatus
     ends_at: datetime | None
+    text: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,7 +230,8 @@ class SqlMarkRepository:
     ) -> list[GhostCandidate]:
         """Participants who were `there` or `left` in a live or ended Move at
         one of `mark_ids` that `viewer_id` may see, with `left_at` or the
-        Move's `ends_at` at or after `since`.
+        Move's `ends_at` at or after `since`. Only people who actually arrived
+        (`arrived_at` set) ghost: a Pull up that never made it leaves nothing.
 
         Already excluded: the viewer, users with `ghost_visible` off, and
         users who hide their Moves from the viewer.
@@ -252,6 +254,7 @@ class SqlMarkRepository:
                 col(Move.mark_id).in_(mark_ids),
                 col(Move.status).in_(("live", "ended")),
                 col(p.status).in_(("there", "left")),
+                col(p.arrived_at).is_not(None),
                 p.user_id != viewer_id,
                 or_(
                     and_(p.status == "left", col(p.left_at) >= since),
@@ -272,6 +275,7 @@ class SqlMarkRepository:
                 left_at=part.left_at,
                 move_status=move.status,
                 ends_at=move.ends_at,
+                text=move.text,
             )
             for move, part in rows
         ]

@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { currentUser } from '@/lib/mock';
+import { useMeUser } from '@/lib/people';
 import { colors, fontWeights, hairlineWidth } from '@/lib/theme';
 
 import { STORY_CARD_BORDER, STORY_CARD_HEIGHT, STORY_CARD_RADIUS, STORY_CARD_WIDTH } from './storyMetrics';
@@ -23,10 +23,11 @@ const PANEL_BG = '#F7F8FA';
 
 /** First card of the stories row: your photo, a blue plus straddling the seam, "Create story". */
 export function CreateStoryCard({ onPress, style }: CreateStoryCardProps) {
+  const me = useMeUser();
   return (
     <PressableScale onPress={onPress} accessibilityLabel="Create story" style={[styles.card, style]}>
       <Image
-        source={currentUser.avatar}
+        source={me.avatar}
         style={styles.photo}
         contentFit="cover"
         contentPosition="top"

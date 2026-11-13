@@ -4,17 +4,15 @@ import { Icon, type IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { colors, fontWeights, hairline, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
-export type ComposerActionId = 'photo' | 'tag' | 'feeling' | 'check-in' | 'live';
+export type ComposerActionId = 'photo' | 'check-in';
 
 type ComposerAction = { id: ComposerActionId; label: string; icon: IconName; color: string };
 
-// Facebook's "Add to your post" accents. The yellow and orange have no theme token.
+// Facebook's "Add to your post" accents. The orange has no theme token. Only actions
+// that do something are listed: Photo/video attaches a photo, Check in opens the Move composer.
 const ACTIONS: readonly ComposerAction[] = [
   { id: 'photo', label: 'Photo/video', icon: 'images', color: colors.online },
-  { id: 'tag', label: 'Tag people', icon: 'tag', color: colors.blue },
-  { id: 'feeling', label: 'Feeling/activity', icon: 'smile', color: '#F7B928' },
   { id: 'check-in', label: 'Check in', icon: 'map-pin', color: '#F5533D' },
-  { id: 'live', label: 'Live video', icon: 'video', color: colors.badgeRed },
 ];
 
 export type ComposerActionsProps = {

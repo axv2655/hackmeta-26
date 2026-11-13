@@ -1,64 +1,38 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
+import { EmptyState } from '@/components/common/EmptyState';
+import { ErrorState } from '@/components/common/ErrorState';
 import { ScreenHeader } from '@/components/fb/ScreenHeader';
 import { useTabBarHeight } from '@/components/fb/TabBar';
 import { PersonRow } from '@/components/friends/PersonRow';
+import { SuggestionsSection } from '@/components/friends/SuggestionsSection';
+import { SectionHeader } from '@/components/friends/Section';
+import { usePeopleSearch } from '@/components/friends/usePeopleSearch';
+import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { searchPeople, useFriends, type Person } from '@/lib/friends';
+import { mutualLabel, useFriends } from '@/lib/friends';
 import { colors, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
-const SETTLE_MS = 250;
-
 /**
- * Find people by name or @username and add them; with nothing typed, your
- * friend requests and friends. Backed by `GET /users/search`.
+ * Find people by name or @username and add them. With nothing typed: your
+ * friend requests and People you may know. Backed by `GET /users/search` and
+ * `GET /friends/suggestions`.
  */
 export default function SearchScreen() {
   const tabBarHeight = useTabBarHeight();
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Person[] | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const incoming = useFriends((s) => s.incoming);
-  const outgoing = useFriends((s) => s.outgoing);
-  const friends = useFriends((s) => s.friends);
-  const loaded = useFriends((s) => s.loaded);
+  const q = query.trim();
+  const search = usePeopleSearch(q);
 
   useFocusEffect(
     useCallback(() => {
       void useFriends.getState().load();
+      void useFriends.getState().loadSuggestions();
     }, []),
   );
-
-  const q = query.trim();
-  useEffect(() => {
-    if (!q) {
-      setResults(null);
-      setFailed(false);
-      return;
-    }
-    let live = true;
-    setSearching(true);
-    const timer = setTimeout(async () => {
-      try {
-        const found = await searchPeople(q);
-        if (live) {
-          setResults(found);
-          setFailed(false);
-        }
-      } catch {
-        if (live) setFailed(true);
-      } finally {
-        if (live) setSearching(false);
-      }
-    }, SETTLE_MS);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [q]);
 
   return (
     <View style={styles.root}>
@@ -75,70 +49,88 @@ export default function SearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search people on Facebook"
+            placeholder="Search people by name or @username"
             placeholderTextColor={colors.placeholder}
             style={styles.input}
             returnKeyType="search"
             clearButtonMode="while-editing"
             autoCorrect={false}
             autoCapitalize="none"
+            autoFocus={focus === '1'}
             accessibilityLabel="Search people"
           />
-          {searching ? <ActivityIndicator size="small" color={colors.textSecondary} /> : null}
+          {search.searching ? <ActivityIndicator size="small" color={colors.textSecondary} /> : null}
         </View>
-
-        {q ? (
-          <>
-            <Section title="People" />
-            {(results ?? []).map((p) => (
-              <PersonRow key={p.user.id} person={p} />
-            ))}
-            {failed ? <Text style={styles.empty}>Can't search right now. Check your connection.</Text> : null}
-            {results && results.length === 0 && !failed ? (
-              <Text style={styles.empty}>{`No one called "${q}" yet. Ask them to sign up!`}</Text>
-            ) : null}
-          </>
-        ) : (
-          <>
-            {incoming.length > 0 ? (
-              <>
-                <Section title="Friend requests" count={incoming.length} />
-                {incoming.map((p) => (
-                  <PersonRow key={p.user.id} person={p} subtitle="Wants to be friends" />
-                ))}
-              </>
-            ) : null}
-            {outgoing.length > 0 ? (
-              <>
-                <Section title="Sent requests" />
-                {outgoing.map((p) => (
-                  <PersonRow key={p.user.id} person={p} />
-                ))}
-              </>
-            ) : null}
-            <Section title="Your friends" count={friends.length || undefined} />
-            {friends.map((p) => (
-              <PersonRow key={p.user.id} person={p} />
-            ))}
-            {loaded && friends.length === 0 ? (
-              <Text style={styles.empty}>Search for people above to add your first friend.</Text>
-            ) : null}
-            {!loaded ? <ActivityIndicator style={styles.loading} color={colors.textSecondary} /> : null}
-          </>
-        )}
+        {q ? <SearchResults q={q} {...search} /> : <StartPage />}
       </ScrollView>
     </View>
   );
 }
 
-function Section({ title, count }: { title: string; count?: number }) {
+function SearchResults({ q, results, searching, error, retry }: { q: string } & ReturnType<typeof usePeopleSearch>) {
+  if (error && !results) return <ErrorState message={error} onRetry={retry} />;
+  // First search in flight: the spinner in the field is the loading state.
+  if (!results) return null;
   return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle} accessibilityRole="header">
-        {title}
-        {count ? <Text style={styles.count}>{`  ${count}`}</Text> : null}
-      </Text>
-    </View>
+    <>
+      <SectionHeader title="People" />
+      {results.map((p) => (
+        <PersonRow key={p.user.id} person={p} />
+      ))}
+      {results.length === 0 && !searching ? (
+        <EmptyState icon="search" title={`No one called "${q}"`} body="Check the spelling, or try their @username." />
+      ) : null}
+      {error ? (
+        <View style={styles.inlineError}>
+          <Text style={styles.muted}>{error}</Text>
+          <Button title="Try again" size="sm" variant="secondary" onPress={retry} />
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+/** Nothing typed: requests, a nudge when you have no friends, People you may know. */
+function StartPage() {
+  const router = useRouter();
+  const incoming = useFriends((s) => s.incoming);
+  const friendCount = useFriends((s) => s.friends.length);
+  const status = useFriends((s) => s.status);
+  const loaded = useFriends((s) => s.loaded);
+  const error = useFriends((s) => s.error);
+
+  return (
+    <>
+      {incoming.length > 0 ? (
+        <>
+          <SectionHeader title="Friend requests" count={incoming.length} />
+          {incoming.map((p) => (
+            <PersonRow key={p.user.id} person={p} subtitle={mutualLabel(p.mutual_count) ?? 'Wants to be friends'} />
+          ))}
+        </>
+      ) : null}
+      {loaded && status === 'ready' && friendCount === 0 ? (
+        <EmptyState
+          icon="users"
+          title="Find people you know"
+          body="Search by name or @username. Friends see each other's Moves and can pull up."
+        />
+      ) : null}
+      {loaded && status === 'error' && friendCount === 0 && error ? (
+        <View style={styles.inlineError}>
+          <Text style={styles.muted}>{error}</Text>
+          <Button title="Try again" size="sm" variant="secondary" onPress={() => void useFriends.getState().load()} />
+        </View>
+      ) : null}
+      {friendCount > 0 ? (
+        <SectionHeader
+          title="Your friends"
+          count={friendCount}
+          right={<Button title="See all" size="sm" variant="tinted" onPress={() => router.push('/friends')} />}
+        />
+      ) : null}
+      <SuggestionsSection />
+    </>
   );
 }
 
@@ -157,17 +149,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   input: { ...typeScale.row, flex: 1, height: 44, paddingVertical: 0 },
-  sectionHeader: {
+  inlineError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     paddingHorizontal: layout.gutter + spacing.xs,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.sm,
+    paddingVertical: spacing.md,
   },
-  sectionTitle: { ...typeScale.sectionTitle, fontSize: 20, lineHeight: 25, fontWeight: '700' },
-  count: { color: colors.badgeRed, fontSize: 17 },
-  empty: {
-    ...typeScale.rowSub,
-    paddingHorizontal: layout.gutter + spacing.xs,
-    paddingVertical: spacing.lg,
-  },
-  loading: { marginTop: spacing.lg },
+  muted: { ...typeScale.rowSub, flex: 1 },
 });

@@ -3,9 +3,11 @@ import { create } from 'zustand';
 import type { MapMove } from '@/lib/mock/moves';
 
 /**
- * Moves the user posted this session, shown on their map next to the mock
- * world until the map reads Moves from the backend. `focusId` asks the Moves
- * tab to open a Move's card (set when the composer closes).
+ * Moves the user posted this session. The map shows them only on top of the
+ * sample world (lib/live `sample`); with the backend reachable its copy is
+ * the one shown. `focusId` asks the Moves tab to open a Move's card (set when
+ * the composer closes or a notification is tapped); a Move that is not on the
+ * map opens its own screen instead.
  */
 type MyMovesState = {
   mine: MapMove[];

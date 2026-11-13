@@ -1,6 +1,7 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   LayoutAnimation,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   View,
@@ -8,48 +9,66 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useIsFocused, useRouter } from 'expo-router';
+import { useFocusEffect, useIsFocused, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ProfileDetails } from '@/components/fb/profile/ProfileDetails';
-import { ProfileFriends } from '@/components/fb/profile/ProfileFriends';
+import { OfflineBar } from '@/components/common/OfflineBar';
+import { ProfileDemoSections } from '@/components/fb/profile/ProfileDemoSections';
+import { ProfileFriendsSection } from '@/components/fb/profile/ProfileFriendsSection';
 import { HERO_SHEET_TOP, ProfileHero } from '@/components/fb/profile/ProfileHero';
-import { ProfileMediaGrid } from '@/components/fb/profile/ProfileMediaGrid';
-import { ProfileMemories } from '@/components/fb/profile/ProfileMemories';
+import { ProfileListCard } from '@/components/fb/profile/ProfileListCard';
 import { ProfileMuseCard } from '@/components/fb/profile/ProfileMuseCard';
-import { ProfilePosts } from '@/components/fb/profile/ProfilePosts';
-import { ProfileTabs } from '@/components/fb/profile/ProfileTabs';
+import { ProfileNoPosts } from '@/components/fb/profile/ProfileNoPosts';
 import { PROFILE_BAR_HEIGHT, ProfileTopBar } from '@/components/fb/profile/ProfileTopBar';
-import {
-  profile,
-  profilePhotos,
-  profileReels,
-  type ProfileTabKey,
-} from '@/components/fb/profile/data';
+import { useProfileExtras } from '@/components/fb/profile/useProfileExtras';
 import { useTabBarHeight } from '@/components/fb/TabBar';
 import { SectionBand } from '@/components/ui/SectionBand';
-import { aspect, currentUser, friends } from '@/lib/mock';
+import { DEMO } from '@/lib/demo';
+import { useFriends } from '@/lib/friends';
+import { toUser, useMeUser } from '@/lib/people';
+import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
-
-const REEL_TILES = profileReels.map((reel) => ({ id: reel.id, image: reel.poster, viewCount: reel.viewCount }));
 
 /** Top of the gradient; shown in the pull-down overscroll above the hero. */
 const OVERSCROLL_TOP = '#77787C';
+/** The bundled sample bio, posts and photos describe this seeded account only. */
+const SAMPLE_OWNER = 'u_anish';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const tabBarSpace = useTabBarHeight();
+  const me = useMeUser();
+  const friendRows = useFriends((s) => s.friends);
+  const friendsLoaded = useFriends((s) => s.loaded);
+  const { taste, list, reloadList } = useProfileExtras();
 
-  const [tab, setTab] = useState<ProfileTabKey>('all');
   const [museVisible, setMuseVisible] = useState(true);
   const [solidBar, setSolidBar] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const solidRef = useRef(false);
 
-  const openComposer = useCallback(() => router.push('/post/new'), [router]);
-  const openMenu = useCallback(() => router.push('/menu'), [router]);
-  const openMoves = useCallback(() => router.navigate('/moves'), [router]);
+  const friends = useMemo(() => friendRows.map((p) => toUser(p.user)), [friendRows]);
+  const showSamples = DEMO && me.id === SAMPLE_OWNER;
+
+  useFocusEffect(
+    useCallback(() => {
+      void useFriends.getState().load();
+      void useSession.getState().refreshMe();
+    }, []),
+  );
+
+  const go = useCallback((href: Href) => router.push(href), [router]);
+  const openFriends = useCallback(() => go('/friends'), [go]);
+  const openEdit = useCallback(() => go('/profile/edit'), [go]);
+  const openMenu = useCallback(() => go('/menu'), [go]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([useFriends.getState().load(), useSession.getState().refreshMe(), reloadList()]);
+    setRefreshing(false);
+  }, [reloadList]);
 
   const dismissMuse = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -79,44 +98,59 @@ export default function ProfileScreen() {
         scrollIndicatorInsets={{ top: insets.top + PROFILE_BAR_HEIGHT, bottom: tabBarSpace }}
         onScroll={onScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refresh}
+            tintColor={colors.white}
+            progressViewOffset={insets.top + PROFILE_BAR_HEIGHT}
+          />
+        }
       >
         <ProfileHero
-          user={currentUser}
-          friendCount={profile.friendCount}
-          bio={profile.bio}
+          user={me}
+          friendCount={friends.length}
           topInset={insets.top + PROFILE_BAR_HEIGHT}
           commonFriends={friends}
+          onPressEditProfile={openEdit}
+          onPressFriends={openFriends}
+          onPressCommonFriends={openFriends}
         />
 
-        {museVisible ? (
-          <ProfileMuseCard onPressTry={openMoves} onDismiss={dismissMuse} style={styles.muse} />
-        ) : null}
+        <OfflineBar />
 
-        <ProfileTabs active={tab} onChange={setTab} />
+        {museVisible && taste ? <ProfileMuseCard taste={taste} onDismiss={dismissMuse} style={styles.muse} /> : null}
 
-        {tab === 'all' ? (
-          <>
-            <ProfileDetails />
-            <SectionBand />
-            <ProfileFriends friends={friends} friendCount={profile.friendCount} />
-            <SectionBand />
-            <ProfilePosts user={currentUser} onPressCompose={openComposer} />
-          </>
-        ) : tab === 'photos' ? (
-          <ProfileMediaGrid tiles={profilePhotos} itemLabel="Photo" />
-        ) : tab === 'reels' ? (
-          <ProfileMediaGrid tiles={REEL_TILES} tileAspect={aspect.reel} itemLabel="Reel" />
+        <ProfileListCard
+          status={list.status}
+          rows={list.data}
+          error={list.error}
+          onOpen={() => go('/leaderboards')}
+          onRetry={() => void reloadList()}
+        />
+        <SectionBand />
+        <ProfileFriendsSection
+          friends={friends}
+          loaded={friendsLoaded}
+          onPressFriend={(f) => go(`/user/${encodeURIComponent(f.id)}` as Href)}
+          onPressSeeAll={openFriends}
+          onPressFind={openFriends}
+        />
+        <SectionBand />
+        {showSamples ? (
+          <ProfileDemoSections user={me} onPressCompose={() => go('/post/new')} />
         ) : (
-          <ProfileMemories />
+          <ProfileNoPosts onPressMakeMove={() => go('/move/new')} />
         )}
       </ScrollView>
 
       <ProfileTopBar
         topInset={insets.top}
         solid={solidBar}
-        title={currentUser.name}
-        avatar={currentUser.avatar}
+        title={me.name}
+        avatar={me.avatar}
         onPressMenu={openMenu}
+        onPressEdit={openEdit}
       />
     </View>
   );

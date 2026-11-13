@@ -36,9 +36,19 @@ class MuseLane:
 
     @classmethod
     def build(
-        cls, engine: Engine, container: Container, client: MuseClient
+        cls,
+        engine: Engine,
+        container: Container,
+        client: MuseClient,
+        *,
+        token_budget: int | None = None,
     ) -> MuseLane:
-        runner = MuseRunner(client, clock=lambda: container.clock, engine=engine)
+        runner = MuseRunner(
+            client,
+            clock=lambda: container.clock,
+            engine=engine,
+            token_budget=token_budget,
+        )
         return cls(engine, container, runner)
 
     def now(self) -> datetime:

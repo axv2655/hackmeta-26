@@ -89,9 +89,18 @@ class ApnsClient:
         return ApnsResult(res.status_code, reason)
 
 
-def alert_payload(title: str, body: str, data: dict[str, str]) -> dict[str, Any]:
-    """`aps` for the banner, plus the deep-link data (e.g. move_id) on top."""
-    return {
-        "aps": {"alert": {"title": title, "body": body}, "sound": "default"},
-        **data,
+def alert_payload(
+    title: str, body: str, data: dict[str, str], badge: int | None = None
+) -> dict[str, Any]:
+    """`aps` for the banner, plus the deep-link data (e.g. move_id, route).
+
+    The data goes on top and again under `"body"`: expo-notifications reads a
+    remote push's data from `userInfo["body"]`. `badge` is the recipient's
+    unread count (left out when unknown)."""
+    aps: dict[str, Any] = {
+        "alert": {"title": title, "body": body},
+        "sound": "default",
     }
+    if badge is not None:
+        aps["badge"] = max(0, badge)
+    return {"aps": aps, **data, "body": dict(data)}

@@ -60,7 +60,6 @@ export function ProfilePosts({ user, onPressCompose }: ProfilePostsProps) {
         <Text style={sectionStyles.heading} accessibilityRole="header">
           Posts
         </Text>
-        <IconButton name="settings" size={22} accessibilityLabel="Manage posts" />
       </View>
 
       <View style={styles.composer}>

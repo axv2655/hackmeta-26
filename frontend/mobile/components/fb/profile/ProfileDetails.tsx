@@ -41,16 +41,18 @@ export function ProfileDetails({ onPressSeeAll, onPressAbout }: ProfileDetailsPr
         <Text style={sectionStyles.heading} accessibilityRole="header">
           At a glance
         </Text>
-        <PressableScale
-          onPress={onPressSeeAll ?? onPressAbout}
-          scaleTo={1}
-          pressedOpacity={0.6}
-          hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-          accessibilityRole="link"
-          accessibilityLabel="See all of your About info"
-        >
-          <Text style={sectionStyles.link}>See all</Text>
-        </PressableScale>
+        {(onPressSeeAll ?? onPressAbout) ? (
+          <PressableScale
+            onPress={onPressSeeAll ?? onPressAbout}
+            scaleTo={1}
+            pressedOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+            accessibilityRole="link"
+            accessibilityLabel="See all of your About info"
+          >
+            <Text style={sectionStyles.link}>See all</Text>
+          </PressableScale>
+        ) : null}
       </View>
 
       <View style={styles.list}>

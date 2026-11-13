@@ -19,7 +19,7 @@ from tests.surfaces.fakes import (
     T0,
     FakeClock,
     FakeMarks,
-    FakeMoves,
+    FakeMoveGateway,
     FakeMuse,
     FakeProximity,
     mark,
@@ -62,7 +62,7 @@ class Rig:
     def __init__(self, *people: Person, opted_in: Iterable[str] = ()) -> None:
         self.clock = FakeClock()
         self.muse = FakeMuse()
-        self.moves = FakeMoves()
+        self.moves = FakeMoveGateway()
         self.marks = FakeMarks(mark())
         self.proximity = FakeProximity()
         self.drafts = DraftStore(self.clock.now)

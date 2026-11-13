@@ -12,21 +12,26 @@ the features as compact rows (`app/muse/context.py`) and makes the judgment.
 habit cannot drown everything else. `last_hangout_days` is capped at 90 and
 counts as 90 when the pair never hung out.
 
-Times: the demo runs in US Central (UTC-6 in November, no DST math needed for
-the event); `LOCAL_TZ` is the one place that assumption lives.
+Times: "local" means the zone of the person being served. Their phone reports
+it on every request (`core/timezones.py` remembers it per user and sets it for
+the request or background scan); `local()` reads it here. `DEFAULT_TZ` (US
+Central) is only the answer when nobody has told us where they are.
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Literal
 
 from app.ports import Category, HourBucket
 
-LOCAL_TZ = timezone(timedelta(hours=-6), "CST")
+DEFAULT_TZ = timezone(timedelta(hours=-6), "CST")
+LOCAL_TZ = DEFAULT_TZ  # kept for callers that named the old constant
+_zone: ContextVar[tzinfo | None] = ContextVar("local_zone", default=None)
 NEVER_DAYS = 90
 
 Currently = Literal["free", "busy", "unknown"]
@@ -34,8 +39,23 @@ DistanceBucket = Literal["walkable", "short_drive", "far", "unknown"]
 WeekdayType = Literal["weekday", "weekend"]
 
 
-def local(dt: datetime) -> datetime:
-    return dt.astimezone(LOCAL_TZ)
+def current_zone() -> tzinfo | None:
+    """The zone set for whoever is being served right now, if any."""
+    return _zone.get()
+
+
+def use_zone(zone: tzinfo | None) -> Token[tzinfo | None]:
+    """Make `zone` the local zone for this request or task; undo with `reset_zone`."""
+    return _zone.set(zone)
+
+
+def reset_zone(token: Token[tzinfo | None]) -> None:
+    _zone.reset(token)
+
+
+def local(dt: datetime, zone: tzinfo | None = None) -> datetime:
+    """`dt` in `zone`, else in the zone of the person being served, else the default."""
+    return dt.astimezone(zone or _zone.get() or DEFAULT_TZ)
 
 
 def hour_bucket(dt: datetime) -> HourBucket:

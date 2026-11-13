@@ -1,19 +1,19 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { MuseBadge } from '@/components/common/MuseBadge';
 import { IconButton } from '@/components/ui/IconButton';
-import { PressableScale } from '@/components/ui/PressableScale';
+import type { Taste } from '@/lib/types';
 import { colors, fontWeights, radius, spacing, type as typeScale } from '@/lib/theme';
 
-import { museCard } from './data';
-
 export type ProfileMuseCardProps = {
-  onPressTry?: () => void;
+  taste: Taste;
   onDismiss?: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
-/** Dismissible light-gray promo card for Muse, our AI agent: script "m" mark, copy, X, and "Try Muse". */
-export function ProfileMuseCard({ onPressTry, onDismiss, style }: ProfileMuseCardProps) {
+/** What Muse has learned from your ratings: "Muse thinks you like ...", with the top likes as chips. */
+export function ProfileMuseCard({ taste, onDismiss, style }: ProfileMuseCardProps) {
+  const likes = taste.likes.slice(0, 4);
   return (
     <View style={[styles.card, style]}>
       <View style={styles.top}>
@@ -21,35 +21,32 @@ export function ProfileMuseCard({ onPressTry, onDismiss, style }: ProfileMuseCar
           m
         </Text>
         <View style={styles.copy}>
-          <Text style={styles.title} accessibilityRole="header">
-            {museCard.title}
-          </Text>
-          <Text style={styles.body}>{museCard.body}</Text>
+          <MuseBadge />
+          <Text style={styles.body}>Muse thinks you like {taste.summary}</Text>
         </View>
-        <IconButton
-          name="close"
-          size={18}
-          background
-          backgroundSize={34}
-          backgroundColor={colors.grayButton}
-          hitSize={40}
-          accessibilityLabel="Dismiss Muse"
-          onPress={onDismiss}
-          style={styles.close}
-        />
+        {onDismiss ? (
+          <IconButton
+            name="close"
+            size={18}
+            background
+            backgroundSize={34}
+            backgroundColor={colors.grayButton}
+            hitSize={40}
+            accessibilityLabel="Hide taste card"
+            onPress={onDismiss}
+            style={styles.close}
+          />
+        ) : null}
       </View>
-
-      <PressableScale
-        onPress={onPressTry}
-        haptic
-        scaleTo={0.98}
-        pressedOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={museCard.cta}
-        style={styles.cta}
-      >
-        <Text style={styles.ctaText}>{museCard.cta}</Text>
-      </PressableScale>
+      {likes.length > 0 ? (
+        <View style={styles.chips}>
+          {likes.map((like) => (
+            <Text key={like} style={styles.chip}>
+              {like}
+            </Text>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -72,20 +69,26 @@ const styles = StyleSheet.create({
     lineHeight: 44,
     color: colors.blue,
   },
-  copy: { flex: 1, marginLeft: spacing.sm, marginRight: spacing.xs },
-  title: { ...typeScale.row, fontWeight: fontWeights.medium },
-  body: { ...typeScale.body, fontSize: 15, lineHeight: 20, marginTop: spacing.xxs },
+  copy: { flex: 1, marginLeft: spacing.sm, marginRight: spacing.xs, gap: spacing.xs, alignItems: 'flex-start' },
+  body: { ...typeScale.body, fontSize: 16, lineHeight: 21, fontWeight: fontWeights.medium },
   close: { marginTop: -spacing.xs, marginRight: -spacing.xs },
-  cta: {
-    height: 40,
-    marginTop: spacing.md + 2,
-    borderRadius: radius.md,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.chipSelectedBg,
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    marginLeft: 40 + spacing.sm,
   },
-  ctaText: { ...typeScale.buttonLarge, fontSize: 16, lineHeight: 21, color: colors.chipSelectedText },
+  chip: {
+    ...typeScale.label,
+    fontSize: 13,
+    color: colors.text,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
 });
 
 export default ProfileMuseCard;

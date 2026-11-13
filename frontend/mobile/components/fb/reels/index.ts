@@ -1,10 +1,10 @@
 export { HeartBurst, type HeartBurstProps } from './HeartBurst';
-export { PlaceChip, type PlaceChipProps } from './PlaceChip';
+export { milesLabel, PlaceChip, type PlaceChipProps } from './PlaceChip';
 export { ReelActionRail, type ReelActionRailProps } from './ReelActionRail';
 export { ReelInfo, type ReelInfoProps } from './ReelInfo';
 export { ReelItem, type ReelItemProps } from './ReelItem';
 export { ReelMedia, type ReelMediaProps } from './ReelMedia';
 export { ReelProgressBar, type ReelProgressBarProps } from './ReelProgressBar';
 export { ReelsTopBar, type ReelsTopBarProps } from './ReelsTopBar';
-export { placeDistanceLabel } from './place';
-export { likeCountFor, saveCountFor, useReelsStore, type ReelReaction } from './store';
+export { ReelPlaceSheet, type ReelPlaceSheetProps } from './ReelPlaceSheet';
+export { followingFor, likeCountFor, reactionFor, saveCountFor, useReelsStore, type ReelReaction } from './store';

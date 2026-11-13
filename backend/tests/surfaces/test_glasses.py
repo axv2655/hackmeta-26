@@ -23,7 +23,7 @@ from tests.surfaces.fakes import (
     T0,
     FakeClock,
     FakeMarks,
-    FakeMoves,
+    FakeMoveGateway,
     FakeMuse,
     FakePlaces,
     mark,
@@ -37,7 +37,7 @@ class World:
         self.clock = FakeClock()
         self.muse = FakeMuse()
         self.marks = FakeMarks(mark())
-        self.moves = FakeMoves()
+        self.moves = FakeMoveGateway()
         self.drafts = DraftStore(self.clock.now)
         self.service = GlassesService(
             clock=self.clock,

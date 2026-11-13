@@ -1,5 +1,6 @@
 """APNs push: the JWT, the request, dead-token cleanup, and the routes."""
 
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
@@ -16,7 +17,7 @@ from app.core import db
 from app.main import create_app
 from app.push.apns import ApnsClient, ApnsResult, alert_payload
 from app.services.push import ApnsPushSender, PushTokens
-from app.tables import PushToken, User
+from app.tables import Notification, PushToken, User
 
 NOW = datetime(2026, 11, 12, 18, 0, tzinfo=UTC)
 TOKEN_A = "a" * 64
@@ -103,12 +104,61 @@ async def test_sender_never_raises(key, engine: Engine):
     await sender.push(["nobody"], "t", "b", {})  # no table rows, no error
 
 
-def test_payload_puts_the_alert_in_aps_and_data_on_top():
-    payload = alert_payload("Title", "Body", {"move_id": "m1"})
+def test_payload_puts_the_alert_in_aps_and_data_on_top_and_under_body():
+    payload = alert_payload("Title", "Body", {"move_id": "m1", "route": "/move/m1"})
     assert payload == {
         "aps": {"alert": {"title": "Title", "body": "Body"}, "sound": "default"},
         "move_id": "m1",
+        "route": "/move/m1",
+        "body": {"move_id": "m1", "route": "/move/m1"},
     }
+    with_badge = alert_payload("T", "B", {}, badge=3)
+    assert with_badge["aps"]["badge"] == 3 and with_badge["body"] == {}
+
+
+@pytest.mark.anyio
+async def test_sender_badges_each_user_with_their_unread_count(
+    key, engine: Engine, session
+):
+    session.add_all(
+        [
+            User(id="u_ana", name="Ana", first_name="Ana", created_at=NOW),
+            User(id="u_bo", name="Bo", first_name="Bo", created_at=NOW),
+        ]
+    )
+    session.add_all(
+        [
+            Notification(
+                user_id="u_ana", type="move_nudge", title="t", body="b", created_at=NOW
+            ),
+            Notification(
+                user_id="u_ana", type="move_nudge", title="t", body="b", created_at=NOW
+            ),
+            Notification(
+                user_id="u_ana",
+                type="move_nudge",
+                title="t",
+                body="b",
+                created_at=NOW,
+                read_at=NOW,
+            ),
+        ]
+    )
+    session.commit()
+    tokens = PushTokens(session, Clock())
+    tokens.register("u_ana", TOKEN_A, sandbox=True)
+    tokens.register("u_bo", TOKEN_B, sandbox=True)
+    badges: dict[str, int] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        badges[request.url.path.rsplit("/", 1)[-1]] = body["aps"]["badge"]
+        assert body["body"] == {"move_id": "m1"}
+        return httpx.Response(200)
+
+    sender = ApnsPushSender(engine, apns(key[0], handler))
+    await sender.push(["u_ana", "u_bo"], "Maya's Move", "pull up?", {"move_id": "m1"})
+    assert badges == {TOKEN_A: 2, TOKEN_B: 0}
 
 
 def test_token_moves_to_whoever_registered_it_last(session):

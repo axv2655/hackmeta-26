@@ -422,8 +422,9 @@ def test_events_and_notifications(
         (frozenset({"ana", "bo", "cy"}), {**ref, "status": "pending"})
     ]
     assert events.of_type("moment.approval_needed") == [(frozenset({"ana", "cy"}), ref)]
+    notice = {**ref, "route": f"/move/{move_id}/moments"}
     assert sorted(notifier.sent) == [
-        (u, "moment_approval", "Bo tagged you in a moment", "OK to share?", ref)
+        (u, "moment_approval", "Bo tagged you in a moment", "OK to share?", notice)
         for u in ("ana", "cy")
     ]
 

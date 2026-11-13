@@ -10,7 +10,7 @@ export type UnitHeaderProps = {
   icon?: IconName;
   /** Row height. The 44pt buttons may overflow a shorter row; that is intended. Default 48. */
   height?: number;
-  /** "..." button. Always rendered; a no-op when omitted. */
+  /** Renders the "..." button when set. */
   onPressMore?: () => void;
   /** Renders the X button when set. */
   onDismiss?: () => void;
@@ -25,14 +25,16 @@ export function UnitHeader({ title, icon, height = 48, onPressMore, onDismiss, s
       <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
         {title}
       </Text>
-      <IconButton
-        name="more"
-        size={22}
-        color={colors.textSecondary}
-        hitSize={40}
-        accessibilityLabel={`More options for ${title}`}
-        onPress={onPressMore}
-      />
+      {onPressMore ? (
+        <IconButton
+          name="more"
+          size={22}
+          color={colors.textSecondary}
+          hitSize={40}
+          accessibilityLabel={`More options for ${title}`}
+          onPress={onPressMore}
+        />
+      ) : null}
       {onDismiss ? (
         <IconButton
           name="close"

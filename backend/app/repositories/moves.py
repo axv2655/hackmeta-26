@@ -72,6 +72,8 @@ class MoveRepository(Protocol):
 
     def save_participant(self, move_id: str, p: ParticipantSnapshot) -> None: ...
 
+    def delete_participant(self, move_id: str, user_id: str) -> None: ...
+
     def add_audience(self, move_id: str, user_id: str, via: AudienceVia) -> None: ...
 
     def set_ended(
@@ -259,6 +261,14 @@ class SqlMoveRepository:
             )
         )
         self.session.flush()
+
+    def delete_participant(self, move_id: str, user_id: str) -> None:
+        """Remove the user's participant row (taking back a Pull up, leaving
+        quietly); a no-op when there is none."""
+        row = self.session.get(MoveParticipant, (move_id, user_id))
+        if row is not None:
+            self.session.delete(row)
+            self.session.flush()
 
     def add_audience(self, move_id: str, user_id: str, via: AudienceVia) -> None:
         """Add one audience member; keeps the existing `via` if already there."""

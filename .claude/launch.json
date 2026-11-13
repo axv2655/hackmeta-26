@@ -4,20 +4,55 @@
     {
       "name": "backend",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "--directory", "backend", "uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0"],
+      "runtimeArgs": [
+        "run",
+        "--directory",
+        "backend",
+        "uvicorn",
+        "app.main:app",
+        "--reload",
+        "--host",
+        "0.0.0.0"
+      ],
       "port": 8000
     },
     {
       "name": "expo-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend/mobile", "run", "web"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend/mobile",
+        "run",
+        "web"
+      ],
       "port": 8081
     },
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend/web", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend/web",
+        "run",
+        "dev"
+      ],
       "port": 5173
+    },
+    {
+      "name": "metro",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend/mobile",
+        "run",
+        "start",
+        "--",
+        "--port",
+        "8081",
+        "--clear"
+      ],
+      "port": 8081,
+      "autoPort": false
     }
   ]
 }

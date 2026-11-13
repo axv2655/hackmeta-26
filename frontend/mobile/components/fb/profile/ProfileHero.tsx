@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { formatCount } from '@/lib/mock';
 import type { User } from '@/lib/mock';
 import { colors, fontWeights, layout, radius, shadows, spacing, type as typeScale } from '@/lib/theme';
@@ -43,7 +44,10 @@ export type ProfileHeroProps = {
   commonFriends: User[];
   /** Kept for API compatibility; the new hero does not show the bio. */
   bio?: string;
+  /** Each optional control is hidden when its handler is not passed. */
   onPressNote?: () => void;
+  onPressCover?: () => void;
+  onPressPhoto?: () => void;
   onPressAddToStory?: () => void;
   onPressEditProfile?: () => void;
   /** Gray chevron button next to the name (profile switcher / options). */
@@ -62,6 +66,8 @@ export function ProfileHero({
   topInset,
   commonFriends,
   onPressNote,
+  onPressCover,
+  onPressPhoto,
   onPressAddToStory,
   onPressEditProfile,
   onPressMore,
@@ -81,57 +87,68 @@ export function ProfileHero({
       <View style={[styles.stage, { marginTop: topInset }]}>
         <View style={styles.sheet} />
 
-        <CameraChip
-          variant="glyph"
-          size={COVER_CHIP}
-          accessibilityLabel="Edit cover photo"
-          style={styles.coverChip}
-        />
+        {onPressCover ? (
+          <CameraChip
+            variant="glyph"
+            size={COVER_CHIP}
+            accessibilityLabel="Edit cover photo"
+            onPress={onPressCover}
+            style={styles.coverChip}
+          />
+        ) : null}
 
         <View style={styles.photoWrap}>
-          <PressableScale
-            scaleTo={0.98}
-            pressedOpacity={0.9}
-            accessibilityRole="imagebutton"
+          <View
+            accessible
+            accessibilityRole="image"
             accessibilityLabel={`${user.name}, profile picture`}
             style={styles.photoRing}
           >
             <Image source={user.avatar} style={styles.photo} contentFit="cover" transition={0} />
-          </PressableScale>
-          <CameraChip accessibilityLabel="Edit profile picture" style={styles.photoChip} />
+          </View>
+          {onPressPhoto ? (
+            <CameraChip accessibilityLabel="Edit profile picture" onPress={onPressPhoto} style={styles.photoChip} />
+          ) : null}
         </View>
 
-        <PressableScale
-          onPress={onPressNote}
-          scaleTo={0.96}
-          pressedOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`Add a note. ${profileNotePrompt}`}
-          style={styles.note}
-        >
-          <Text style={styles.noteText} numberOfLines={1}>
-            {profileNotePrompt}
-          </Text>
-          <View style={styles.noteTail} />
-        </PressableScale>
+        {onPressNote ? (
+          <PressableScale
+            onPress={onPressNote}
+            scaleTo={0.96}
+            pressedOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Add a note. ${profileNotePrompt}`}
+            style={styles.note}
+          >
+            <Text style={styles.noteText} numberOfLines={1}>
+              {profileNotePrompt}
+            </Text>
+            <View style={styles.noteTail} />
+          </PressableScale>
+        ) : null}
       </View>
 
       <View style={styles.nameRow}>
-        <Text style={styles.name} accessibilityRole="header" numberOfLines={2}>
-          {user.name}
-        </Text>
-        <PressableScale
-          onPress={onPressMore}
-          haptic
-          scaleTo={0.92}
-          pressedOpacity={0.8}
-          hitSlop={5}
-          accessibilityRole="button"
-          accessibilityLabel="Profile options"
-          style={styles.chevron}
-        >
-          <Icon name="chevron-down" size={20} color={colors.text} />
-        </PressableScale>
+        <View style={styles.nameLine}>
+          <Text style={styles.name} accessibilityRole="header" numberOfLines={2}>
+            {user.name}
+          </Text>
+          {user.verified ? <VerifiedBadge size={22} style={styles.verified} /> : null}
+        </View>
+        {onPressMore ? (
+          <PressableScale
+            onPress={onPressMore}
+            haptic
+            scaleTo={0.92}
+            pressedOpacity={0.8}
+            hitSlop={5}
+            accessibilityRole="button"
+            accessibilityLabel="Profile options"
+            style={styles.chevron}
+          >
+            <Icon name="chevron-down" size={20} color={colors.text} />
+          </PressableScale>
+        ) : null}
       </View>
 
       <PressableScale
@@ -180,20 +197,22 @@ export function ProfileHero({
       ) : null}
 
       <View style={styles.buttons}>
-        <PressableScale
-          onPress={onPressAddToStory}
-          haptic
-          scaleTo={0.97}
-          pressedOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Add to story"
-          style={[styles.button, styles.buttonPrimary]}
-        >
-          <Icon name="plus-circle" size={20} color={colors.white} strokeWidth={2.2} />
-          <Text style={[styles.buttonText, styles.buttonTextPrimary]} numberOfLines={1}>
-            Add to story
-          </Text>
-        </PressableScale>
+        {onPressAddToStory ? (
+          <PressableScale
+            onPress={onPressAddToStory}
+            haptic
+            scaleTo={0.97}
+            pressedOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Add to story"
+            style={[styles.button, styles.buttonPrimary]}
+          >
+            <Icon name="plus-circle" size={20} color={colors.white} strokeWidth={2.2} />
+            <Text style={[styles.buttonText, styles.buttonTextPrimary]} numberOfLines={1}>
+              Add to story
+            </Text>
+          </PressableScale>
+        ) : null}
         <PressableScale
           onPress={onPressEditProfile}
           haptic
@@ -285,7 +304,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: CHEVRON_SIZE + layout.gutter + spacing.sm,
     justifyContent: 'center',
   },
+  nameLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verified: { marginLeft: spacing.xs },
   name: {
+    flexShrink: 1,
     fontSize: 28,
     lineHeight: 34,
     fontWeight: fontWeights.bold,
@@ -305,7 +331,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.buttonSecondary,
   },
   friendsLink: { alignSelf: 'center', marginTop: spacing.xxs },
-  friendCount: { ...typeScale.name, fontSize: 16, fontWeight: fontWeights.semibold },
+  friendCount: {
+    ...typeScale.name,
+    fontSize: 16,
+    fontWeight: fontWeights.semibold,
+  },
 
   commonRow: {
     flexDirection: 'row',

@@ -153,7 +153,7 @@ class NobodyBitService:
             )
             return self._template(best, moves, people, scores, user)
 
-        out = await self.lane.runner.run_agent(
+        out, used_fallback = await self.lane.runner.run_agent_meta(
             AGENT,
             user,
             prompt,
@@ -174,6 +174,7 @@ class NobodyBitService:
             text=target.text,
             category=target.category,
             chips=tuple(people.restore(c) for c in out.chips[:3]),
+            source="heuristic" if used_fallback else "muse",
         )
         payload = {
             "message": message,

@@ -1,4 +1,5 @@
 """Circle persistence, without ownership or validation policy."""
+
 from collections.abc import Iterable
 from typing import Protocol
 
@@ -27,8 +28,12 @@ class SqlCirclesRepository:
         return record(self.session.get(Circle, cid))
 
     def list_owned(self, uid):
-        return [record(r) for r in self.session.exec(select(Circle).where(
-            Circle.owner_id == uid).order_by(col(Circle.name)))]
+        return [
+            record(r)
+            for r in self.session.exec(
+                select(Circle).where(Circle.owner_id == uid).order_by(col(Circle.name))
+            )
+        ]
 
     def put(self, value):
         store(self.session, value)
@@ -44,7 +49,10 @@ class SqlCirclesRepository:
         self.session.flush()
 
     def members(self, cid):
-        rows = self.session.exec(select(User).join(
-            CircleMember, col(CircleMember.user_id) == col(User.id)
-        ).where(CircleMember.circle_id == cid).order_by(col(User.name)))
+        rows = self.session.exec(
+            select(User)
+            .join(CircleMember, col(CircleMember.user_id) == col(User.id))
+            .where(CircleMember.circle_id == cid)
+            .order_by(col(User.name))
+        )
         return [record(r) for r in rows]

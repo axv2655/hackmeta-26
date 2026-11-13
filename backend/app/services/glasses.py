@@ -178,6 +178,7 @@ class DraftStore:
         self._items: dict[str, Pending] = {}
 
     def put(self, user_id: str, draft: MoveDraftOut) -> Pending:
+        self.purge()  # no scheduler job: sweep expired drafts as new ones arrive
         pending = Pending(uuid.uuid4().hex, user_id, draft, self._now() + self._ttl)
         self._items[user_id] = pending
         return pending

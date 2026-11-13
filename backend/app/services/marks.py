@@ -116,6 +116,8 @@ class Ghost:
     user: User
     move_id: str
     at: datetime
+    text: str = ""
+    """The Move's text, so a ghost reads "Maya was here: matcha after class"."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -344,18 +346,19 @@ class MarkService:
     ) -> dict[str, tuple[Ghost, ...]]:
         """Per Mark, one ghost per user (their latest), newest first."""
         now = self.clock.now()
-        latest: dict[tuple[str, str], tuple[datetime, str]] = {}
+        latest: dict[tuple[str, str], tuple[datetime, str, str]] = {}
         for c in self.repo.ghost_candidates(viewer_id, mark_ids, now - GHOST_WINDOW):
             at = ghost_at(c)
             if at is None or not is_ghost(at, now):
                 continue
             key = (c.mark_id, c.user_id)
             if key not in latest or at > latest[key][0]:
-                latest[key] = (at, c.move_id)
+                latest[key] = (at, c.move_id, c.text)
         users = self.repo.users(uid for _, uid in latest)
         by_mark: dict[str, list[Ghost]] = {}
-        for (mark_id, uid), (at, move_id) in latest.items():
-            by_mark.setdefault(mark_id, []).append(Ghost(users[uid], move_id, at))
+        for (mark_id, uid), (at, move_id, text) in latest.items():
+            ghost = Ghost(users[uid], move_id, at, text)
+            by_mark.setdefault(mark_id, []).append(ghost)
         return {
             mark_id: tuple(sorted(gs, key=lambda g: (-g.at.timestamp(), g.user.id)))
             for mark_id, gs in by_mark.items()
@@ -370,4 +373,3 @@ class MarkService:
         best = max(rankings, key=lambda r: (r.score, r.user_id == viewer_id))
         user = self.repo.users([best.user_id])[best.user_id]
         return TopRanker(user, best.score)
-

@@ -1,79 +1,116 @@
-import { api as backendFetch, postJson as post, useSession } from './session';
-import { bitmojiPoseFor } from './mock/bitmoji';
-import { currentUser, friends as mockFriends, users as mockUsers } from './mock';
-import { coarse, here, kmBetween } from './location';
-import { mapMoves, type MapMove, type MoveCategory } from './mock/moves';
-import type { ImageRef } from './mock/types';
+import { ApiError } from './backend';
+import { mockAllowed } from './demo';
+import { endpoints } from './endpoints';
+import { coarse, here, kmBetween, useLocation } from './location';
+import { friends as mockFriends } from './mock';
+import { mapMoves, type MoveCategory } from './mock/moves';
+import type { ComposerParams } from './nav';
+import {
+  CATEGORIES,
+  type AudienceSummary,
+  type Category,
+  type Circle,
+  type MarkDetail,
+  type Move,
+  type MoveDraft,
+  type MoveOrigin,
+  type MuseMark,
+  type NearbyMark,
+  type NotifyPick,
+  type PseudoGroup,
+  type SpotPick,
+  type UserLite,
+} from './types';
 
 /**
- * Data for "Make a Move" (ARCHITECTURE.md 7.2): places, Muse's draft, groups
- * and friends to send to, posting, and the "notify them" step afterwards.
- *
- * Talks to the backend when it's reachable; otherwise everything works on the
- * mock world so the flow still demos offline (posting is local-only then).
+ * Data and calls for "Make a Move" (ARCHITECTURE.md 7.2). Everything goes to
+ * the backend. Only a network failure (or a demo build with no backend) may
+ * fill the composer with bundled sample data, and then posting is off.
  */
 
-/** Backend Move categories (ports.Category). */
-export type Category =
-  | 'food'
-  | 'coffee'
-  | 'study'
-  | 'fitness'
-  | 'nightlife'
-  | 'outdoors'
-  | 'games'
-  | 'shopping'
-  | 'errand'
-  | 'other';
+/** The fields of a Mark the composer needs (both `Mark` and `MuseMark` fit). */
+export type Place = Pick<MuseMark, 'id' | 'name' | 'category' | 'lat' | 'lng' | 'address'>;
 
-export type Place = { id: string; name: string; category: Category; lat: number; lng: number; address: string };
+/** Fill window for a Flare: off, 5 or 10 minutes. */
+export type FillMinutes = 0 | 5 | 10;
 
-export type Person = { id: string; name: string; firstName: string; avatar?: ImageRef; color?: string };
-
-/** A Circle. `groupName` is set when it's a Facebook Group ("MPK Climbing Club"). */
-export type Group = { id: string; name: string; groupName: string | null; memberIds: string[] };
+export type Prefill = {
+  markId?: string;
+  text?: string;
+  seedText?: string;
+  category?: Category;
+  circleIds: string[];
+  userIds: string[];
+  fill: FillMinutes;
+  origin: MoveOrigin;
+  originRef: string | null;
+};
 
 export type ComposerData = {
-  online: boolean;
+  /** True when this is bundled sample data (offline): nothing can be posted. */
+  sample: boolean;
+  /** The instant heuristic draft. */
+  draft: MoveDraft;
   places: Place[];
-  /** Index into `places` Muse thinks you're at. */
-  placeIndex: number;
-  text: string;
-  /** One-tap alternatives for the description. */
-  alternates: string[];
-  groups: Group[];
-  /** Muse's default groups for this kind of Move. */
-  defaultGroupIds: string[];
-  friends: Person[];
+  friends: UserLite[];
+  circles: Circle[];
+  /** Usual crews (Pseudo-groups) that are not muted. */
+  crews: PseudoGroup[];
 };
 
-export type NotifyPick = { person: Person; copy: string; reason: string };
+// --- params -------------------------------------------------------------------
 
-export type PostedMove = { id: string; online: boolean; place: Place; text: string; audience: Person[] };
+const ORIGINS: MoveOrigin[] = ['manual', 'map', 'reel', 'saved_flare', 'free_time', 'revive', 'glasses', 'nobody_bit'];
 
+type RawParams = { [K in keyof ComposerParams]?: string | string[] };
 
-// --- wire shapes (backend/app/models, app/muse/schemas.py) -----------------
-
-type UserLite = { id: string; name: string; first_name: string; avatar_url: string; avatar_color: string };
-type MarkWire = { id: string; name: string; category: Category; lat: number; lng: number; address: string };
-type DraftWire = {
-  mark: MarkWire | null;
-  text: string;
-  category: Category;
-  alternates: string[];
-  circle_ids: string[];
-  nearby_mark_ids: string[];
+const first = (v?: string | string[]): string | undefined => {
+  const s = Array.isArray(v) ? v[0] : v;
+  return s && s.trim() ? s.trim() : undefined;
 };
-type CircleWire = { id: string; name: string; fb_group_name: string | null; members: UserLite[] };
-type PickWire = { user: UserLite; copy: string; reason: string };
 
-/** Backend ids use `_`, the mock world `-`: reuse the bundled avatar when we can. */
-function person(u: UserLite): Person {
-  const mock = mockUsers.find((m) => m.id === u.id.replace(/_/g, '-'));
-  return { id: u.id, name: u.name, firstName: u.first_name, avatar: mock?.avatar, color: u.avatar_color || undefined };
+const csv = (v?: string | string[]): string[] =>
+  [...new Set((first(v) ?? '').split(',').map((s) => s.trim()).filter(Boolean))];
+
+function parseFill(kind?: string, minutes?: string): FillMinutes {
+  const n = Number(minutes);
+  if (minutes && Number.isFinite(n) && n > 0) return n <= 7 ? 5 : 10;
+  return kind === 'flare' ? 10 : 0;
 }
 
-const place = (m: MarkWire): Place => ({
+/** `/move/new` params (lib/nav `ComposerParams`) as typed composer defaults. */
+export function parsePrefill(p: RawParams): Prefill {
+  const category = first(p.category);
+  const origin = first(p.origin);
+  return {
+    markId: first(p.mark_id),
+    text: first(p.text),
+    seedText: first(p.seed_text),
+    category: CATEGORIES.includes(category as Category) ? (category as Category) : undefined,
+    circleIds: csv(p.circle_ids),
+    userIds: csv(p.user_ids),
+    fill: parseFill(first(p.kind), first(p.fill_minutes)),
+    origin: ORIGINS.includes(origin as MoveOrigin) ? (origin as MoveOrigin) : 'manual',
+    originRef: first(p.origin_ref) ?? null,
+  };
+}
+
+// --- location -----------------------------------------------------------------
+
+/** The phone's position rounded to ~100 m (the only form that leaves the phone). */
+export function coarseHere(): { lat: number; lng: number } {
+  const c = coarse(here());
+  return { lat: c.latitude, lng: c.longitude };
+}
+
+/** True only with location on and the place within 150 m of the phone. */
+export function isHere(place: Pick<Place, 'lat' | 'lng'>): boolean {
+  const { permission, coords } = useLocation.getState();
+  if (permission !== 'granted' || !coords) return false;
+  return kmBetween(coords, { latitude: place.lat, longitude: place.lng }) < 0.15;
+}
+
+export const toPlace = (m: Place): Place => ({
   id: m.id,
   name: m.name,
   category: m.category,
@@ -82,33 +119,79 @@ const place = (m: MarkWire): Place => ({
   address: m.address,
 });
 
-// --- loading ---------------------------------------------------------------
+/** `list` with `place` first (no duplicate). */
+export function withPlaceFirst(list: Place[], place: Place): Place[] {
+  return [toPlace(place), ...list.filter((p) => p.id !== place.id)];
+}
 
-export async function loadComposer(): Promise<ComposerData> {
+// --- loading ------------------------------------------------------------------
+
+function dedupe(list: Place[]): Place[] {
+  const seen = new Set<string>();
+  return list.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
+}
+
+async function getPlaces(ids: string[]): Promise<Place[]> {
+  const rows = await Promise.all(ids.map((id) => endpoints.marks.get(id).catch(() => null)));
+  return rows.filter((m): m is MarkDetail => m !== null).map(toPlace);
+}
+
+async function buildPlaces(draft: MoveDraft, nearby: NearbyMark[], markId?: string): Promise<Place[]> {
+  let places = dedupe([...(draft.mark ? [toPlace(draft.mark)] : []), ...nearby.map(toPlace)]);
+  // Far from every Mark (nearby is capped at 50 km): use the draft's nearest list.
+  if (places.length <= 1 && draft.nearby_mark_ids.length) {
+    places = dedupe([...places, ...(await getPlaces(draft.nearby_mark_ids.slice(0, 6)))]);
+  }
+  if (markId && !places.some((p) => p.id === markId)) {
+    const [given] = await getPlaces([markId]);
+    if (given) places = withPlaceFirst(places, given);
+  }
+  return places;
+}
+
+/** Seed for Muse's writer and place resolver: what the user (or a Reel) already said. */
+export const seedOf = (p: Prefill): string | undefined => p.seedText ?? p.text;
+
+async function loadLive(prefill: Prefill): Promise<ComposerData> {
+  const at = coarseHere();
+  const [draft, friendRows, circles, crews, nearby] = await Promise.all([
+    endpoints.muse.compose({ ...at, mark_id: prefill.markId, seed_text: seedOf(prefill), heuristic: true }),
+    endpoints.friends.list(),
+    endpoints.circles.list(),
+    endpoints.pseudoGroups.list().catch(() => [] as PseudoGroup[]),
+    endpoints.marks.nearby(at.lat, at.lng, 50, 8).catch(() => [] as NearbyMark[]),
+  ]);
+  return {
+    sample: false,
+    draft,
+    places: await buildPlaces(draft, nearby, prefill.markId),
+    friends: friendRows.map((f) => f.user),
+    circles,
+    crews: crews.filter((c) => !c.muted && c.members.length > 0),
+  };
+}
+
+/** True when `e` may be covered with sample data: a network failure (or demo build), never an HTTP error. */
+export function sampleAllowed(e: unknown): boolean {
+  return mockAllowed(e) && !(e instanceof ApiError && e.status > 0);
+}
+
+/** Loads the composer. HTTP errors throw (the screen shows Retry); offline gives sample data. */
+export async function loadComposer(prefill: Prefill): Promise<ComposerData> {
   try {
-    const [draft, friendRows, circles] = await Promise.all([
-      backendFetch<DraftWire>('/muse/compose-move', post({ lat: coarse(here()).latitude, lng: coarse(here()).longitude, heuristic: true })),
-      backendFetch<{ user: UserLite }[]>('/friends'),
-      backendFetch<CircleWire[]>('/circles'),
-    ]);
-    const ids = [...new Set([draft.mark?.id, ...draft.nearby_mark_ids].filter(Boolean) as string[])].slice(0, 8);
-    const marks = await Promise.all(ids.map((id) => backendFetch<MarkWire>(`/marks/${id}`).catch(() => null)));
-    const places = marks.filter((m): m is MarkWire => m !== null).map(place);
-    if (places.length === 0) throw new Error('no places');
-    return {
-      online: true,
-      places,
-      placeIndex: Math.max(0, places.findIndex((p) => p.id === draft.mark?.id)),
-      text: draft.text,
-      alternates: draft.alternates.slice(0, 3),
-      groups: circles.map((c) => ({ id: c.id, name: c.name, groupName: c.fb_group_name, memberIds: c.members.map((m) => m.id) })),
-      defaultGroupIds: draft.circle_ids,
-      friends: friendRows.map((f) => person(f.user)),
-    };
-  } catch {
-    return offlineComposer();
+    return await loadLive(prefill);
+  } catch (e) {
+    if (sampleAllowed(e)) return sampleComposer(prefill);
+    throw e;
   }
 }
+
+/** Muse's real draft (no `heuristic` flag): writer, and the place resolver when no Mark is given. */
+export function museDraft(prefill: Prefill): Promise<MoveDraft> {
+  return endpoints.muse.compose({ ...coarseHere(), mark_id: prefill.markId, seed_text: seedOf(prefill) });
+}
+
+// --- sample data (offline only) ----------------------------------------------
 
 const MOCK_CATEGORY: Record<MoveCategory, Category> = {
   coffee: 'coffee',
@@ -120,130 +203,100 @@ const MOCK_CATEGORY: Record<MoveCategory, Category> = {
   shopping: 'shopping',
 };
 
-function offlineComposer(): ComposerData {
-  const seen = new Set<string>();
-  const places: Place[] = [];
-  for (const m of mapMoves) {
-    if (seen.has(m.mark.id)) continue;
-    seen.add(m.mark.id);
-    places.push({
+function sampleComposer(prefill: Prefill): ComposerData {
+  const places = dedupe(
+    mapMoves.map((m) => ({
       id: m.mark.id,
       name: m.mark.name,
       category: MOCK_CATEGORY[m.mark.category],
       lat: m.mark.coordinate.latitude,
       lng: m.mark.coordinate.longitude,
       address: m.mark.area,
-    });
-  }
-  places.sort((a, b) => km(a.lat, a.lng) - km(b.lat, b.lng));
-  const friends = mockFriends.map((u) => ({ id: u.id, name: u.name, firstName: u.firstName, avatar: u.avatar }));
-  const ids = (...first: string[]) => friends.filter((f) => first.includes(f.firstName)).map((f) => f.id);
+    })),
+  );
   const nearest = places[0];
-  return {
-    online: false,
-    places,
-    placeIndex: 0,
-    text: nearest ? `at ${nearest.name} rn, pull up` : '',
+  const draft: MoveDraft = {
+    mark: nearest ? { ...nearest, photo_url: null, vibe_tags: [] } : null,
+    text: prefill.text ?? (nearest ? `at ${nearest.name}, pull up` : ''),
+    category: prefill.category ?? nearest?.category ?? 'other',
+    kind: 'move',
     alternates: ['study sesh', 'grabbing food', 'just vibing'],
-    groups: [
-      { id: 'g-climbing', name: 'Climbing', groupName: 'MPK Climbing Club', memberIds: ids('Tony', 'Maya', 'Dev') },
-      { id: 'g-roommates', name: 'Roommates', groupName: null, memberIds: ids('Dhivyesh', 'Jordan') },
-    ],
-    defaultGroupIds: ['g-roommates'],
-    friends,
+    circle_ids: [],
+    user_ids: [],
+    notify: [],
+    fill_minutes: null,
+    chips: [],
+    nearby_mark_ids: places.map((p) => p.id),
+    confirm_place: false,
+    source: 'heuristic',
   };
+  const friends: UserLite[] = mockFriends.map((u) => ({
+    id: u.id,
+    name: u.name,
+    first_name: u.firstName,
+    avatar_url: '',
+    avatar_color: '',
+    fb_verified: u.verified,
+  }));
+  return { sample: true, draft, places, friends, circles: [], crews: [] };
 }
 
-// --- posting and notifying -------------------------------------------------
+// --- calls --------------------------------------------------------------------
 
-export type MoveInput = { place: Place; text: string; groupIds: string[]; friendIds: string[]; audience: Person[] };
+export const searchPlaces = (q: string): Promise<Place[]> =>
+  endpoints.marks.search(q, 8).then((rows) => rows.map(toPlace));
 
-/** Posts the Move with nobody notified yet; step 2 sends the pokes. */
-export async function postMove(input: MoveInput, online: boolean): Promise<PostedMove> {
-  const base = { online, place: input.place, text: input.text, audience: input.audience };
-  if (!online) return { ...base, id: `local-${Date.now()}` };
-  const created = await backendFetch<{ id: string }>(
-    '/moves',
-    post({
-      mark_id: input.place.id,
-      text: input.text,
-      category: input.place.category,
-      circle_ids: input.groupIds,
-      user_ids: input.friendIds,
-      creator_there: km(input.place.lat, input.place.lng) < 0.15,
-      notify_user_ids: [],
-    }),
-  );
-  return { ...base, id: created.id };
-}
+/** Adds a new Mark at the phone's coarse position. */
+export const addPlaceHere = (name: string, category: Category): Promise<Place> =>
+  endpoints.marks.create({ name, category, ...coarseHere() }).then(toPlace);
 
-/** Muse's picks for who to poke, each with a reason. */
-export async function previewNotify(move: PostedMove, input: MoveInput): Promise<NotifyPick[]> {
-  if (!move.online) {
-    return input.audience.filter((p) => input.friendIds.includes(p.id)).map((p) => ({ person: p, copy: '', reason: 'you picked them' }));
-  }
-  const picks = await backendFetch<PickWire[]>(
-    '/muse/notify-preview',
-    post({ mark_id: input.place.id, text: input.text, category: input.place.category, circle_ids: input.groupIds, user_ids: input.friendIds }),
-  );
-  return picks.map((p) => ({ person: person(p.user), copy: p.copy, reason: p.reason }));
-}
+export const museSpots = (userIds: string[], category: Category): Promise<SpotPick[]> =>
+  endpoints.muse.suggestSpots({ user_ids: userIds, category, ...coarseHere() }).then((s) => s.slice(0, 3));
 
-/** Sends the pokes. Resolves to who actually got one. */
-export async function notifyPeople(move: PostedMove, userIds: string[]): Promise<Person[]> {
-  if (!move.online) return move.audience.filter((p) => userIds.includes(p.id));
-  const picks = await backendFetch<PickWire[]>(`/moves/${encodeURIComponent(move.id)}/notify`, post({ user_ids: userIds }));
-  return picks.map((p) => person(p.user));
-}
+export const previewAudience = (circleIds: string[], userIds: string[]): Promise<AudienceSummary> =>
+  endpoints.audience.preview(circleIds, userIds);
 
-// --- map ---------------------------------------------------------------------
-
-const MAP_CATEGORY: Record<Category, MoveCategory> = {
-  food: 'food',
-  coffee: 'coffee',
-  study: 'study',
-  fitness: 'gym',
-  nightlife: 'party',
-  outdoors: 'gym',
-  games: 'party',
-  shopping: 'shopping',
-  errand: 'shopping',
-  other: 'music',
+export type MoveInput = {
+  place: Place;
+  text: string;
+  category: Category;
+  circleIds: string[];
+  userIds: string[];
+  open: boolean;
+  fill: FillMinutes;
+  origin: MoveOrigin;
+  originRef: string | null;
 };
 
-/** The posted Move as a map pin and sheet row, for the poster's own map. */
-export function toMapMove(move: PostedMove): MapMove {
-  const category = MAP_CATEGORY[move.place.category];
-  const there = km(move.place.lat, move.place.lng) < 0.15;
-  return {
-    id: move.id,
-    user: currentUser,
-    title: move.text,
-    mark: {
-      id: move.place.id,
-      name: move.place.name,
-      category,
-      coordinate: { latitude: move.place.lat, longitude: move.place.lng },
-      area: move.place.address.split(',').pop()?.trim() || 'Nearby',
-    },
-    status: there ? 'there' : 'omw',
-    pose: bitmojiPoseFor(category),
-    timeLabel: 'now',
-    joined: [],
-    distanceLabel: `${(km(move.place.lat, move.place.lng) * 0.621).toFixed(1)} mi`,
-  };
+/** Posts the Move with nobody notified yet; the send step pokes people. */
+export function postMove(input: MoveInput): Promise<Move> {
+  return endpoints.moves.create({
+    mark_id: input.place.id,
+    text: input.text,
+    category: input.category,
+    circle_ids: input.circleIds,
+    user_ids: input.userIds,
+    kind: input.fill ? 'flare' : 'move',
+    open: input.open,
+    fill_minutes: input.fill || null,
+    origin: input.origin,
+    origin_ref: input.originRef,
+    creator_there: isHere(input.place),
+    notify_user_ids: [],
+  });
 }
 
-/** Distance from the user's own (on-device) position, in km. */
-function km(lat: number, lng: number): number {
-  return kmBetween(here(), { latitude: lat, longitude: lng });
+/** Muse's picks for who to poke about a posted Move, each with a reason. */
+export function previewPicks(move: Move, input: Pick<MoveInput, 'circleIds' | 'userIds'>): Promise<NotifyPick[]> {
+  return endpoints.muse.notifyPreview({
+    mark_id: move.mark.id,
+    text: move.text,
+    category: move.category,
+    circle_ids: input.circleIds,
+    user_ids: input.userIds,
+  });
 }
 
-/** Everyone a Move would reach: chosen groups' members plus chosen friends. */
-export function audienceOf(data: ComposerData, groupIds: string[], friendIds: string[]): Person[] {
-  const byId = new Map(data.friends.map((f) => [f.id, f]));
-  const ids = new Set([...data.groups.filter((g) => groupIds.includes(g.id)).flatMap((g) => g.memberIds), ...friendIds]);
-  ids.delete(useSession.getState().userId);
-  ids.delete(currentUser.id);
-  return [...ids].map((id) => byId.get(id) ?? { id, name: id, firstName: id.replace(/^u[_-]/, '') });
-}
+/** Pokes exactly `userIds`. Resolves to who actually got one. */
+export const pokePeople = (moveId: string, userIds: string[]): Promise<NotifyPick[]> =>
+  endpoints.moves.notify(moveId, userIds);

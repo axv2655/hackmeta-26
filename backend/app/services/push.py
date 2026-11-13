@@ -3,8 +3,9 @@
 PushTokens       the app registers its APNs token after login and drops
                  it on logout. A token moves to whoever registered it last.
 ApnsPushSender   the `PushSender` port: looks up the users' tokens, sends
-                 one alert each, forgets tokens Apple says are dead, and
-                 never raises, so a push can't break a notification.
+                 one alert each (badge = that user's unread notifications),
+                 forgets tokens Apple says are dead, and never raises, so a
+                 push can't break a notification.
 """
 
 from __future__ import annotations
@@ -14,11 +15,11 @@ import logging
 from collections.abc import Iterable
 
 from sqlalchemy import Engine
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, func, select
 
 from app.ports import Clock
 from app.push.apns import ApnsClient, alert_payload
-from app.tables import PushToken
+from app.tables import Notification, PushToken
 
 log = logging.getLogger(__name__)
 
@@ -53,18 +54,27 @@ class ApnsPushSender:
         self, user_ids: Iterable[str], title: str, body: str, data: dict[str, str]
     ) -> None:
         try:
-            await self._push(list(user_ids), alert_payload(title, body, data))
+            await self._push(list(user_ids), title, body, data)
         except Exception:  # a push must never break the notification
             log.exception("push failed")
 
-    async def _push(self, user_ids: list[str], payload: dict) -> None:
+    async def _push(
+        self, user_ids: list[str], title: str, body: str, data: dict[str, str]
+    ) -> None:
         with Session(self.engine) as session:
             query = select(PushToken).where(col(PushToken.user_id).in_(user_ids))
-            tokens = [(t.token, t.sandbox) for t in session.exec(query).all()]
-        if not tokens:
-            return
+            rows = [(t.token, t.sandbox, t.user_id) for t in session.exec(query).all()]
+            if not rows:
+                return
+            unread = _unread_counts(session, {uid for _, _, uid in rows})
+        tokens = [(token, sandbox) for token, sandbox, _ in rows]
         results = await asyncio.gather(
-            *(self.client.send(token, payload, sandbox) for token, sandbox in tokens),
+            *(
+                self.client.send(
+                    token, alert_payload(title, body, data, unread.get(uid, 0)), sandbox
+                )
+                for token, sandbox, uid in rows
+            ),
             return_exceptions=True,
         )
         dead = [
@@ -84,3 +94,16 @@ class ApnsPushSender:
                     if row is not None:
                         session.delete(row)
                 session.commit()
+
+
+def _unread_counts(session: Session, user_ids: set[str]) -> dict[str, int]:
+    """Unread notifications per user (missing means none): the app badge."""
+    query = (
+        select(Notification.user_id, func.count())
+        .where(
+            col(Notification.user_id).in_(user_ids),
+            col(Notification.read_at).is_(None),
+        )
+        .group_by(col(Notification.user_id))
+    )
+    return {uid: count for uid, count in session.exec(query).all()}

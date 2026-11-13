@@ -3,9 +3,8 @@ import type { Audience } from '@/lib/mock';
 
 export type AudienceOption = { value: Audience; label: string; icon: IconName };
 
-/** The audiences a personal post can cycle through, in order. */
+/** The audiences a personal post can cycle through, in order. Never public (ARCHITECTURE 1.5 rule 3). */
 export const audienceOptions: readonly AudienceOption[] = [
-  { value: 'public', label: 'Public', icon: 'globe' },
   { value: 'friends', label: 'Friends', icon: 'friends' },
   { value: 'only-me', label: 'Only me', icon: 'lock' },
 ];

@@ -473,9 +473,9 @@ def seed(session: Session, clock: Clock) -> None:
         for spec in CIRCLES
         for user_id in spec.members
     )
-    session.add_all(_mark(place) for place in PLACES)
+    session.add_all(mark_row(place) for place in PLACES)
     session.flush()
-    session.add_all(_saved_mark(save, now) for save in SAVES)
+    session.add_all(saved_mark_row(save, now) for save in SAVES)
     starts: dict[str, datetime] = {}
     for move in MOVES:
         starts[move.id] = now - timedelta(minutes=move.started)
@@ -535,7 +535,7 @@ def _circle(spec: CircleSpec) -> Circle:
     )
 
 
-def _mark(place: Place) -> Mark:
+def mark_row(place: Place) -> Mark:
     lat, lng = CENTER
     return Mark(
         id=place.id,
@@ -551,7 +551,7 @@ def _mark(place: Place) -> Mark:
     )
 
 
-def _saved_mark(save: Save, now: datetime) -> SavedMark:
+def saved_mark_row(save: Save, now: datetime) -> SavedMark:
     return SavedMark(
         user_id=save.user_id,
         mark_id=save.mark_id,

@@ -1,13 +1,18 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import { useRouter } from 'expo-router';
 
+import { categoryMeta } from '@/lib/categories';
+import { selection } from '@/lib/haptics';
+import { moveMeta } from '@/lib/live';
 import { bitmojiFor } from '@/lib/mock/bitmoji';
 import { here, useLocation } from '@/lib/location';
-import { type Coordinate, type MapMove } from '@/lib/mock/moves';
+import { CAMPUS_CENTER, type Coordinate, type MapMove } from '@/lib/mock/moves';
+import { useSaved } from '@/lib/saved';
 import { useSession } from '@/lib/session';
 
-import { AvatarPin } from './AvatarPin';
+import { AvatarPin, SavedPin } from './AvatarPin';
 
 export type MovesMapHandle = {
   focus: (coordinate: Coordinate, zoomedIn?: boolean) => void;
@@ -28,12 +33,18 @@ export type MovesMapProps = {
 
 export const HOME_CAMERA = {
   // The Meta campus (Menlo Park): Hacker Square, MPK 20 and MPK 21 in view.
-  center: { latitude: 37.4800, longitude: -122.1540 },
+  center: CAMPUS_CENTER,
   pitch: 35,
   heading: 0,
   altitude: 6600,
   zoom: 14.1,
 };
+
+/** The user ids already at a live Move (not the poster): the pin's avatar trail. */
+function trailOf(m: MapMove): string[] {
+  if (m.status === 'ghost') return [];
+  return (m.participants ?? []).filter((p) => p.status === 'there' && p.user.id !== m.user.id).map((p) => p.user.id);
+}
 
 function statusDetail(m: MapMove): string {
   if (m.status === 'omw') return 'on the way';
@@ -50,9 +61,16 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
   ref,
 ) {
   const mapRef = useRef<MapView>(null);
+  const router = useRouter();
   const myId = useSession((st) => st.userId);
-  // The phone's own position (never sent anywhere); the default spot without it.
-  const me = useLocation((st) => st.coords) ?? here();
+  // The phone's own position (never sent anywhere). No fix, no "Me" pin.
+  const me = useLocation((st) => st.coords);
+  const savedMarks = useSaved((st) => st.marks);
+  // Saved Marks without a Move pin on them get a bookmark pin.
+  const savedPins = useMemo(() => {
+    const pinned = new Set(moves.map((m) => m.mark.id));
+    return savedMarks.map((s) => s.mark).filter((mk) => !pinned.has(mk.id));
+  }, [moves, savedMarks]);
 
   useImperativeHandle(ref, () => ({
     focus: (coordinate, zoomedIn = true) => {
@@ -101,18 +119,36 @@ export const MovesMap = forwardRef<MovesMapHandle, MovesMapProps>(function Moves
         >
           <AvatarPin
             image={bitmojiFor(m.user.id, m.pose)}
-            name={m.user.firstName}
+            name={m.mine ? 'You' : m.user.firstName}
             detail={statusDetail(m)}
-            category={m.mark.category}
+            badge={moveMeta(m)}
             status={m.status}
             extraCount={m.joined.length}
+            trail={trailOf(m)}
             selected={m.id === selectedId}
           />
         </Marker>
       ))}
-      <Marker coordinate={me} anchor={{ x: 0.5, y: 0.8 }} displayPriority="required" zIndex={5}>
-        <AvatarPin image={bitmojiFor(myId, 'walk')} name="Me" detail="now" status="me" />
-      </Marker>
+      {savedPins.map((mk) => (
+        <Marker
+          key={`saved-${mk.id}`}
+          identifier={`saved-${mk.id}`}
+          coordinate={{ latitude: mk.lat, longitude: mk.lng }}
+          anchor={{ x: 0.5, y: 0.5 }}
+          zIndex={0}
+          onPress={() => {
+            selection();
+            router.push(`/mark/${mk.id}`);
+          }}
+        >
+          <SavedPin name={mk.name} color={categoryMeta(mk.category).color} />
+        </Marker>
+      ))}
+      {me ? (
+        <Marker coordinate={me} anchor={{ x: 0.5, y: 0.8 }} displayPriority="required" zIndex={5}>
+          <AvatarPin image={bitmojiFor(myId, 'walk')} name="Me" detail="now" status="me" />
+        </Marker>
+      ) : null}
     </MapView>
   );
 });

@@ -1,8 +1,8 @@
 """Proximity service (surfaces lane, S1).
 
-Only the pure rules and cluster math live here for now. Token issue, sighting
-ingest, the `copresence` / `proximity_sightings` tables, the routes, the
-purge job and `ProximityGateway` are added once the T0 contract is merged.
+The pure rules and cluster math. The gateway, the sweep, the demo writer and
+the purge job are in `services/proximity_sweep.py`; token issue and sighting
+ingest (real BLE) are not built.
 
 Privacy (ARCHITECTURE.md 8.4): devices never broadcast user ids, co-presence
 is only between friends, and nothing here produces a "who is near me" list.

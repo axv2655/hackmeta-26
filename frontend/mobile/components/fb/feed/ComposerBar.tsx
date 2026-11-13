@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Avatar } from '@/components/ui/Avatar';
 import { IconButton } from '@/components/ui/IconButton';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { currentUser } from '@/lib/mock';
+import { useMeUser } from '@/lib/people';
 import { colors, layout, spacing, type as typeScale } from '@/lib/theme';
 
 export type ComposerBarProps = {
@@ -20,13 +20,14 @@ const AVATAR_SIZE = 42;
 /** "What's on your mind?" row under the home header: avatar, prompt, photo shortcut. No action row under it. */
 export function ComposerBar({ onPress, onPressAvatar, style }: ComposerBarProps) {
   const router = useRouter();
+  const me = useMeUser();
   const openComposer = onPress ?? (() => router.push('/post/new'));
   const openProfile = onPressAvatar ?? (() => router.navigate('/profile'));
 
   return (
     <View style={[styles.row, style]}>
       <Avatar
-        source={currentUser.avatar}
+        source={me.avatar}
         size={AVATAR_SIZE}
         onPress={openProfile}
         accessibilityLabel="Your profile"

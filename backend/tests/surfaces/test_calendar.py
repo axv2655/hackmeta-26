@@ -1,10 +1,19 @@
-"""S5: pure free_window tests (service/route tests land with T0)."""
+"""S5: the pure free_window rule, plus GET /calendar and PUT /calendar/busy
+as HTTP round trips."""
 
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine
+from sqlmodel import Session, select
 
+from app.core import db
+from app.main import create_app
 from app.services.calendar import HORIZON, BusyBlock, Gap, free_window
+from app.services.calendar_gateway import SqlCalendarGateway
+from app.tables import CalendarEvent, User
 
 
 def at(hour, minute=0, day=12):
@@ -102,3 +111,99 @@ class TestInputs:
         events = [block(at(18), at(19)), block(at(15), at(16))]
         free_window(events, at(14))
         assert [e.start for e in events] == [at(18), at(15)]
+
+
+# --- HTTP: GET /calendar, PUT /calendar/busy ----------------------------------
+
+NOW = datetime(2026, 11, 12, 14, 0, tzinfo=UTC)
+
+
+class FixedClock:
+    def now(self) -> datetime:
+        return NOW
+
+
+def event(user: str, start_min: int, minutes: int, title: str | None) -> CalendarEvent:
+    start = NOW + timedelta(minutes=start_min)
+    return CalendarEvent(
+        user_id=user,
+        title=title,
+        starts_at=start,
+        ends_at=start + timedelta(minutes=minutes),
+    )
+
+
+@pytest.fixture
+def client(engine: Engine, session: Session) -> Iterator[TestClient]:
+    session.add_all(
+        User(id=u, name=u.title(), first_name=u.title(), created_at=NOW)
+        for u in ("anish", "priya")
+    )
+    session.add_all(
+        [
+            event("anish", -240, 90, "Data structures"),  # ended 2.5 h ago
+            event("anish", -150, 60, "Lab"),  # ended 30 min ago: shown
+            event("anish", 45, 75, "CS 4349 lecture"),
+            event("anish", 13 * 60, 60, "Too late"),
+            event("priya", 10, 30, "Priya only"),
+        ]
+    )
+    session.commit()
+
+    def session_override() -> Iterator[Session]:
+        with Session(engine) as s:
+            yield s
+
+    app = create_app(lanes=())
+    app.dependency_overrides[db.get_session] = session_override
+    with TestClient(app) as client:
+        app.state.container.clock = FixedClock()
+        app.state.container.calendar = SqlCalendarGateway(engine)
+        client.headers["X-User-Id"] = "anish"
+        yield client
+
+
+class TestCalendarRoutes:
+    def test_day_lists_events_and_the_free_window(self, client: TestClient) -> None:
+        body = client.get("/api/v1/calendar").json()
+        assert [e["title"] for e in body["events"]] == ["Lab", "CS 4349 lecture"]
+        assert set(body["events"][0]) == {
+            "id",
+            "title",
+            "starts_at",
+            "ends_at",
+            "place",
+        }
+        assert body["free_window"]["minutes"] == 45
+        assert body["free_window"]["end"].startswith("2026-11-12T14:45")
+
+    def test_busy_blocks_replace_title_less_blocks(
+        self, client: TestClient, engine: Engine
+    ) -> None:
+        first = {"start": "2026-11-12T14:20:00Z", "end": "2026-11-12T14:40:00Z"}
+        assert (
+            client.put("/api/v1/calendar/busy", json={"blocks": [first]}).status_code
+            == 204
+        )
+        assert client.get("/api/v1/calendar").json()["free_window"]["minutes"] == 20
+
+        second = {"start": "2026-11-12T16:00:00Z", "end": "2026-11-12T17:00:00Z"}
+        assert (
+            client.put("/api/v1/calendar/busy", json={"blocks": [second]}).status_code
+            == 204
+        )
+        with Session(engine) as s:
+            blocks = s.exec(
+                select(CalendarEvent).where(CalendarEvent.title == None)  # noqa: E711
+            ).all()
+        assert [b.starts_at.hour for b in blocks] == [16]
+        assert client.get("/api/v1/calendar").json()["free_window"]["minutes"] == 45
+
+    def test_end_before_start_is_422(self, client: TestClient) -> None:
+        bad = {"start": "2026-11-12T15:00:00Z", "end": "2026-11-12T15:00:00Z"}
+        response = client.put("/api/v1/calendar/busy", json={"blocks": [bad]})
+        assert response.status_code == 422
+
+    def test_requires_a_user(self, client: TestClient) -> None:
+        response = client.get("/api/v1/calendar", headers={"X-User-Id": "nobody"})
+        assert response.status_code == 401

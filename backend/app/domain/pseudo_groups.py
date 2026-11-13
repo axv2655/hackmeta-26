@@ -27,6 +27,8 @@ from datetime import datetime
 from statistics import median
 from typing import Any, Protocol
 
+from app.domain.errors import NotFound
+
 MIN_OUTINGS = 3
 MAX_OTHERS = 5  # groups of 2 to 6 including the owner
 ABSORB = 0.75
@@ -43,6 +45,15 @@ WEEKDAY_NAMES = (
     "Saturdays",
     "Sundays",
 )
+
+
+class PseudoGroupNotFound(NotFound):
+    """No such pseudo-group, or it belongs to someone else (indistinguishable:
+    pseudo-groups are private to their owner)."""
+
+    def __init__(self, group_id: str) -> None:
+        super().__init__("Pseudo-group not found")
+        self.group_id = group_id
 
 
 class HangoutLike(Protocol):

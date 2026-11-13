@@ -10,7 +10,7 @@ import Animated, {
 import PlayGlyph from 'lucide-react-native/icons/play';
 
 import { tap } from '@/lib/haptics';
-import type { Reel } from '@/lib/mock';
+import type { FeedReel } from '@/lib/reels';
 import { colors, motion } from '@/lib/theme';
 
 import {
@@ -82,7 +82,7 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 export type ReelItemProps = {
-  reel: Reel;
+  reel: FeedReel;
   index: number;
   /** Page size: the pager's viewport. */
   width: number;
@@ -94,12 +94,12 @@ export type ReelItemProps = {
   bottomInset?: number;
   /** This reel is the visible page and the Reels tab is focused. */
   active: boolean;
-  /** Place chip tap. The Moves feature hooks in here; a no-op until then. */
-  onPressPlace?: (reel: Reel) => void;
-  onPressAuthor?: (reel: Reel) => void;
-  onPressComment?: (reel: Reel) => void;
-  onPressShare?: (reel: Reel) => void;
-  onPressMore?: (reel: Reel) => void;
+  /** Place chip tap: opens the place sheet (friends there, or start a Move). */
+  onPressPlace?: (reel: FeedReel) => void;
+  onPressAuthor?: (reel: FeedReel) => void;
+  onPressComment?: (reel: FeedReel) => void;
+  onPressShare?: (reel: FeedReel) => void;
+  onPressMore?: (reel: FeedReel) => void;
 };
 
 /**

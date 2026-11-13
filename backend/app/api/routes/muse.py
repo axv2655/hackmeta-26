@@ -1,19 +1,21 @@
 """Muse routes (ARCHITECTURE.md 14.2). Muse lane: M4, M5, M8.
 
 POST /muse/notify-preview (M4), POST /muse/compose-move (M5),
-POST /muse/suggest-spots (M8), POST /moves/{id}/notify (composer step 2)
+POST /muse/suggest-spots (M8), POST /moves/{id}/notify (composer step 2),
+GET /muse/status (is Muse live, or is every agent on its heuristic?)
 
 (The issues name separate `muse_compose.py` / `muse_spots.py` modules; the
 frozen `api/main.py` on this branch includes only this one, so all three
 live here.)
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.db import SessionDep
+from app.muse.client import client_kind, client_model
 from app.muse.compose import ComposeService
 from app.muse.http import CurrentUser, LaneDep
 from app.muse.schemas import MarkOut, MoveDraftRead, picks_out
@@ -21,6 +23,42 @@ from app.services.notify import NotifyService
 from app.services.taste import TasteService
 
 router = APIRouter(tags=["muse"])
+
+
+class MuseStatus(BaseModel):
+    client: Literal["http", "fake"]
+    live: bool
+    """The real client is configured and the token budget is not spent."""
+    model: str | None
+    vision: bool
+    calls: int
+    muse_calls: int
+    fallbacks: int
+    fallback_rate: float
+    tokens_used: int
+    budget_tokens: int | None
+    budget_exhausted: bool
+
+
+@router.get("/muse/status", response_model=MuseStatus)
+def muse_status(lane: LaneDep) -> MuseStatus:
+    """Which Muse client answers and how much of the budget is used."""
+    runner = lane.runner
+    stats = runner.get_stats()
+    kind = client_kind(runner.client)
+    return MuseStatus(
+        client=kind,
+        live=kind == "http" and not runner.budget_exhausted,
+        model=client_model(runner.client),
+        vision=runner.supports_vision,
+        calls=stats["calls"],
+        muse_calls=stats["muse_calls"],
+        fallbacks=stats["fallbacks"],
+        fallback_rate=stats["fallback_rate"],
+        tokens_used=runner.tokens_used,
+        budget_tokens=runner.token_budget,
+        budget_exhausted=runner.budget_exhausted,
+    )
 
 
 class NotifyPreviewBody(BaseModel):

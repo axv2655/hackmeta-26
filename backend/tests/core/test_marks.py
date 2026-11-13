@@ -89,7 +89,10 @@ def add_move(
     status: MoveStatus = "live",
     ends_at: datetime | None = None,
     people: Sequence[tuple[str, ParticipantStatus, datetime | None]] = (),
+    never_arrived: Sequence[str] = (),
 ) -> None:
+    """People who are `there` or `left` arrived at the start unless listed in
+    `never_arrived` (a Pull up that never made it)."""
     started = NOW - timedelta(hours=30)
     session.add(
         Move(
@@ -113,6 +116,11 @@ def add_move(
                 status=p_status,
                 joined_via="creator" if uid == creator else "tap",
                 joined_at=started,
+                arrived_at=(
+                    started
+                    if p_status != "going" and uid not in never_arrived
+                    else None
+                ),
                 left_at=left_at,
             )
         )
@@ -273,6 +281,28 @@ def test_ended_move_leaves_ghosts_of_those_still_there(
         ("tony", ago(3)),
         ("maya", ago(4)),
     ]
+
+
+def test_ghosts_need_an_arrival(world: Session, marks: MarkService) -> None:
+    """A Pull up that never made it (no `arrived_at`) never ghosts, even if an
+    old row says `left`; someone still `there` when the Move ended does."""
+    add_mark(world, "kumo")
+    add_move(
+        world,
+        "ended",
+        "kumo",
+        status="ended",
+        ends_at=ago(1),
+        audience=("anish", "maya", "priya"),
+        people=[
+            ("tony", "there", None),
+            ("maya", "left", ago(2)),
+            ("priya", "there", None),
+        ],
+        never_arrived=("maya", "priya"),
+    )
+    detail = marks.detail("anish", "kumo")
+    assert [(g.user.id, g.text) for g in detail.ghosts] == [("tony", "who's down")]
 
 
 def test_ghosts_respect_audience_settings_blocks_and_status(

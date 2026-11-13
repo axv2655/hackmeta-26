@@ -4,15 +4,23 @@ Registers: Notifier (M4) and MuseGateway (M1+); handlers on on_move_created,
 on_move_joined (M4) and on_rating_submitted (M8); flare, revive and nobody-bit
 jobs (M7, M9, M10).
 
+In `DEMO_MODE` the autonomous jobs (flare scan, nobody-bit, Pseudo-groups) are
+not registered: Demo Control triggers them on cue instead. Route suggestions
+are never triggered by a Pull up (F22 is out); `run_route` stays bound.
+
 `register(..., engine=..., client=...)` lets tests wire the lane onto an
 in-memory database with a `FakeMuseClient`.
 """
+
+import inspect
+import logging
 
 from sqlalchemy import Engine
 from sqlmodel import select
 
 from app.container import Container
 from app.core import db
+from app.core.config import settings
 from app.hooks import Hooks
 from app.muse.agents.flare import FlareScanner
 from app.muse.agents.intent import parse_intent
@@ -20,14 +28,30 @@ from app.muse.agents.move_ranker import MoveRanker
 from app.muse.agents.nobody_bit import NobodyBitService
 from app.muse.agents.revive import ReviveService
 from app.muse.agents.route import RouteService
-from app.muse.client import MuseClient, client_from_settings
+from app.muse.client import (
+    MuseClient,
+    client_from_settings,
+    client_kind,
+    client_model,
+)
 from app.muse.compose import ComposeService
 from app.muse.lane import MuseLane
+from app.muse.pseudo_groups import PseudoGroupService
 from app.scheduler.loop import Scheduler
 from app.services.notify import MuseNotifier, NotifyService
 from app.services.suggestions import SuggestionService
 from app.services.taste import TasteService
 from app.tables import UserSettings
+
+logger = logging.getLogger(__name__)
+AUTONOMOUS_JOBS = ("muse_flare_scan", "muse_nobody_bit", "muse_pseudo_groups")
+
+
+async def _forced(fn, user_id: str):
+    """`fn(user_id, force=True)` when `fn` takes `force`, else `fn(user_id)`."""
+    if "force" in inspect.signature(fn).parameters:
+        return await fn(user_id, force=True)
+    return await fn(user_id)
 
 
 def register(
@@ -39,11 +63,24 @@ def register(
     client: MuseClient | None = None,
 ) -> MuseLane:
     # M1: runner, client and the MuseGateway port
+    client = client or client_from_settings()
     lane = MuseLane.build(
-        engine or db.engine, container, client or client_from_settings()
+        engine or db.engine,
+        container,
+        client,
+        token_budget=settings.MUSE_TOKEN_BUDGET,
     )
     container.muse = lane.gateway
     gateway = lane.gateway
+    autonomous = not settings.DEMO_MODE
+    logger.info(
+        "muse lane: client=%s (%s) model=%s budget=%s autonomous_jobs=%s",
+        type(client).__name__,
+        client_kind(client),
+        client_model(client),
+        settings.MUSE_TOKEN_BUDGET,
+        autonomous,
+    )
 
     # M4: Notifier port, notify pipeline, second-order nudges
     container.notifier = MuseNotifier(lane)
@@ -92,7 +129,17 @@ def register(
     flares = FlareScanner(lane)
     gateway.bind("run_flare_scan", flares.run_flare_scan)
     gateway.bind("run_free_time_scan", flares.run_free_time_scan)
-    scheduler.register("muse_flare_scan", flares.scan_all, interval_s=60)
+
+    async def demo_flare_scan(user_id: str):
+        return await _forced(flares.run_flare_scan, user_id)
+
+    async def demo_free_time_scan(user_id: str):
+        return await _forced(flares.run_free_time_scan, user_id)
+
+    gateway.bind("demo_flare_scan", demo_flare_scan)
+    gateway.bind("demo_free_time_scan", demo_free_time_scan)
+    if autonomous:
+        scheduler.register("muse_flare_scan", flares.scan_all, interval_s=60)
 
     async def expire_suggestions() -> int:
         return await lane.call(SuggestionService, "expire")
@@ -119,8 +166,18 @@ def register(
             hits += await run_revive_scan(uid) is not None
         return hits
 
+    async def refresh_pseudo_groups(user_ids: list[str]) -> int:
+        if hasattr(PseudoGroupService, "refresh_owners"):
+            return await lane.call(PseudoGroupService, "refresh_owners", user_ids)
+        changed = 0
+        for uid in user_ids:
+            changed += len(await lane.call(PseudoGroupService, "refresh", uid))
+        return changed
+
     gateway.bind("run_revive_scan", run_revive_scan)
-    scheduler.register("muse_pseudo_groups", daily_pseudo_groups, interval_s=86400)
+    gateway.bind("refresh_pseudo_groups", refresh_pseudo_groups)
+    if autonomous:
+        scheduler.register("muse_pseudo_groups", daily_pseudo_groups, interval_s=86400)
 
     # M10: nobody-bit path for quiet Moves
     async def run_nobody_bit(move_id: str):
@@ -130,7 +187,8 @@ def register(
         return await lane.call(NobodyBitService, "scan")
 
     gateway.bind("run_nobody_bit", run_nobody_bit)
-    scheduler.register("muse_nobody_bit", nobody_bit_scan, interval_s=60)
+    if autonomous:
+        scheduler.register("muse_nobody_bit", nobody_bit_scan, interval_s=60)
 
     # M11: intent parser (glasses) and route suggestions
     async def intent(utterance: str):
@@ -139,11 +197,7 @@ def register(
     async def run_route(move_id: str, user_ids=()):
         return await lane.call(RouteService, "run_route", move_id, user_ids)
 
-    async def route_on_join(move_id: str, user_id: str) -> None:
-        await run_route(move_id, ())
-
     gateway.bind("parse_intent", intent)
     gateway.bind("run_route", run_route)
-    hooks.on_move_joined.register(route_on_join)
 
     return lane

@@ -103,6 +103,10 @@ class HttpMuseClient:
     def supports_vision(self) -> bool:
         return self._vision_model is not None
 
+    @property
+    def model(self) -> str:
+        return self._model
+
     async def complete(
         self,
         system: str,
@@ -209,6 +213,15 @@ class FakeMuseClient:
         )
 
 
+def client_kind(client: MuseClient) -> str:
+    """ "http" for the real Muse client, "fake" for anything else."""
+    return "http" if isinstance(client, HttpMuseClient) else "fake"
+
+
+def client_model(client: MuseClient) -> str | None:
+    return client.model if isinstance(client, HttpMuseClient) else None
+
+
 def client_from_settings(config: Settings = settings) -> MuseClient:
     """The real client when Muse is configured, else the fake (offline)."""
     key = config.MUSE_API_KEY.get_secret_value() if config.MUSE_API_KEY else ""
@@ -225,4 +238,5 @@ def client_from_settings(config: Settings = settings) -> MuseClient:
         key,
         config.MUSE_MODEL,
         vision_model=config.MUSE_VISION_MODEL,
+        timeout_s=25.0,
     )

@@ -1,6 +1,6 @@
-# Spontaneous: Architecture and Build Spec
+# Meta Moves: Architecture and Build Spec
 
-Working name: **Spontaneous** (the feature is "Moves"). Meta Career Programs AI Hackathon 2026.
+Project name: **Meta Moves** (the feature is "Moves"). Meta Career Programs AI Hackathon 2026.
 Submission: **Friday 10:30 a.m.** Judging is a live demo to five judges in a private room.
 
 This document is the single source of truth for every agent building this app. Read
@@ -19,6 +19,17 @@ Facebook surface; we never touch production Facebook code.
 
 ### 1.2 The idea
 
+The audience goal is to give young adults a reason to use Facebook alongside
+Instagram: a place to share everyday activities and spontaneously spend time with
+friends. Moves complements their existing social habits. Mobile is the primary
+experience; web supports moments when someone already has a laptop open, such as
+studying at a library or café.
+
+The starting hypothesis is that people who enjoy the awareness of friends offered
+by location sharing may value an explicit, low-pressure invitation to join them.
+Moves shares activities at chosen places under the privacy rules in 1.5; it does
+not continuously track people. Adoption and conversion remain hypotheses to test.
+
 RSVPs are friction: "Am I free Wednesday? I don't know. But I know if I'm free *now*."
 People don't want to create events or choose from options. They already share what they
 are doing. So:
@@ -35,7 +46,7 @@ are doing. So:
 
 ### 1.3 Growth loop (the pitch)
 
-Share a Move → the right people get a personal nudge → they pull up → moments are captured
+Share a Move → the right people get a personal poke → they pull up → moments are captured
 → ghosts and moments on the map create FOMO for people who missed it → they pull up next
 time or start their own Move → ratings and leaderboards keep them coming back. This turns
 Facebook Groups into personal, curated, real-world experiences for people in their 20s.
@@ -516,7 +527,7 @@ Target: under 10 seconds, two taps when Muse's draft is right.
 3. **Who.** Circle chips (defaults from `default_circle_ids`) plus individual friends.
    Under them, the **AudienceLine**: "Visible to 9 people: Roommates, Climbing, Priya".
    Tapping it lists every name. Blocked users are excluded and never listed.
-4. **Muse's notify list.** "Muse will nudge 4 of them: Anish, Priya, Tony, Maya" with a
+4. **Muse's notify list.** "Muse will poke 4 of them: Anish, Priya, Tony, Maya" with a
    reason chip each. The user can add or remove people. Everyone else in the audience
    sees the Move on the map and feed without a notification.
 5. Toggles: **Open to people nearby** (off; explains "people physically near you doing
@@ -554,7 +565,7 @@ State machine for `move_participants.status`:
 - **I'm going**: `POST /moves/{id}/join`. Server adds participant, publishes
   `participant.changed`, and notifies the creator and current participants
   ("Priya is pulling up"). Then it runs a *second-order notify*: the joiner's own
-  close friends who are in the Move's audience and haven't been notified get a nudge
+  close friends who are in the Move's audience and haven't been notified get a poke
   ("Priya's pulling up to Tony's Move at Kumo"). This is the "your friends get notified"
   half of the solo-discovery loop. It never widens the audience.
 - **Arrive**: detected on device. `lib/geofence.ts` compares the device position to the
@@ -581,7 +592,7 @@ State machine for `move_participants.status`:
   each participant a rating prompt (section 13).
 
 **Solo discovery** is the same machinery from the other side: open the map, tap a Move,
-"I'm going", friends get the second-order nudge.
+"I'm going", friends get the second-order poke.
 
 **Reach beyond the group chat**: Circles like "HS friends" exist so people you would
 never text directly are in the audience. They see the Move on the map and feed; Muse
@@ -596,7 +607,7 @@ decides whether any of them get an actual notification.
   or still `there` when the Move ended (people still there at the end ghost). A
   taken-back Pull up has no row, so it never ghosts. Each ghost carries the Move's `text`.
 - Tap a ghost → `mark/[id].tsx` ghost sheet: "Tony, Maya and Priya were here 2h ago",
-  the Move text, and its **Moments** in a horizontal viewer. CTA: "Nudge me next time
+  the Move text, and its **Moments** in a horizontal viewer. CTA: "Poke me next time
   they're out" (stores a preference that boosts those people in the notify picker).
 - **Moments**: during a Move, any participant can add a photo (`expo-image-picker`
   camera) via `POST /moves/{id}/moments` (multipart). The author tags who is in it.
@@ -988,7 +999,7 @@ Kumo from campus. Go together?" Accepting opens a prefilled message. No ride boo
 - The flare agent (section 10.6) connects saved place + calendar gap + distance + pseudo-group.
 - Demo: mock calendar has one obvious 45-minute gap before a 3:00 class. Demo Control
   "Fire flare scan" runs the job for the current user. The notification arrives, tap
-  yes, the Move goes out with a 10-minute fill timer, and the second phone gets the nudge.
+  yes, the Move goes out with a 10-minute fill timer, and the second phone gets the poke.
 - Show the **reasoning card** with the chips on the suggestion screen.
 
 ### 11.3 Marketplace (pitch line only, not built)
@@ -1008,7 +1019,7 @@ phone never comes out.
   parser, resolves the place from coarse location (nearest Marks), maps "the usual
   crew" to the best-matching pseudo-group, runs the Move writer and notify picker, and
   returns a draft with a spoken confirmation line ("Starting a Move at Fat Straws,
-  nudging Anish, Priya and Tony. Say confirm."). `POST /glasses/confirm` posts it.
+  poking Anish, Priya and Tony. Say confirm."). `POST /glasses/confirm` posts it.
 - **Getting audio in**, in order of preference:
   1. Real Ray-Ban Meta glasses paired to the phone as a Bluetooth headset: the app's
      speech recognition (`expo-speech-recognition`) hears the glasses microphone, and
@@ -1372,7 +1383,7 @@ deterministic path. `/demo/route` is not built (F22 is out).
 1. **Hook** (20 s). Open the mock Facebook app as Anish. "RSVPs are friction. I don't know if I'm free Wednesday. I know I'm free now."
 2. **Reel → Move** (40 s). Scroll Reels, tap "📍 Kumo Matcha", see "Tony + 2 friends are here rn", tap I'm going. Second phone (Priya) gets "Hey Priya, Anish is pulling up to Tony's Move".
 3. **Map and ghosts** (30 s). Moves tab: category Marks, avatar stacks, "For you" with Muse's reasons. Tap a ghost from last night, see the Moments. FOMO.
-4. **Share a Move + proximity** (45 s). Post "study with me" from the composer; show the audience line and Muse's notify list with reasons. The phone next to it gets "You're with Anish. Add yourself?" and the far phone gets the FOMO nudge.
+4. **Share a Move + proximity** (45 s). Post "study with me" from the composer; show the audience line and Muse's notify list with reasons. The phone next to it gets "You're with Anish. Add yourself?" and the far phone gets the FOMO poke.
 5. **Muse acts on its own** (45 s). Fire the flare scan: "You saved Kumo Matcha. You're free til 3 and it's 10 min away. Send a flare to Anish + Priya?" Show the reasoning card, tap yes, 10-minute fill timer.
 6. **After the Move** (30 s). End it, rate with one pairwise question, show the leaderboard and the updated taste line. Then the revive card for the climbing crew.
 7. **Nobody bit** (20 s). A flare expires empty; Muse offers Jordan's open pickleball Move. "There's always somewhere to go."
@@ -1523,7 +1534,7 @@ the remaining time goes to M6.
 | Privacy pushback from judges | Section 1.5 rules are visible in the UI: audience line, place-not-person, opt-ins, hidden-from. Privacy pass (12.5) before the demo. |
 | Pairwise ranking algorithm | Team supplies it; placeholder behind the `domain/ranking.py` interface until then. |
 | Glasses audio path | Try Ray-Ban Meta as a Bluetooth headset early; phone mic is the fallback. |
-| App name and final branding | Working name "Spontaneous"; "Moves" is the feature name inside Facebook. Team to confirm. |
+| App name and final branding | "Meta Moves"; "Moves" is the feature name inside Facebook. |
 | Demo area center | Seed constant; set to wherever the demo phones physically are so distances read correctly. |
 | Real Facebook Groups integration | Out of scope; mocked. Circles carry an `fb_group_name` to show the tie-in. |
 
@@ -1533,9 +1544,9 @@ the remaining time goes to M6.
 
 | Question | Our answer |
 | --- | --- |
-| Why isn't this just a group chat? | In a group chat you have to *send* something: "who's down?", every time, to one fixed set of people. Most people won't. A Move is a share, not an ask, and the nudge is a notification built for exactly this with a one-tap "I'm going". It also reaches people you would never text. |
+| Why isn't this just a group chat? | In a group chat you have to *send* something: "who's down?", every time, to one fixed set of people. Most people won't. A Move is a share, not an ask, and the poke is a notification built for exactly this with a one-tap "I'm going". It also reaches people you would never text. |
 | What if I post and nobody comes? | Same as a quiet group chat: everyone's busy, and no app can fix that. What we add is the "nobody bit" path: Muse points you to a live Move you can still join. There is always somewhere to go. |
-| Is the AI essential? | Who gets nudged, the unprompted flare (saved place + calendar gap + distance + your usual people), reviving fading groups, and taste learning from ratings all come from Muse. Without it, saves never become plans. |
+| Is the AI essential? | Who gets poked, the unprompted flare (saved place + calendar gap + distance + your usual people), reviving fading groups, and taste learning from ratings all come from Muse. Without it, saves never become plans. |
 | Is this live location? | No. A Move shows a place you chose to share with people you chose, and it ends when you leave. Location, Bluetooth and calendar are each opt-in. |
 | Why Facebook? | Reels is where young adults already see things they want to do. Reel → Move turns watch time into real-world plans, and Circles turn Groups into curated, in-person experiences. |
 | Is it a dating app? | No. It is about doing things with people you know; open Moves show groups and activities, not profiles to browse. |

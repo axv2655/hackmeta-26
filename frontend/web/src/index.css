@@ -504,3 +504,27 @@ button.mv-glass:active, .mv-act:active, .mv-out-item:active, .mv-pull:active, .m
 .snap .media-wait { width: 116px; height: 146px; border-radius: 3px; }
 @keyframes media-shimmer { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .media-wait { animation: none; } .story-bar > span.run { animation-timing-function: steps(1, end); } }
+
+/* Memories as Facebook memory posts */
+.mem-post { padding: 0; overflow: hidden; }
+.mem-day { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--divider); font-size: 15px; }
+.mem-day .sprite { transform: scale(.6); margin: -6px; }
+.mem-only { margin-left: auto; gap: 4px; }
+.mem-post .post-head { padding: 12px 16px 0; align-items: flex-start; }
+.mem-post .post-head b { font-weight: 600; }
+.mem-post .post-text { padding: 0 16px; }
+.mem-faces { padding: 0 16px 4px; }
+.mem-post .login-error, .mem-post > .muted { padding: 0 16px; }
+.mem-photos { display: grid; gap: 2px; margin-top: 8px; grid-template-columns: 1fr 1fr; }
+.mem-photos.n1 { grid-template-columns: 1fr; }
+.mem-photos.n3 .mem-photo:first-child { grid-column: 1 / -1; aspect-ratio: 2; }
+.mem-photo { position: relative; aspect-ratio: 1; padding: 0; border: 0; overflow: hidden; cursor: pointer; background: var(--hover); }
+.mem-photos.n1 .mem-photo { aspect-ratio: 4 / 3; }
+.mem-photo img, .mem-photo .media-wait { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .2s ease; }
+.mem-photo:hover img { transform: scale(1.03); }
+.mem-photo:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.mem-more { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); color: #fff; font-size: 28px; font-weight: 700; }
+.mem-actions { display: flex; border-top: 1px solid var(--divider); margin-top: 8px; padding: 4px; }
+.mem-action { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px; border-radius: 6px; font-weight: 600; font-size: 15px; color: var(--muted); }
+label.mem-action { cursor: pointer; }
+label.mem-action:hover { background: var(--hover); }

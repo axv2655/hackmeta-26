@@ -81,7 +81,7 @@ const STORY_MS = 5000
 
 /** Instagram-story-style viewer: one bar per snapshot fills over 5 s, then the next opens; after the last it closes.
  * Click the left/right half (or arrow keys) to go back/forward, hold to pause, Esc or X to close. */
-function StoryViewer({ snaps, start, onClose }) {
+export function StoryViewer({ snaps, start, onClose }) {
   const [i, setI] = useState(start)
   const [held, setHeld] = useState(false)
   const next = () => (i + 1 < snaps.length ? setI(i + 1) : onClose())

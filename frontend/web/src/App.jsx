@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import * as L from 'lucide-react'
-import { ago, endpoints, errorText, setSession, useEvents, useLoad, useMedia, useRealtime, useSession } from './api'
-import { cat } from './categories'
+import { ago, endpoints, errorText, setSession, useEvents, useLoad, useRealtime, useSession } from './api'
 import Login from './Login'
+import MemoriesFeed from './Memories'
 import Moves from './Moves'
 import { Avatar, bit, Face } from './people'
 
@@ -560,58 +560,11 @@ function FriendsPage() {
   )
 }
 
-// ---- Memories: past Moves you were part of, each an album of that Move's Moments (photos)
-function MemoryPhoto({ ph, n, place }) {
-  const url = useMedia(ph.media_url)
-  return (
-    <figure>
-      {url ? <img src={url} alt={`Photo ${n} from ${place}, added by ${ph.author.first_name}`} loading="lazy" /> : <span className="media-wait" role="img" aria-label={`Photo ${n} loading`} />}
-      <figcaption><Face id={ph.author.id} size={22} /> {ph.author.first_name}{ph.status === 'pending' ? ' · pending' : ''}</figcaption>
-      {url && <a className="mem-dl" href={url} download={`${place} ${n}.jpg`} aria-label={`Download photo ${n}`}><L.Download size={16} /></a>}
-    </figure>
-  )
-}
-
-function MemoryCard({ m }) {
-  const photos = useLoad(() => endpoints.moments.list(m.move_id), [m.move_id])
-  const [error, setError] = useState(null)
-  const [, , color, Icon] = cat(m.category)
-  const add = async (files) => {
-    setError(null)
-    try { for (const f of files) await endpoints.moments.upload(m.move_id, f) } catch (e) { setError(errorText(e)) }
-    photos.reload()
-  }
-  return (
-    <article className="card mem">
-      <div className="row">
-        <span className="mv-act-icon" style={{ '--c': color }}><Icon size={22} /></span>
-        <div className="grow"><b className="block clip mem-title">{m.text || m.mark_name}</b><span className="muted">{m.mark_name} · {new Date(m.at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span></div>
-        <label className="btn-blue mem-add"><L.ImagePlus size={16} /> Add photos<input className="sr-only" type="file" accept="image/*" multiple onChange={(e) => { add([...e.target.files]); e.target.value = '' }} /></label>
-      </div>
-      {error && <p className="login-error">{error}</p>}
-      {photos.error && <p className="muted small">{photos.error}</p>}
-      {photos.data?.length === 0 && <p className="muted small">No photos yet. Add the first one.</p>}
-      <div className="mem-grid">
-        {photos.data?.map((ph, i) => <MemoryPhoto key={ph.id} ph={ph} n={i + 1} place={m.mark_name} />)}
-      </div>
-    </article>
-  )
-}
-
 function Memories() {
-  const memories = useLoad(endpoints.memories)
   return (
     <div className="page">
       <SideNav title="Memories" gear={false} items={[['Memories Home', L.Images], ['Notifications', L.Bell], ['Highlights', L.Sparkles], ['Hide People', L.UserX], ['Hide Dates', L.CalendarX]]} />
-      <main className="page-main narrow">
-        <img className="mem-banner" src="/fb/memories-header.png" alt="" />
-        <h2>Memories from your outings</h2>
-        <p className="muted mem-sub">Every Move you were part of lands here as a shared album. Only the people who were there can see it and add photos.</p>
-        {memories.loading && !memories.data && <p className="muted">Loading...</p>}
-        {memories.error && <p className="muted">{memories.error} <button className="blue" onClick={memories.reload}>Retry</button></p>}
-        {memories.data?.length === 0 && <p className="muted">No memories yet. Pull up to a Move and it shows up here after.</p>}
-        {memories.data?.map((m) => <MemoryCard key={m.move_id} m={m} />)}
-      </main>
+      <MemoriesFeed />
     </div>
   )
 }

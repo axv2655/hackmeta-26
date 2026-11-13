@@ -10,8 +10,11 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { selection, success } from '@/lib/haptics';
+import { shareMove } from '@/lib/invites';
+import { currentUser } from '@/lib/mock';
 import { bitmojiFor } from '@/lib/mock/bitmoji';
-import { CATEGORY_META, me, type MapMove } from '@/lib/mock/moves';
+import { CATEGORY_META, type MapMove } from '@/lib/mock/moves';
+import { myFirstName, useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 
 import { BitmojiFace, SheetGlassBackground, SheetHandle, useSheetBottomInset } from './SheetParts';
@@ -28,6 +31,8 @@ export type MovesSheetProps = {
   onClose: () => void;
   animatedIndex: SharedValue<number>;
   onIndexChange?: (index: number) => void;
+  /** Pull up / take it back (the parent talks to the backend). */
+  onPull: (id: string) => void;
 };
 
 export { useSheetBottomInset };
@@ -39,14 +44,15 @@ export { useSheetBottomInset };
  * Selecting a friend swaps the content to their Move card in place.
  */
 export const MovesSheet = forwardRef<BottomSheet, MovesSheetProps>(function MovesSheet(
-  { moves, selected, onSelect, onClose, animatedIndex, onIndexChange },
+  { moves, selected, onSelect, onClose, animatedIndex, onIndexChange, onPull },
   ref,
 ) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const bottomInset = useSheetBottomInset();
   const [query, setQuery] = useState('');
-  const [pulled, setPulled] = useState<Set<string>>(() => new Set());
+  const pulled = useMemo(() => new Set(moves.filter((m) => m.going).map((m) => m.id)), [moves]);
+  const me = useSession((s) => s.userId);
 
   const fullHeight = height - insets.top - 8 - bottomInset;
   const snapPoints = useMemo(() => [SHEET_COLLAPSED, '48%', fullHeight], [fullHeight]);
@@ -60,15 +66,8 @@ export const MovesSheet = forwardRef<BottomSheet, MovesSheetProps>(function Move
   }));
 
   const togglePull = (id: string) => {
-    setPulled((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else {
-        next.add(id);
-        success();
-      }
-      return next;
-    });
+    if (!pulled.has(id)) success();
+    onPull(id);
   };
 
   const q = query.trim().toLowerCase();
@@ -119,7 +118,7 @@ export const MovesSheet = forwardRef<BottomSheet, MovesSheetProps>(function Move
                 <Icon name="mic" size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.meFace}>
-                <Image source={bitmojiFor(me.id, 'selfie')} style={styles.meImage} contentFit="cover" />
+                <Image source={bitmojiFor(me, 'selfie')} style={styles.meImage} contentFit="cover" />
               </View>
             </View>
 
@@ -255,6 +254,9 @@ function MoveCard({
 }) {
   const ghost = move.status === 'ghost';
   const meta = CATEGORY_META[move.mark.category];
+  const myId = useSession((s) => s.userId);
+  const names = move.joined.map((u) => (u.id === myId ? 'You' : u.firstName));
+  const plural = names.length > 1 || names[0] === 'You';
   return (
     <BottomSheetScrollView contentContainerStyle={styles.card} showsVerticalScrollIndicator={false}>
       <View style={styles.cardTop}>
@@ -298,8 +300,7 @@ function MoveCard({
             ))}
           </View>
           <Text style={styles.joinedText}>
-            {move.joined.map((u) => u.firstName).join(', ')}{' '}
-            {ghost ? 'went' : move.joined.length > 1 ? 'are there' : 'is there'}
+            {names.join(', ')} {ghost ? 'went' : plural ? 'are going' : 'is going'}
           </Text>
         </View>
       ) : null}
@@ -307,6 +308,8 @@ function MoveCard({
       <View style={styles.actions}>
         {ghost ? (
           <Button title="See Moments" icon="images" variant="primary" style={styles.flex} />
+        ) : move.mine ?? move.user.id === currentUser.id ? (
+          <Button title="Your Move" icon="check" variant="tinted" style={styles.flex} />
         ) : (
           <Button
             title={pulled ? "You're going" : 'Pull up'}
@@ -316,7 +319,21 @@ function MoveCard({
             style={styles.flex}
           />
         )}
-        <Button title="Message" icon="message" variant="secondary" style={styles.flex} />
+        {/* Friends outside the group get a no-login link, sent from your own phone (9.4). */}
+        <Button
+          title="Share"
+          icon="share-external"
+          variant="secondary"
+          style={styles.flex}
+          onPress={() =>
+            shareMove({
+              moveId: move.id,
+              markName: move.mark.name,
+              creatorFirst: move.user.firstName,
+              inviterFirst: myFirstName(currentUser.firstName),
+            })
+          }
+        />
       </View>
     </BottomSheetScrollView>
   );

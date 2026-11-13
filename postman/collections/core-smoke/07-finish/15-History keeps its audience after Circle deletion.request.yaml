@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'History keeps its audience after Circle deletion'
+method: GET
+url: '{{base_url}}/api/v1/moves/{{move_id}}'
+order: 15000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));

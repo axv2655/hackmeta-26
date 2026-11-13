@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Unknown Mark is 404'
+method: GET
+url: '{{base_url}}/api/v1/marks/mk_nonexistent'
+order: 5000
+headers:
+  - key: X-User-Id
+    value: '{{maya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));

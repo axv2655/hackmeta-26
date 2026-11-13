@@ -219,7 +219,7 @@ export const notifications: Notification[] = [
     avatar: richardsonNow.avatar,
     segments: [
       { text: richardsonNow.name, bold: true },
-      { text: ' shared a link: "Campbell Road bike lane gets the green light from city council"' },
+      { text: ' shared a link: "Willow Road bike lane gets the green light from city council"' },
     ],
     timeLabel: '5 d',
     unread: false,

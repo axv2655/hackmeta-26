@@ -1,0 +1,10 @@
+$kind: http-request
+name: 'Mark route cannot traverse'
+method: GET
+url: '{{base_url}}/media/seed/marks/..%2F..%2Fapp.db'
+order: 3000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));

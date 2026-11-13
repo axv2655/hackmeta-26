@@ -1,0 +1,12 @@
+$kind: collection
+name: Core smoke
+description: 'Core backend (T0, C1-C11) smoke and privacy checks against a running server. Run through backend/scripts/check_core_live.py, which owns the server, the database and the WebSocket observations.'
+variables:
+  - key: circle_id
+    value: ''
+  - key: move_id
+    value: ''
+  - key: moment_id
+    value: ''
+  - key: media_file
+    value: ''

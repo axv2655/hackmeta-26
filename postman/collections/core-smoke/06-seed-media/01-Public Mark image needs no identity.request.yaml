@@ -1,0 +1,12 @@
+$kind: http-request
+name: 'Public Mark image needs no identity'
+method: GET
+url: '{{base_url}}/media/seed/marks/coffee.png'
+order: 1000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('PNG', () => pm.expect(pm.response.headers.get('Content-Type')).to.eql('image/png'));
+      pm.test('real picture, not a placeholder', () => pm.expect(Number(pm.response.headers.get('Content-Length'))).to.be.above(5000));

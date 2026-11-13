@@ -20,6 +20,8 @@ import {
 import { NotificationRow, segmentsFor } from '@/components/fb/notifications/NotificationRow';
 import { NotificationSectionHeader } from '@/components/fb/notifications/NotificationSectionHeader';
 import { NotificationsEmptyState } from '@/components/fb/notifications/NotificationsEmptyState';
+import { MovesInbox } from '@/components/moves/MovesInbox';
+import { useInbox } from '@/lib/store/inbox';
 import { Snackbar } from '@/components/fb/notifications/Snackbar';
 import type {
   NotificationFilter,
@@ -65,6 +67,9 @@ export default function NotificationsScreen() {
   useFocusEffect(
     useCallback(() => {
       clearNotificationCount();
+      void useInbox.getState().load();
+      const read = setTimeout(() => void useInbox.getState().markAllRead(), 2500);
+      return () => clearTimeout(read);
     }, [clearNotificationCount]),
   );
 
@@ -266,7 +271,12 @@ export default function NotificationsScreen() {
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
         renderSectionFooter={renderSectionFooter}
-        ListHeaderComponent={filter === 'unread' ? <FilterChips value={filter} onChange={changeFilter} /> : null}
+        ListHeaderComponent={
+          <>
+            {filter === 'unread' ? <FilterChips value={filter} onChange={changeFilter} /> : null}
+            <MovesInbox />
+          </>
+        }
         ListFooterComponent={earlierHidden > 0 ? <SeePreviousButton onPress={expandEarlier} /> : null}
         ListEmptyComponent={
           filter === 'unread' ? (

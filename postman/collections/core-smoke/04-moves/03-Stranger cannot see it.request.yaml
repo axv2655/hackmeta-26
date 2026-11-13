@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Stranger cannot see it'
+method: GET
+url: '{{base_url}}/api/v1/moves/{{move_id}}'
+order: 3000
+headers:
+  - key: X-User-Id
+    value: '{{jordan}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));

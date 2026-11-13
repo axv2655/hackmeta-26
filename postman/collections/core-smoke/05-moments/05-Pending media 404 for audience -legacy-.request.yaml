@@ -1,0 +1,13 @@
+$kind: http-request
+name: 'Pending media 404 for audience (legacy)'
+method: GET
+url: '{{base_url}}/api/v1/media/{{media_file}}'
+order: 5000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 404', () => pm.response.to.have.status(404));

@@ -1,0 +1,14 @@
+$kind: http-request
+name: 'Feed shows it to the audience'
+method: GET
+url: '{{base_url}}/api/v1/moves/feed'
+order: 9000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('in the feed', () => pm.expect(pm.response.json().map(m => m.id)).to.include(pm.collectionVariables.get('move_id')));

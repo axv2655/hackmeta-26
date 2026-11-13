@@ -8,13 +8,17 @@ authors = [
 requires-python = ">=3.12.11"
 dependencies = [
     "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.9",
     "pydantic-settings>=2.15.0",
+    "python-multipart>=0.0.33",
     "sentry-sdk>=2.69.1",
+    "sqlmodel>=0.0.49",
     "uvicorn[standard]>=0.30.0",
 ]
 
 [dependency-groups]
-dev = ["httpx>=0.27.0", "pytest>=8.0.0", "ruff>=0.6.0"]
+dev = ["pytest>=8.0.0", "ruff>=0.6.0"]
 
 [tool.uv.build-backend]
 module-name = "app"
@@ -32,3 +36,7 @@ select = ["E", "F", "I"]
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.ruff.lint.per-file-ignores]
+# HTML and CSS templates read better unwrapped.
+"app/api/invite_page.py" = ["E501"]

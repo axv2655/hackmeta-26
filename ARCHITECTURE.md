@@ -136,7 +136,7 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 │ muse/           MuseClient port + adapter, one module per agent, prompts, fallbacks     │
 │ realtime/       ConnectionHub: user_id → sockets, publish(event)                        │
 │ scheduler/      asyncio loop: move expiry, empty-flare follow-up, flare scan, revive scan       │
-│ repositories    SQLModel over SQLite (file: backend/data/app.db)                        │
+│ repositories    SQLModel over Postgres (DATABASE_URL); SQLite file when unset           │
 └───────────────┬─────────────────────────────────────────────────────────────────────────┘
                 │ HTTPS
                 ▼
@@ -151,7 +151,7 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 | Build type | **Expo dev build** (EAS or `expo run:ios`) for BLE; app must also run in Expo Go with BLE simulated | BLE needs native modules. Expo Go fallback keeps everyone unblocked. |
 | Map | `react-native-maps` (Apple Maps on iOS) | Works in Expo Go, no API key on iOS. |
 | Backend | Existing FastAPI layered template | Already scaffolded; keep the inward-dependency rule from `backend/ARCHITECTURE.md`. |
-| Storage | SQLite via SQLModel, one file, recreated from seed on demand | Zero setup, relational joins for affinity queries, easy reset before the demo. |
+| Storage | Postgres via SQLModel (`DATABASE_URL`, hosted Timescale for dev; psycopg driver), recreated from seed on demand. Falls back to a SQLite file when `DATABASE_URL` is unset; tests always use in-memory SQLite. | Shared data across phones and teammates, env-only config so the backend runs unchanged in Docker on the homelab, easy reset before the demo. Foreign keys are enforced, so seeds insert parents first (`test_seed_respects_foreign_keys`). |
 | Realtime | One WebSocket per client, server push only | Simpler and more reliable on venue Wi-Fi than push notifications. |
 | Push | In-app banners from WebSocket events + `expo-notifications` **local** notifications for lock-screen effect | Remote push needs credentials and a dev build; local notifications give the same visual. |
 | Auth | Mocked "Continue with Facebook": pick a seeded user. `X-User-Id` header | No real auth in a one-day demo. Verified badge is a seeded flag. |
@@ -277,7 +277,7 @@ Backend additions: `sqlmodel`, `httpx` (move from dev to runtime), `python-multi
 
 ## 5. Data model
 
-SQLite, SQLModel. IDs are short string UUIDs. All timestamps are UTC ISO 8601. Tables
+Postgres (or SQLite locally), SQLModel. IDs are short string UUIDs. All timestamps are UTC ISO 8601. Tables
 live in `backend/app/tables.py`.
 
 ### 5.1 People and audiences
@@ -525,6 +525,17 @@ Server on `POST /moves`:
 4. Run the notify pipeline (section 9.2) for the rest.
 5. Publish `move.created` to every audience member's socket.
 
+**As built (two steps, `app/move/new.tsx`).** The Moves map has a message-plus button
+under the map-style and center buttons. Step 1 is only where, a short description
+(Muse's draft plus alternate chips) and who (Circles / Facebook Groups with a "Group"
+tag, plus friends), with the AudienceLine. **Make Move** posts with
+`notify_user_ids: []`, so nobody is poked yet. Step 2 ("Your Move is live") shows
+Muse's picks from `/muse/notify-preview` (with reasons) plus anyone picked by hand,
+pre-checked; **Poke N** calls `POST /moves/{id}/notify {user_ids}`, which pokes only
+audience members not already poked. **Share link** sends the no-login `/m/{token}`
+page from the user's own phone (9.4). **Done** opens the new Move's card on the map.
+Without a backend the composer runs on the mock world and the Move stays local.
+
 ### 7.3 Pull up, arrive, leave
 
 State machine for `move_participants.status`:
@@ -712,6 +723,39 @@ send       = store notification, publish over WebSocket
 | `moment_approval` | "Maya tagged you in a moment. OK to share?" |
 | `muse_nobody_bit` | "Quiet one. Jordan + 3 are playing pickleball 5 min away and it's open. Pull up?" |
 | `muse_route` | "You and Dev are both heading to Kumo from campus. Go together?" |
+
+### 9.4 Share a Move with people outside the app
+
+For friends who aren't in the group or don't have the app. This is the cold-start
+loop from mentor feedback: a shared link pulls in people who aren't on Facebook yet.
+
+- **No SMS service.** The app asks the backend for a link, then opens the phone's
+  share sheet (React Native `Share`) with the line and the link. The text goes out
+  from the user's own number (iMessage, WhatsApp, anything), so there is no sending
+  number to register and nothing to pay for.
+- **Copy**: "Anish is making a move to the library. You want to pull up?" then the
+  link on its own line, which iMessage shows as a second bubble with a preview card.
+  Sharing someone else's Move: "Anish: Tony is making a move to ...". The client may
+  send Muse's own line as `message`.
+- **Who can share**: anyone who can see a live Move (creator, participant,
+  audience). Each share makes a row in `move_invites` with its own token, so the
+  sharer sees opens and who's coming. No phone numbers are stored.
+- **The page** (`app/api/invite_page.py`, mounted at the site root): no login, like
+  a Luma link. Place, what's happening, first names of who's there, Apple/Google Maps
+  links, and an "I'm pulling up" form that takes only a first name. Open Graph tags
+  build the preview card; preview fetchers aren't counted as opens. Stops showing
+  details when the Move ends; `noindex`.
+- **Guest going**: the sharer and the creator get a `joined_your_move` notification
+  through the normal pipeline (9.1, in-app). Guests are not users.
+- **Public URL**: set `PUBLIC_BASE_URL` (tunnel or subdomain) so links open off the
+  venue Wi-Fi and the preview card can be built.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/moves/{id}/invites` | `{message?}` → `{url, text, body}`; `body` is what the share sheet sends |
+| GET | `/moves/{id}/invites` | creator sees all, others their own: opens, guest names |
+| GET | `/m/{token}` | public page (site root, not `/api/v1`) |
+| POST | `/m/{token}/going` | form post `name` → 303 back to the page |
 
 ---
 
@@ -973,7 +1017,12 @@ Implement these as code, not as copy.
   coordinates only. There is no `lat/lng` field on any user schema. A test asserts this.
 - **Coarse location**: the client rounds to 3 decimals before sending `lat/lng` to
   `/moves/nearby` or `/muse/compose-move`. The server does not persist them; it stores
-  only a coarse `last_area` label (nearest seeded area) for users with `location_opt_in`.
+  only a coarse `last_area` label for users with `location_opt_in`, and clears it when
+  they opt out. `/moves/nearby` and `/marks/nearby` both rewrite it through
+  `UserService.record_near_area`. The demo interprets "area" as the single region
+  `UT Dallas`, the bounding envelope of the seeded Marks (`backend/app/core/areas.py`);
+  a point outside it stores no label, never a false one. Search and manual arrival
+  need no location. Access logs redact the query string of the two nearby paths.
 - **Calendar**: only busy blocks (start, end) reach the server. No titles from a real calendar.
 - **Muse prompts** use aliases and first names only, and include only the fields listed
   in section 10.1. No raw coordinates, no addresses of users, no calendar titles.
@@ -1125,8 +1174,9 @@ type Notification = { id: string; type: string; title: string; body: string;
 | POST | `/audience/preview` | `{circle_ids, user_ids}` → `AudienceSummary` |
 | POST | `/muse/compose-move` | `{lat?, lng?, mark_id?, seed_text?}` → `MoveDraft` |
 | POST | `/muse/notify-preview` | `{mark_id, text, circle_ids, user_ids}` → `NotifyPick[]` |
+| POST | `/moves/{id}/notify` | `{user_ids}` → pokes that list now (creator only, audience only, skips anyone already poked) |
 | POST | `/muse/suggest-spots` | `{user_ids, category?}` → Marks with reasons |
-| POST | `/moves` | create (body: `MoveDraft` fields + `open`, `origin`, `notify_user_ids`) |
+| POST | `/moves` | create (body: `mark_id`, text/category/audience fields from `MoveDraft`, plus `open`, `origin`, `notify_user_ids`; do not send a nested Mark) |
 | GET | `/moves/nearby?lat&lng&radius_km` | visible live Moves, Muse-ranked |
 | GET | `/moves/feed` | Move cards for the Home feed |
 | GET | `/moves/{id}` | detail |
@@ -1134,7 +1184,7 @@ type Notification = { id: string; type: string; title: string; body: string;
 | POST | `/moves/{id}/arrive` | status → there |
 | POST | `/moves/{id}/leave` | status → left |
 | POST | `/moves/{id}/end` | creator ends |
-| GET/POST | `/moves/{id}/moments` | list / upload (multipart: file, caption, tagged ids) |
+| GET/POST | `/moves/{id}/moments` | list / upload (multipart: file, caption, repeated `tagged_user_ids`) |
 | POST | `/moments/{id}/approve` | `{approve: bool}` |
 | POST | `/moves/{id}/rating` | submit rating + pairwise answers |
 | GET | `/moves/{id}/rating/questions` | pairwise questions for this user |
@@ -1160,7 +1210,7 @@ type Notification = { id: string; type: string; title: string; body: string;
 | WS | `/ws?user_id` | events (section 9.1) |
 | * | `/demo/*` | section 15.2 |
 
-Uploaded media is served from `/media/*` (FastAPI `StaticFiles` over `backend/data/uploads`).
+Uploaded and seeded Moment media is served through authenticated `/media/{filename}` handlers over `backend/data/uploads`, with `X-User-Id` and the same visibility checks as Moments. The legacy `/api/v1/media/{filename}` URL remains supported. Never publicly mount the private uploads directory. Mark seed images use a separate public allowlisted `/media/seed/marks/{asset_name}` route.
 
 ---
 

@@ -1,0 +1,14 @@
+$kind: http-request
+name: 'Everyone-left: the creator leaves'
+method: POST
+url: '{{base_url}}/api/v1/moves/{{solo_move_id}}/leave'
+order: 10000
+headers:
+  - key: X-User-Id
+    value: '{{anish}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('the Move ended because everyone left', () => pm.expect(pm.response.json().status).to.eql('ended'));

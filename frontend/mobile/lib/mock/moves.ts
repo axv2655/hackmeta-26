@@ -5,7 +5,7 @@ import type { User } from './types';
 import { currentUser, dev, dhivyesh, jordan, maya, priya, tony } from './users';
 
 /**
- * Seeded Moves around UT Dallas (Richardson, TX) for the Moves map.
+ * Offline stand-in Moves around the Meta campus (Menlo Park, CA) for the Moves map.
  *
  * Privacy rule (ARCHITECTURE.md 1.5.2): a friend's avatar is pinned to the
  * Mark (the place) of their Move, never to their GPS position. Only the
@@ -25,7 +25,7 @@ export type Mark = {
   name: string;
   category: MoveCategory;
   coordinate: Coordinate;
-  /** "Campus", "Richardson". */
+  /** "Meta campus", "Menlo Park". */
   area: string;
 };
 
@@ -43,6 +43,12 @@ export type MapMove = {
   joined: User[];
   /** Distance from the current user, formatted: "0.4 mi". */
   distanceLabel: string;
+  /** Posted by the signed-in user (backend Moves). */
+  mine?: boolean;
+  /** The signed-in user tapped Pull up (or is there). */
+  going?: boolean;
+  /** Muse's ranking reason, when it gave one. */
+  reason?: string;
 };
 
 export const CATEGORY_META: Record<MoveCategory, { label: string; icon: IconName; color: string }> = {
@@ -56,29 +62,29 @@ export const CATEGORY_META: Record<MoveCategory, { label: string; icon: IconName
 };
 
 const marks = {
-  library: { id: 'mk-library', name: 'McDermott Library', category: 'study', area: 'Campus', coordinate: { latitude: 32.98665, longitude: -96.74762 } },
-  activity: { id: 'mk-activity', name: 'Activity Center', category: 'gym', area: 'Campus', coordinate: { latitude: 32.98395, longitude: -96.75085 } },
-  kumo: { id: 'mk-kumo', name: 'Kumo Matcha', category: 'coffee', area: 'Richardson', coordinate: { latitude: 32.99052, longitude: -96.73958 } },
-  plinth: { id: 'mk-plinth', name: 'The Plinth', category: 'music', area: 'Campus', coordinate: { latitude: 32.98905, longitude: -96.75015 } },
-  cityline: { id: 'mk-cityline', name: 'CityLine Plaza', category: 'shopping', area: 'Richardson', coordinate: { latitude: 32.99805, longitude: -96.70315 } },
-  pho: { id: 'mk-pho', name: 'Pho Bang', category: 'food', area: 'Richardson', coordinate: { latitude: 32.96845, longitude: -96.73095 } },
-  northside: { id: 'mk-northside', name: 'Northside Rooftop', category: 'party', area: 'Campus', coordinate: { latitude: 32.99042, longitude: -96.75281 } },
+  library: { id: 'mk-library', name: 'MPK 21 Study Lounge', category: 'study', area: 'Meta campus', coordinate: { latitude: 37.4811, longitude: -122.1591 } },
+  activity: { id: 'mk-activity', name: 'Arrillaga Rec Center', category: 'gym', area: 'Menlo Park', coordinate: { latitude: 37.4531, longitude: -122.1779 } },
+  kumo: { id: 'mk-kumo', name: 'Kumo Matcha', category: 'coffee', area: 'Belle Haven', coordinate: { latitude: 37.4727, longitude: -122.1547 } },
+  plinth: { id: 'mk-plinth', name: 'Hacker Square', category: 'music', area: 'Meta campus', coordinate: { latitude: 37.485, longitude: -122.1482 } },
+  cityline: { id: 'mk-cityline', name: 'Stanford Shopping Center', category: 'shopping', area: 'Palo Alto', coordinate: { latitude: 37.4432, longitude: -122.1709 } },
+  pho: { id: 'mk-pho', name: 'Pho City', category: 'food', area: 'Menlo Park', coordinate: { latitude: 37.4542, longitude: -122.1628 } },
+  northside: { id: 'mk-northside', name: 'MPK 20 Rooftop Garden', category: 'party', area: 'Meta campus', coordinate: { latitude: 37.481, longitude: -122.1542 } },
 } satisfies Record<string, Mark>;
 
 /** The current user's own position (on-device only). */
-export const myPosition: Coordinate = { latitude: 32.98265, longitude: -96.74355 };
+export const myPosition: Coordinate = { latitude: 37.4832, longitude: -122.1503 };
 
 export const mapMoves: MapMove[] = [
   {
     id: 'mv-1',
     user: maya,
-    title: 'Grinding the orgo PSET, come suffer with me',
+    title: 'Locking in at MPK 21, come suffer with me',
     mark: marks.library,
     status: 'there',
     pose: 'study',
     timeLabel: '18 m',
     joined: [priya],
-    distanceLabel: '0.3 mi',
+    distanceLabel: '0.5 mi',
   },
   {
     id: 'mv-2',
@@ -89,18 +95,18 @@ export const mapMoves: MapMove[] = [
     pose: 'gym',
     timeLabel: '6 m',
     joined: [],
-    distanceLabel: '0.4 mi',
+    distanceLabel: '2.6 mi',
   },
   {
     id: 'mv-3',
     user: dev,
-    title: 'Open mic at the Plinth, bring a guitar',
+    title: 'Jamming in Hacker Square, bring a guitar',
     mark: marks.plinth,
     status: 'there',
     pose: 'music',
     timeLabel: '25 m',
     joined: [dhivyesh, jordan],
-    distanceLabel: '0.5 mi',
+    distanceLabel: '0.2 mi',
   },
   {
     id: 'mv-4',
@@ -111,29 +117,29 @@ export const mapMoves: MapMove[] = [
     pose: 'walk',
     timeLabel: '2 m',
     joined: [],
-    distanceLabel: '0.6 mi',
+    distanceLabel: '0.8 mi',
   },
   {
     id: 'mv-5',
     user: jordan,
-    title: 'Thrifting at CityLine',
+    title: 'Shopping run at Stanford Shopping Center',
     mark: marks.cityline,
     status: 'there',
     pose: 'strut',
     timeLabel: '40 m',
     joined: [],
-    distanceLabel: '2.4 mi',
+    distanceLabel: '3.0 mi',
   },
   {
     id: 'mv-6',
     user: dhivyesh,
-    title: 'Rooftop hang tonight',
+    title: 'Rooftop hang on MPK 20 tonight',
     mark: marks.northside,
     status: 'ghost',
     pose: 'dance',
     timeLabel: '9 h',
     joined: [maya, tony],
-    distanceLabel: '0.6 mi',
+    distanceLabel: '0.3 mi',
   },
   {
     id: 'mv-7',
@@ -144,7 +150,7 @@ export const mapMoves: MapMove[] = [
     pose: 'snack',
     timeLabel: '14 h',
     joined: [dev],
-    distanceLabel: '1.3 mi',
+    distanceLabel: '2.1 mi',
   },
 ];
 

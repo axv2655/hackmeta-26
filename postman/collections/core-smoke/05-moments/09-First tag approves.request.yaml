@@ -1,0 +1,20 @@
+$kind: http-request
+name: 'First tag approves'
+method: POST
+url: '{{base_url}}/api/v1/moments/{{moment_id}}/approve'
+order: 9000
+headers:
+  - key: X-User-Id
+    value: '{{tony}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"approve": true}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('one approval is not enough', () => pm.expect(pm.response.json().status).to.eql('pending'));

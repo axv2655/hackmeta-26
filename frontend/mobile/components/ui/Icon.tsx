@@ -39,6 +39,7 @@ import LLogOut from 'lucide-react-native/icons/log-out';
 import LMap from 'lucide-react-native/icons/map';
 import LMapPin from 'lucide-react-native/icons/map-pin';
 import LMessageCircle from 'lucide-react-native/icons/message-circle';
+import LMessageCirclePlus from 'lucide-react-native/icons/message-circle-plus';
 import LMic from 'lucide-react-native/icons/mic';
 import LMoon from 'lucide-react-native/icons/moon';
 import LMusic from 'lucide-react-native/icons/music';
@@ -232,6 +233,7 @@ const LUCIDE = {
   'map-pin': LMapPin,
   location: LMapPin,
   message: LMessageCircle,
+  'message-plus': LMessageCirclePlus,
   mic: LMic,
   moon: LMoon,
   music: LMusic,

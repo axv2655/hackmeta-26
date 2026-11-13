@@ -1,0 +1,21 @@
+{
+  "marks": {
+    "food": "marks/food.png",
+    "coffee": "marks/coffee.png",
+    "study": "marks/study.png",
+    "fitness": "marks/fitness.png",
+    "nightlife": "marks/nightlife.png",
+    "outdoors": "marks/outdoors.png",
+    "games": "marks/games.png",
+    "shopping": "marks/shopping.png",
+    "errand": "marks/errand.png",
+    "other": "marks/other.png"
+  },
+  "moments": {
+    "mo_last_night_sunset": "moments/mo_last_night_sunset.png",
+    "mo_last_night_skyline": "moments/mo_last_night_skyline.png",
+    "mo_last_night_toast": "moments/mo_last_night_toast.png",
+    "mo_last_night_candid": "moments/mo_last_night_candid.png",
+    "mo_kumo_first_sip": "moments/mo_kumo_first_sip.png"
+  }
+}

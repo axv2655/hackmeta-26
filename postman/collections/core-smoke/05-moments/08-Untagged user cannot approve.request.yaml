@@ -1,0 +1,19 @@
+$kind: http-request
+name: 'Untagged user cannot approve'
+method: POST
+url: '{{base_url}}/api/v1/moments/{{moment_id}}/approve'
+order: 8000
+headers:
+  - key: X-User-Id
+    value: '{{priya}}'
+  - key: Content-Type
+    value: 'application/json'
+body:
+  type: json
+  content: |-
+    {"approve": true}
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('rejected', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));

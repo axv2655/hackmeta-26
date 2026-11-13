@@ -1,0 +1,14 @@
+$kind: http-request
+name: 'Tony pulls up'
+method: POST
+url: '{{base_url}}/api/v1/moves/{{move_id}}/join'
+order: 5000
+headers:
+  - key: X-User-Id
+    value: '{{tony}}'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('status is 200', () => pm.response.to.have.status(200));
+      pm.test('tony going', () => pm.expect(pm.response.json().participants.find(p => p.user.id === pm.environment.get('tony')).status).to.eql('going'));

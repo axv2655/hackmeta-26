@@ -24,7 +24,7 @@ export type User = {
   isFriend: boolean;
   /** Green dot on the avatar. */
   online: boolean;
-  /** One-line descriptor: "Computer Science at UT Dallas", "Cafe · Richardson, Texas". */
+  /** One-line descriptor: "Computer Science at UT Dallas", "Cafe · Menlo Park, California". */
   subtitle: string;
   /** Pages: follower count. Groups: member count. */
   audienceCount?: number;
@@ -35,7 +35,7 @@ export type Audience = 'public' | 'friends' | 'group' | 'only-me';
 export type ReactionKind = 'like' | 'love';
 
 export type LinkPreview = {
-  /** Shown uppercase: "RICHARDSON NOW". */
+  /** Shown uppercase: "MENLO PARK NOW". */
   source: string;
   /** Shown uppercase after a middle dot: "2-MIN READ". */
   readTime: string;

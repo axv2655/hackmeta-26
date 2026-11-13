@@ -68,7 +68,7 @@ export const reels: Reel[] = [
     commentCount: 1300,
     shareCount: 5200,
     viewCount: 1250000,
-    placeName: 'Richardson Farmers Market',
+    placeName: 'Menlo Park Farmers Market',
     liked: false,
     following: false,
   },

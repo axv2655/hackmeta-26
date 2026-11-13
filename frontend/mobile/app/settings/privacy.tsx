@@ -2,6 +2,7 @@ import { useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { CalendarToggle } from '@/components/settings/CalendarToggle';
 import { CategoryChips } from '@/components/settings/CategoryChips';
 import { ExplainerSheet } from '@/components/settings/ExplainerSheet';
 import { LocationToggle } from '@/components/settings/LocationToggle';
@@ -63,14 +64,7 @@ function PrivacyBody({ me }: { me: Me }) {
       <SettingsGroup title="What Moves can use" footer="Every feature still works with these off.">
         <LocationToggle value={s.location_opt_in} />
         <BleToggle value={s.ble_opt_in} />
-        <ToggleRow
-          divider
-          icon="calendar"
-          title="Calendar"
-          subtitle="Busy blocks only, so Muse can spot your free time. No titles or details."
-          value={s.calendar_opt_in}
-          onValueChange={(v) => void patch({ calendar_opt_in: v })}
-        />
+        <CalendarToggle divider value={s.calendar_opt_in} />
       </SettingsGroup>
       <SettingsGroup title="Who can find your Moves">
         <ToggleRow

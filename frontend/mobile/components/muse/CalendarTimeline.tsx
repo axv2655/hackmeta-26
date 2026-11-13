@@ -16,13 +16,19 @@ export function timelineRows(day: CalendarDay): Row[] {
   return [...events, ...free].sort((a, b) => a.at - b.at);
 }
 
-/** The day as a list: busy blocks (title or "Busy") with the free window highlighted. */
-export function CalendarTimeline({ day }: { day: CalendarDay }) {
+type TitleFor = (event: CalendarEvent) => string | null;
+
+/**
+ * The day as a list: busy blocks (title or "Busy") with the free window
+ * highlighted. `titleFor` labels a title-less phone block from the phone's own
+ * calendar; those titles are never sent to the server.
+ */
+export function CalendarTimeline({ day, titleFor }: { day: CalendarDay; titleFor?: TitleFor }) {
   return (
     <View style={styles.list}>
       {timelineRows(day).map((row) =>
         row.kind === 'event' ? (
-          <EventRow key={row.event.id} event={row.event} />
+          <EventRow key={row.event.id} event={row.event} localTitle={row.event.title ? null : (titleFor?.(row.event) ?? null)} />
         ) : (
           <FreeRow key="free" window={row.window} />
         ),
@@ -31,7 +37,7 @@ export function CalendarTimeline({ day }: { day: CalendarDay }) {
   );
 }
 
-function EventRow({ event }: { event: CalendarEvent }) {
+function EventRow({ event, localTitle }: { event: CalendarEvent; localTitle: string | null }) {
   const now = serverNow();
   const past = parseIso(event.ends_at) < now;
   const current = !past && parseIso(event.starts_at) <= now;
@@ -40,9 +46,10 @@ function EventRow({ event }: { event: CalendarEvent }) {
       <Text style={styles.time}>{timeRange(event.starts_at, event.ends_at)}</Text>
       <View style={[styles.block, current && styles.blockNow]}>
         <Text style={styles.title} numberOfLines={2}>
-          {event.title || 'Busy'}
+          {event.title || localTitle || 'Busy'}
         </Text>
         {current ? <Text style={styles.sub}>Happening now</Text> : null}
+        {!event.title ? <Text style={styles.sub}>From your phone · Muse only sees busy</Text> : null}
         {event.location && event.location !== 'demo' ? (
           <Text style={styles.sub} numberOfLines={1}>
             {event.location}

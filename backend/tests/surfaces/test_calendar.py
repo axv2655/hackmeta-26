@@ -13,7 +13,7 @@ from app.core import db
 from app.main import create_app
 from app.services.calendar import HORIZON, BusyBlock, Gap, free_window
 from app.services.calendar_gateway import SqlCalendarGateway
-from app.tables import CalendarEvent, User
+from app.tables import CalendarEvent, User, UserSettings
 
 
 def at(hour, minute=0, day=12):
@@ -139,6 +139,7 @@ def client(engine: Engine, session: Session) -> Iterator[TestClient]:
         User(id=u, name=u.title(), first_name=u.title(), created_at=NOW)
         for u in ("anish", "priya")
     )
+    session.add(UserSettings(user_id="anish", calendar_opt_in=True))
     session.add_all(
         [
             event("anish", -240, 90, "Data structures"),  # ended 2.5 h ago
@@ -207,3 +208,69 @@ class TestCalendarRoutes:
     def test_requires_a_user(self, client: TestClient) -> None:
         response = client.get("/api/v1/calendar", headers={"X-User-Id": "nobody"})
         assert response.status_code == 401
+
+
+def device_blocks(engine: Engine, user: str = "anish") -> list[CalendarEvent]:
+    with Session(engine) as s:
+        return list(
+            s.exec(
+                select(CalendarEvent)
+                .where(CalendarEvent.user_id == user)
+                .where(CalendarEvent.title == None)  # noqa: E711
+                .order_by(CalendarEvent.starts_at)
+            )
+        )
+
+
+def put(client: TestClient, *blocks: tuple[str, str], user: str = "anish") -> int:
+    body = {"blocks": [{"start": a, "end": b} for a, b in blocks]}
+    headers = {"X-User-Id": user}
+    return client.put("/api/v1/calendar/busy", json=body, headers=headers).status_code
+
+
+class TestDeviceSync:
+    """The phone's calendar (expo-calendar) syncs busy blocks only."""
+
+    def test_an_event_in_progress_is_replaced_not_duplicated(
+        self, client: TestClient, engine: Engine
+    ) -> None:
+        ongoing = ("2026-11-12T13:30:00Z", "2026-11-12T14:30:00Z")
+        assert put(client, ongoing) == 204
+        assert put(client, ongoing) == 204
+        assert len(device_blocks(engine)) == 1
+        assert client.get("/api/v1/calendar").json()["free_window"] is None
+
+    def test_blocks_outside_the_next_day_are_dropped(
+        self, client: TestClient, engine: Engine
+    ) -> None:
+        past = ("2026-11-12T10:00:00Z", "2026-11-12T11:00:00Z")
+        later = ("2026-11-14T10:00:00Z", "2026-11-14T11:00:00Z")
+        soon = ("2026-11-12T16:00:00Z", "2026-11-12T17:00:00Z")
+        assert put(client, past, later, soon) == 204
+        assert [b.starts_at.hour for b in device_blocks(engine)] == [16]
+
+    def test_nothing_is_stored_without_calendar_opt_in(
+        self, client: TestClient, engine: Engine
+    ) -> None:
+        assert (
+            put(client, ("2026-11-12T16:00:00Z", "2026-11-12T17:00:00Z"), user="priya")
+            == 204
+        )
+        assert device_blocks(engine, "priya") == []
+
+    def test_mock_and_demo_rows_survive_a_sync(
+        self, client: TestClient, engine: Engine
+    ) -> None:
+        assert put(client) == 204
+        titles = [e["title"] for e in client.get("/api/v1/calendar").json()["events"]]
+        assert titles == ["Lab", "CS 4349 lecture"]
+
+    def test_opting_out_clears_the_phone_blocks(
+        self, client: TestClient, engine: Engine, session: Session
+    ) -> None:
+        assert put(client, ("2026-11-12T16:00:00Z", "2026-11-12T17:00:00Z")) == 204
+        response = client.patch("/api/v1/me/settings", json={"calendar_opt_in": False})
+        assert response.status_code == 200
+        assert device_blocks(engine) == []
+        titles = [e["title"] for e in client.get("/api/v1/calendar").json()["events"]]
+        assert titles == ["Lab", "CS 4349 lecture"]

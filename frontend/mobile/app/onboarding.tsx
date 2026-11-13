@@ -3,13 +3,13 @@ import { useRouter } from 'expo-router';
 
 import { CircleStep } from '@/components/onboarding/CircleStep';
 import { FriendsStep } from '@/components/onboarding/FriendsStep';
-import { ExplainerStep, LocationStep, type StepProps } from '@/components/onboarding/steps';
+import { CalendarStep, ExplainerStep, LocationStep, type StepProps } from '@/components/onboarding/steps';
 import { markOnboarded } from '@/components/onboarding/storage';
 import { useSession } from '@/lib/session';
 
-const STEPS: ComponentType<StepProps>[] = [ExplainerStep, LocationStep, FriendsStep, CircleStep];
+const STEPS: ComponentType<StepProps>[] = [ExplainerStep, LocationStep, CalendarStep, FriendsStep, CircleStep];
 
-/** First run after sign-up: four cards, each skippable. Finishing or skipping lands on Home. */
+/** First run after sign-up: five cards, each skippable. Finishing or skipping lands on Home. */
 export default function OnboardingScreen() {
   const router = useRouter();
   const [step, setStep] = useState(0);

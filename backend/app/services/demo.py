@@ -151,6 +151,22 @@ class DemoService:
             stmt = stmt.where(col(CalendarEvent.ends_at) > after)
         return self.session.exec(stmt).rowcount or 0
 
+    def _delete_device_blocks(
+        self, user_id: str, start: datetime, end: datetime | None = None
+    ) -> int:
+        """Phone busy blocks (no title, no location) overlapping the staged
+        window, so a real meeting cannot hide the demo gap. The phone's next
+        sync puts them back."""
+        stmt = delete(CalendarEvent).where(
+            col(CalendarEvent.user_id) == user_id,
+            col(CalendarEvent.title).is_(None),
+            col(CalendarEvent.location).is_(None),
+            col(CalendarEvent.ends_at) > start,
+        )
+        if end is not None:
+            stmt = stmt.where(col(CalendarEvent.starts_at) < end)
+        return self.session.exec(stmt).rowcount or 0
+
     def _engine(self) -> Engine:
         bind = self.session.get_bind()
         return bind if isinstance(bind, Engine) else bind.engine
@@ -164,6 +180,7 @@ class DemoService:
         now = self.now()
         self._delete_demo_blocks(user_id, after=now)
         start = now + timedelta(minutes=window_minutes)
+        self._delete_device_blocks(user_id, now, start)
         self.session.add(
             CalendarEvent(
                 user_id=user_id,
@@ -182,6 +199,7 @@ class DemoService:
     async def free_time(self, user_id: str) -> ScanResult:
         self._require_user(user_id)
         self._delete_demo_blocks(user_id)
+        self._delete_device_blocks(user_id, self.now())
         self.session.commit()
         scan = self._scan("demo_free_time_scan", "run_free_time_scan")
         suggestion = await _run_scan(scan, user_id)

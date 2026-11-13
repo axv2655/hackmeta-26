@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { errorMessage } from '@/lib/backend';
+import { useDeviceCalendar } from '@/lib/calendar';
 import { endpoints } from '@/lib/endpoints';
 import { useLocation } from '@/lib/location';
 import { useSession } from '@/lib/session';
@@ -76,6 +77,39 @@ export function LocationStep({ step, total, next, finish }: StepProps) {
         <Bullet icon="eye-off" title="No live location" body="Moves never shows your position on a map." />
         <Bullet icon="lock" title="Stays on your phone" body="Only a rough area is sent to find nearby places, and it isn't stored." />
         <Bullet icon="settings" title="Optional" body="Everything works without it. Change it any time in Settings." />
+      </View>
+    </OnboardingFrame>
+  );
+}
+
+/** Card 3: calendar primer. Asks the OS, then turns the opt-in on and syncs. */
+export function CalendarStep({ step, total, next, finish }: StepProps) {
+  const [busy, setBusy] = useState(false);
+
+  const turnOn = async () => {
+    if (busy) return;
+    setBusy(true);
+    const result = await useDeviceCalendar.getState().connect();
+    setBusy(false);
+    if (result !== 'granted') toast('Calendar is off. You can connect it later in Settings.');
+    next();
+  };
+
+  return (
+    <OnboardingFrame
+      step={step}
+      total={total}
+      icon="calendar"
+      title="Plans for your free time"
+      body="Muse can spot a gap in your day and suggest a Flare to friends who are free too."
+      primary={{ label: busy ? 'Connecting...' : 'Connect calendar', onPress: turnOn, disabled: busy }}
+      onNotNow={next}
+      onSkipAll={finish}
+    >
+      <View>
+        <Bullet icon="calendar" title="Any calendar on your phone" body="iCloud, Google or Outlook, whatever your Calendar app already shows." />
+        <Bullet icon="lock" title="Busy times only" body="Only start and end times leave your phone. Never titles, places or people." />
+        <Bullet icon="sparkles" title="Muse proposes, you decide" body="Nothing is sent to anyone until you tap." />
       </View>
     </OnboardingFrame>
   );

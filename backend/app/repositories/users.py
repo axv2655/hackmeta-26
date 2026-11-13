@@ -14,6 +14,7 @@ from app.repositories.records import record, store
 from app.tables import (
     AutojoinPref,
     Block,
+    CalendarEvent,
     Circle,
     CircleMember,
     Credential,
@@ -44,6 +45,7 @@ class UsersRepository(Protocol):
     def drop_friendship(self, uid: str, other: str) -> None: ...
     def drop_autojoin_pair(self, uid: str, other: str) -> None: ...
     def drop_from_owned_circles(self, owner: str, member: str) -> None: ...
+    def clear_device_calendar(self, uid: str) -> None: ...
 
 
 class SqlUsersRepository:
@@ -152,6 +154,17 @@ class SqlUsersRepository:
             delete(CircleMember).where(
                 col(CircleMember.user_id) == member,
                 col(CircleMember.circle_id).in_(owned),
+            )
+        )
+        self.session.flush()
+
+    def clear_device_calendar(self, uid):
+        """Phone busy blocks are the rows with no title and no location."""
+        self.session.exec(
+            delete(CalendarEvent).where(
+                col(CalendarEvent.user_id) == uid,
+                col(CalendarEvent.title).is_(None),
+                col(CalendarEvent.location).is_(None),
             )
         )
         self.session.flush()

@@ -5,7 +5,10 @@ user's day and replaces their device busy blocks over `calendar_events`.
 
 Privacy: a busy block is just a start and an end. Titles from a device
 calendar are never part of `BusyBlock`, and `replace_busy` stores blocks with
-no title, so a device title cannot be stored by accident.
+no title, so a device title cannot be stored by accident. Device blocks are the
+rows with neither a title nor a location (mock and Demo Control rows always
+carry a title); they are written only while the user has `calendar_opt_in` on,
+and opting out drops them all (`UsersService.update_settings`).
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ from datetime import UTC, datetime, timedelta
 from sqlmodel import Session, col, select
 
 from app.domain.errors import Invalid
-from app.tables import CalendarEvent
+from app.tables import CalendarEvent, UserSettings
 
 # How far ahead an open-ended gap is allowed to reach.
 HORIZON = timedelta(hours=4)
@@ -95,6 +98,20 @@ def busy_blocks_between(
     ]
 
 
+def device_rows(user_id: str):
+    """Rows that came from a phone calendar: no title and no location."""
+    return select(CalendarEvent).where(
+        CalendarEvent.user_id == user_id,
+        col(CalendarEvent.title).is_(None),
+        col(CalendarEvent.location).is_(None),
+    )
+
+
+def calendar_opted_in(session: Session, user_id: str) -> bool:
+    row = session.get(UserSettings, user_id)
+    return bool(row and row.calendar_opt_in)
+
+
 def events_between(
     session: Session, user_id: str, start: datetime, end: datetime
 ) -> list[CalendarEvent]:
@@ -123,25 +140,28 @@ class CalendarService:
     def replace_busy(
         self, user_id: str, blocks: Sequence[BusyBlock], now: datetime
     ) -> int:
-        """Replace the caller's title-less blocks starting in the next 24 h with
-        `blocks`. Validates every block before writing anything. Returns how
-        many blocks were stored."""
+        """Replace the caller's device blocks overlapping the next 24 h with
+        `blocks` (an event already in progress counts). Validates every block
+        before writing anything. Blocks outside the next 24 h are dropped, and
+        nothing is stored unless the user has `calendar_opt_in` on (the stale
+        blocks are still removed). Returns how many blocks were stored."""
         clean = [BusyBlock(as_utc(b.start), as_utc(b.end)) for b in blocks]
         if any(b.end <= b.start for b in clean):
             raise InvalidBusyBlock()
+        until = now + BUSY_REPLACE_SPAN
         stale = self.session.exec(
-            select(CalendarEvent).where(
-                CalendarEvent.user_id == user_id,
-                col(CalendarEvent.title).is_(None),
-                CalendarEvent.starts_at >= now,
-                CalendarEvent.starts_at < now + BUSY_REPLACE_SPAN,
+            device_rows(user_id).where(
+                CalendarEvent.ends_at > now, CalendarEvent.starts_at < until
             )
         )
         for row in stale:
             self.session.delete(row)
+        keep = [b for b in clean if b.end > now and b.start < until]
+        if not calendar_opted_in(self.session, user_id):
+            keep = []
         self.session.add_all(
             CalendarEvent(user_id=user_id, starts_at=b.start, ends_at=b.end)
-            for b in clean
+            for b in keep
         )
         self.session.commit()
-        return len(clean)
+        return len(keep)

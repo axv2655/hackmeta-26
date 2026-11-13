@@ -35,6 +35,13 @@
         }
       ],
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "Moves reads when you're busy so Muse can suggest plans for your free time. Only start and end times leave your phone, never titles or details.",
+          "remindersPermission": false
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Moves uses the camera so you can snap the Move you're at. Snapshots only go to people who can already see that Move.",

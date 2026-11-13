@@ -152,6 +152,8 @@ class UserService:
         self.repo.put_settings(row)
         if not row.location_opt_in:
             self._set_last_area(user_id, None)  # opting out forgets the area
+        if changes.get("calendar_opt_in") is False:
+            self.repo.clear_device_calendar(user_id)  # and the phone's busy blocks
         self.uow.commit()
         return row
 

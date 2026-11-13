@@ -234,6 +234,8 @@ const leaderboards = {
 
 const calendar = {
   get: () => api<CalendarDay>('/calendar'),
+  /** Replaces this user's phone busy blocks for the next 24 h (start/end only, never titles). */
+  busy: (blocks: { start: string; end: string }[]) => api<null>('/calendar/busy', putJson({ blocks })),
 };
 
 const reels = {

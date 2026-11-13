@@ -149,6 +149,39 @@ def test_flare_scan_writes_a_block_and_a_45_minute_window(
     assert len(rows) == 1
 
 
+def test_flare_scan_clears_phone_blocks_inside_the_staged_gap(
+    demo_client: Client, engine: Engine
+):
+    """A real meeting synced from the presenter's phone must not hide the gap;
+    phone blocks after the staged lecture are left alone."""
+    client, state = demo_client
+    state["container"].muse = NoneMuse()
+    now = state["container"].clock.now()
+    with Session(engine) as s:
+        s.add(
+            CalendarEvent(
+                user_id="ana",
+                starts_at=now + timedelta(minutes=10),
+                ends_at=now + timedelta(minutes=40),
+            )
+        )
+        s.add(
+            CalendarEvent(
+                user_id="ana",
+                starts_at=now + timedelta(hours=5),
+                ends_at=now + timedelta(hours=6),
+            )
+        )
+        s.commit()
+    body = client.post(f"{API}/flare-scan", json={}).json()
+    assert abs(body["window"]["minutes"] - 45) <= 1
+    with Session(engine) as s:
+        phone = s.exec(
+            select(CalendarEvent).where(col(CalendarEvent.title).is_(None))
+        ).all()
+    assert [b.starts_at - now for b in phone] == [timedelta(hours=5)]
+
+
 def test_friend_move_reaches_friends_and_nudges_the_caller(
     demo_client: Client, engine: Engine
 ):

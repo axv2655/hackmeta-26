@@ -1155,6 +1155,15 @@ Implement these as code, not as copy.
   a point outside it stores no label, never a false one. Search and manual arrival
   need no location. Access logs redact the query string of the two nearby paths.
 - **Calendar**: only busy blocks (start, end) reach the server. No titles from a real calendar.
+  The phone reads its own calendar with `expo-calendar` (`lib/calendar.ts`); on iOS that
+  includes any Google, Outlook or iCloud account added to the Calendar app, so no Google
+  Cloud project or OAuth is needed. Busy, timed, non-cancelled events in the next 24 h are
+  merged into blocks and sent with `PUT /calendar/busy` on connect, on foreground and every
+  10 minutes; titles stay on the phone to label "Your day" there. Syncing needs the OS
+  permission, `calendar_opt_in`, and a per-user "connected" flag on that phone (so a seeded
+  demo account never syncs a real calendar by accident). Turning `calendar_opt_in` off
+  deletes the user's phone blocks. Demo Control's flare and free-time scans clear phone
+  blocks inside the staged window so a real meeting cannot hide the demo gap.
 - **Muse prompts** use aliases and first names only, and include only the fields listed
   in section 10.1. No raw coordinates, no addresses of users, no calendar titles.
 
@@ -1402,7 +1411,7 @@ grouped and `'same'` is a tie.
 | POST/DELETE | `/pseudo-groups/{id}/mute` | 204; 404 if not yours |
 | POST | `/proximity/prompt/{move_id}/accept` | optional `{always?}` → `{move_id, status: 'there'}`; 404 hidden, 409 not live; `always` adds the participants who are friends to your auto-join list |
 | GET | `/calendar` | `CalendarDay` (events now-2h to now+12h, free window) |
-| PUT | `/calendar/busy` | `{blocks: {start, end}[]}` replaces your title-less blocks in the next 24 h; 422 end <= start |
+| PUT | `/calendar/busy` | `{blocks: {start, end}[]}` replaces your phone blocks (no title, no location) overlapping the next 24 h, in-progress ones included; stores nothing without `calendar_opt_in`; 422 end <= start |
 | GET | `/reels?lat&lng` | `Reel[]` (coarse lat/lng used once, never stored) |
 | GET | `/reels/{id}/place?lat&lng` | `ReelPlace` |
 | POST/DELETE | `/reels/{id}/save` | save Reel → Saved Mark (`source='reel'`); unsave removes the Saved Mark only if this reel saved it |

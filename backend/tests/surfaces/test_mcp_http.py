@@ -1,4 +1,4 @@
-"""The /mcp endpoint: bearer or X-API-Key auth, protocol negotiation, tool calls."""
+"""The /mcp endpoint: per-user token auth, protocol negotiation, tool calls."""
 
 import json
 from collections.abc import Iterator
@@ -11,7 +11,10 @@ from app import mcp_server
 from app.main import create_app
 from tests.surfaces.test_mcp_tools import Rig, person
 
-TOKEN = "s3cret-token-for-tests"
+TOKEN = "s3cret-token-for-tests"  # the env demo token, owned by MCP_USER_ID
+DEMO_USER = "u_demo"
+ANA_TOKEN, BO_TOKEN = "mvs_ana-token", "mvs_bo-token"
+MINTED = {ANA_TOKEN: "u_ana", BO_TOKEN: "u_bo"}
 HEADERS = {
     "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
@@ -48,10 +51,25 @@ def rig() -> Rig:
 
 
 @pytest.fixture
-def client(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+def callers() -> list[str]:
+    """Every user id the tools were built for, in call order."""
+    return []
+
+
+@pytest.fixture
+def client(
+    rig: Rig, callers: list[str], monkeypatch: pytest.MonkeyPatch
+) -> Iterator[TestClient]:
     monkeypatch.setattr(mcp_server.mcp_settings, "MCP_TOKEN", SecretStr(TOKEN))
+    monkeypatch.setattr(mcp_server.mcp_settings, "MCP_USER_ID", DEMO_USER)
     app = create_app(lanes=())
-    app.state.mcp_tools_factory = lambda _app: rig.tools
+
+    def factory(_app, user_id: str):
+        callers.append(user_id)
+        return rig.tools
+
+    app.state.mcp_tools_factory = factory
+    app.state.mcp_resolve_token = MINTED.get
     with TestClient(app) as http:
         yield http
 
@@ -64,11 +82,11 @@ def bearer(token: str = TOKEN) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def call(client: TestClient, name: str, args: dict) -> dict:
+def call(client: TestClient, name: str, args: dict, token: str = TOKEN) -> dict:
     res = post(
         client,
         rpc("tools/call", {"name": name, "arguments": args}),
-        **bearer(),
+        **bearer(token),
     )
     assert res.status_code == 200, res.text
     result = res.json()["result"]
@@ -197,6 +215,7 @@ def test_app_can_start_more_than_once(monkeypatch: pytest.MonkeyPatch) -> None:
     """The SDK session manager runs once per instance; each startup gets its own."""
     monkeypatch.setattr(mcp_server.mcp_settings, "MCP_TOKEN", SecretStr(TOKEN))
     app = create_app(lanes=())
+    app.state.mcp_resolve_token = MINTED.get
     for _ in range(2):
         with TestClient(app) as http:
             res = http.post(

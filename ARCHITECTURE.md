@@ -1088,10 +1088,12 @@ FastAPI app at `/mcp`. Meta AI (the assistant on the Ray-Ban Meta glasses) calls
 "Hey Meta" works because Meta AI owns the wake word and the speech; our app is not in the loop.
 
 - **Transport and auth**: MCP Streamable HTTP, **stateless** (no MCP session; every request stands
-  alone). Bearer token auth: the caller must send `Authorization: Bearer <MCP_TOKEN>`; a missing
-  or wrong token is 401. The token is a single shared secret from env, never committed. A
-  bearer token carries no user, so `MCP_USER_ID` (env) maps every authorized caller to one Moves
-  user (the demo user, e.g. Anish). Do not read `X-User-Id` on `/mcp`. The public URL is the
+  alone). **Per-user bearer tokens**: the caller sends `Authorization: Bearer <token>` (or
+  `X-API-Key`); a missing, unknown or revoked token is 401. Each token belongs to one user and every
+  tool call acts as that user. Users mint tokens with `POST /api/v1/mcp/tokens` (username and
+  password, since `X-User-Id` is spoofable), list and revoke them with `X-User-Id`. Only a SHA-256
+  of each token is stored (`mcp_tokens` table, `repositories/mcp_tokens.py`). An optional env demo
+  token `MCP_TOKEN` acts as `MCP_USER_ID`. Do not read `X-User-Id` on `/mcp`. The public URL is the
   `PUBLIC_BASE_URL` tunnel plus `/mcp`; the connector must be reachable off the venue Wi-Fi.
 - **Tools** (names are the contract; argument details beyond those listed are set by the MCP build):
 
@@ -1119,7 +1121,7 @@ FastAPI app at `/mcp`. Meta AI (the assistant on the Ray-Ban Meta glasses) calls
 - **Demo-safety**: `/mcp` can be driven from a laptop with an MCP client or `curl` using the bearer
   token, so the step works with no glasses in the room.
 - **Built** (S9 and the MCP server): `app/mcp_server.py` (FastMCP, Streamable HTTP, stateless, JSON
-  responses; Bearer or `X-API-Key`, constant-time compare, 401 otherwise), tools in
+  responses; per-user token as Bearer or `X-API-Key`, 401 otherwise), tools in
   `services/mcp_tools.py`, glasses logic in `services/glasses.py`. `to` is resolved to friends only
   (an ambiguous name returns candidates, a non-friend is rejected, nothing is drafted). Every tool is
   bounded to 8 s and the writes are idempotent on `request_id`. With no coordinates and no place from
@@ -1401,7 +1403,8 @@ grouped and `'same'` is a tie.
 | POST/DELETE | `/reels/{id}/save` | save Reel → Saved Mark (`source='reel'`); unsave removes the Saved Mark only if this reel saved it |
 | POST | `/glasses/command` | fallback voice screen: `{utterance, lat?, lng?}` → draft + spoken confirmation (same compose service as `draft_move`) |
 | POST | `/glasses/confirm` | fallback voice screen: post the drafted Move (idempotent, same store as `confirm_move`) |
-| POST | `/mcp` | **Meta AI connector**: remote MCP server, Streamable HTTP, stateless; `Authorization: Bearer <MCP_TOKEN>`, caller is `MCP_USER_ID`, no `X-User-Id`. Not under `/api/v1`. Tools `draft_move`, `confirm_move`, `share_move`, `pull_up`, `friends_nearby`, `get_my_active_move` (11.4) |
+| POST | `/mcp` | **Meta AI connector**: remote MCP server, Streamable HTTP, stateless; `Authorization: Bearer <token>`, caller is the token's owner, no `X-User-Id`. Not under `/api/v1`. Tools `draft_move`, `confirm_move`, `share_move`, `pull_up`, `friends_nearby`, `get_my_active_move` (11.4) |
+| POST/GET/DELETE | `/mcp/tokens`, `/mcp/tokens/{id}` | Per-user tokens for `/mcp`: mint with `{username, password, label?}` (token shown once), list and revoke with `X-User-Id` (11.4) |
 | WS | `/ws?user_id` | events (section 9.1); new: `proximity.prompt {move_id, mark_name, creator, names, text}`, `rating.prompt {move_id, mark_name}`; `participant.changed` may carry `status: null` |
 | * | `/demo/*` | section 15.2 (404 unless `DEMO_MODE`) |
 

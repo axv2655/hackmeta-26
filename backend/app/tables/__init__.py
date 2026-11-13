@@ -28,6 +28,7 @@ from app.tables.core import (
     UserSettings,
 )
 from app.tables.friends import FriendRequest
+from app.tables.mcp import McpToken
 from app.tables.messages import MoveInvite
 from app.tables.muse import (
     MuseMute,
@@ -58,6 +59,7 @@ __all__ = [
     "Block",
     "CalendarEvent",
     "Credential",
+    "McpToken",
     "FriendRequest",
     "Circle",
     "CircleMember",

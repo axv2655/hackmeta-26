@@ -1,9 +1,14 @@
 """Remote MCP server: lets Muse (Meta AI) call Moves.
 
 Streamable HTTP, stateless, JSON responses, served by this FastAPI app at
-`POST /mcp`. Auth is a shared secret: `Authorization: Bearer $MCP_TOKEN` or
-`X-API-Key: $MCP_TOKEN`, compared in constant time, 401 otherwise. The token is
-never logged. Every call acts as the single demo user `MCP_USER_ID`.
+`POST /mcp`. Auth is a per-user token sent as `Authorization: Bearer <token>`
+or `X-API-Key: <token>`; anything else is 401. Every tool call acts as the
+token's owner, so two people's connectors never share an identity.
+
+Tokens come from `POST /api/v1/mcp/tokens` (username and password) and are
+stored only as SHA-256 hashes (`repositories/mcp_tokens.py`). The optional env
+`MCP_TOKEN` is a demo token for `MCP_USER_ID`, compared in constant time, so a
+laptop can drive `/mcp` before anyone mints one. Tokens are never logged.
 
 The tools themselves live in `app/services/mcp_tools.py`; this module is only
 transport, auth and the tool descriptions the model reads.
@@ -17,8 +22,9 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
+import anyio
 from fastapi import FastAPI
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,10 +38,13 @@ from app.core import db
 from app.core.config import BACKEND_DIR
 from app.repositories.glasses_places import DEFAULT_DEMO_MARK_ID, SqlPlaceFinder
 from app.repositories.mcp_people import SqlPeopleDirectory
+from app.repositories.mcp_tokens import token_resolver
 from app.services import glasses
 from app.services.mcp_tools import IdempotencyCache, MovesTools, bounded
 
 MCP_PATH = "/mcp"
+# Where the auth gate leaves the caller's user id in the ASGI scope.
+USER_SCOPE_KEY = "moves.mcp_user_id"
 DEMO_MARK_ENV = "GLASSES_DEMO_MARK_ID"
 
 
@@ -44,27 +53,35 @@ class McpSettings(BaseSettings):
         env_file=BACKEND_DIR / ".env", env_ignore_empty=True, extra="ignore"
     )
 
-    # Unset: every request is rejected, so a forgotten token never means "open".
+    # Optional demo token acting as MCP_USER_ID. Unset: only minted per-user
+    # tokens work, so a forgotten env var never means "open".
     MCP_TOKEN: SecretStr | None = None
     MCP_USER_ID: str = "u_anish"
 
 
 mcp_settings = McpSettings()
 
-type ToolsFactory = Callable[[FastAPI], MovesTools]
+type ToolsFactory = Callable[[FastAPI, str], MovesTools]
+type TokenResolver = Callable[[str], str | None]
 
 _idempotency = IdempotencyCache()
 
 
 class BearerAuth:
-    """Pure ASGI gate: only requests carrying `MCP_TOKEN` reach the MCP app."""
+    """Pure ASGI gate: a request reaches the MCP app only with a token that
+    names a user, and carries that user's id in its scope."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, host: FastAPI) -> None:
         self.app = app
+        self.host = host
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or self._allowed(scope):
+        if scope["type"] != "http":
             await self.app(scope, receive, send)
+            return
+        user_id = await self._user_for(_offered(scope))
+        if user_id is not None:
+            await self.app({**scope, USER_SCOPE_KEY: user_id}, receive, send)
             return
         reply = JSONResponse(
             {"error": "unauthorized"},
@@ -73,26 +90,43 @@ class BearerAuth:
         )
         await reply(scope, receive, send)
 
-    @staticmethod
-    def _allowed(scope: Scope) -> bool:
-        secret = mcp_settings.MCP_TOKEN
-        if secret is None or not secret.get_secret_value():
-            return False
-        expected = secret.get_secret_value().encode()
-        headers = {k.lower(): v for k, v in scope.get("headers", [])}
-        offered: list[bytes] = []
-        auth = headers.get(b"authorization", b"")
-        scheme, _, token = auth.partition(b" ")
-        if scheme.lower() == b"bearer" and token:
-            offered.append(token.strip())
-        if key := headers.get(b"x-api-key"):
-            offered.append(key.strip())
-        # Compare every candidate so timing does not reveal which one matched.
-        return any([hmac.compare_digest(c, expected) for c in offered])
+    async def _user_for(self, offered: list[bytes]) -> str | None:
+        if demo := _demo_user(offered):
+            return demo
+        resolve: TokenResolver = self.host.state.mcp_resolve_token
+        for token in offered:
+            user_id = await anyio.to_thread.run_sync(resolve, token.decode())
+            if user_id:
+                return user_id
+        return None
+
+
+def _offered(scope: Scope) -> list[bytes]:
+    """The candidate tokens: a Bearer credential and/or an X-API-Key."""
+    headers = {k.lower(): v for k, v in scope.get("headers", [])}
+    offered: list[bytes] = []
+    scheme, _, token = headers.get(b"authorization", b"").partition(b" ")
+    if scheme.lower() == b"bearer" and token.strip():
+        offered.append(token.strip())
+    if key := headers.get(b"x-api-key", b"").strip():
+        offered.append(key)
+    return offered
+
+
+def _demo_user(offered: list[bytes]) -> str | None:
+    """`MCP_USER_ID` when the env demo token was offered, else None."""
+    secret = mcp_settings.MCP_TOKEN
+    if secret is None or not secret.get_secret_value():
+        return None
+    expected = secret.get_secret_value().encode()
+    # Compare every candidate so timing does not reveal which one matched.
+    if any([hmac.compare_digest(c, expected) for c in offered]):
+        return mcp_settings.MCP_USER_ID
+    return None
 
 
 def tools_for(container: Container, user_id: str, engine: Engine) -> MovesTools:
-    """The Moves tools acting as `user_id` (MCP uses `MCP_USER_ID`; Muse
+    """The Moves tools acting as `user_id` (MCP uses the token's owner; Muse
     search in the app uses the signed-in user)."""
     places = SqlPlaceFinder(
         engine, os.environ.get(DEMO_MARK_ENV) or DEFAULT_DEMO_MARK_ID
@@ -107,8 +141,17 @@ def tools_for(container: Container, user_id: str, engine: Engine) -> MovesTools:
     )
 
 
-def default_tools(app: FastAPI) -> MovesTools:
-    return tools_for(app.state.container, mcp_settings.MCP_USER_ID, db.engine)
+def default_tools(app: FastAPI, user_id: str) -> MovesTools:
+    return tools_for(app.state.container, user_id, db.engine)
+
+
+def caller_id(ctx: Context) -> str:
+    """The user the auth gate resolved for this request."""
+    request = ctx.request_context.request
+    user_id = request.scope.get(USER_SCOPE_KEY) if request is not None else None
+    if not user_id:
+        raise PermissionError("no authenticated Moves user on this request")
+    return user_id
 
 
 Lat = Annotated[float | None, Field(ge=-90, le=90)]
@@ -124,7 +167,7 @@ RequestId = Annotated[
 ]
 
 
-def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
+def build_server(tools: Callable[[Context], MovesTools]) -> FastMCP:
     server = FastMCP(
         "Moves",
         instructions=(
@@ -162,8 +205,9 @@ def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
         place: str | None = None,
         lat: Lat = None,
         lng: Lng = None,
+        ctx: Context = None,  # type: ignore[assignment]
     ) -> dict[str, Any]:
-        return await bounded(tools().draft_move(text, to, place, lat, lng))  # type: ignore[return-value]
+        return await bounded(tools(ctx).draft_move(text, to, place, lat, lng))  # type: ignore[return-value]
 
     @server.tool(
         description=(
@@ -174,8 +218,10 @@ def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
             "'expired', redo draft_move and ask the user again."
         )
     )
-    async def confirm_move(draft_id: str, request_id: RequestId) -> dict[str, Any]:
-        return await bounded(tools().confirm_move(draft_id, request_id))  # type: ignore[return-value]
+    async def confirm_move(
+        draft_id: str, request_id: RequestId, ctx: Context
+    ) -> dict[str, Any]:
+        return await bounded(tools(ctx).confirm_move(draft_id, request_id))  # type: ignore[return-value]
 
     @server.tool(
         description=(
@@ -187,9 +233,9 @@ def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
         )
     )
     async def share_move(
-        move_id: str, to: list[str], request_id: RequestId
+        move_id: str, to: list[str], request_id: RequestId, ctx: Context
     ) -> dict[str, Any]:
-        return await bounded(tools().share_move(move_id, to, request_id))  # type: ignore[return-value]
+        return await bounded(tools(ctx).share_move(move_id, to, request_id))  # type: ignore[return-value]
 
     @server.tool(
         description=(
@@ -199,8 +245,10 @@ def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
             "'already_going'."
         )
     )
-    async def pull_up(move_id: str, request_id: RequestId) -> dict[str, Any]:
-        return await bounded(tools().pull_up(move_id, request_id))  # type: ignore[return-value]
+    async def pull_up(
+        move_id: str, request_id: RequestId, ctx: Context
+    ) -> dict[str, Any]:
+        return await bounded(tools(ctx).pull_up(move_id, request_id))  # type: ignore[return-value]
 
     @server.tool(
         description=(
@@ -209,8 +257,8 @@ def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
             "exact positions. Read-only."
         )
     )
-    async def friends_nearby() -> dict[str, Any]:
-        return tools().friends_nearby()
+    async def friends_nearby(ctx: Context) -> dict[str, Any]:
+        return tools(ctx).friends_nearby()
 
     @server.tool(
         description=(
@@ -219,8 +267,8 @@ def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
             "it already happened."
         )
     )
-    async def get_my_active_move() -> dict[str, Any]:
-        return tools().get_my_active_move()
+    async def get_my_active_move(ctx: Context) -> dict[str, Any]:
+        return tools(ctx).get_my_active_move()
 
     return server
 
@@ -238,8 +286,8 @@ class _Current:
 
 
 def _fresh_server(app: FastAPI) -> FastMCP:
-    def current() -> MovesTools:
-        return app.state.mcp_tools_factory(app)
+    def current(ctx: Context) -> MovesTools:
+        return app.state.mcp_tools_factory(app, caller_id(ctx))
 
     server = build_server(current)
     app.state.mcp_server = server
@@ -248,11 +296,11 @@ def _fresh_server(app: FastAPI) -> FastMCP:
 
 
 def mount_mcp(app: FastAPI, factory: ToolsFactory = default_tools) -> FastMCP:
-    """Serve MCP at `/mcp` on `app`. `app.state.mcp_tools_factory` may replace
-    the tool source later (tests inject fakes there)."""
+    """Serve MCP at `/mcp` on `app`. `app.state.mcp_tools_factory` and
+    `app.state.mcp_resolve_token` may be replaced later (tests inject fakes)."""
     app.state.mcp_tools_factory = factory
     server = _fresh_server(app)
-    app.router.routes.append(Route(MCP_PATH, BearerAuth(_Current(app))))
+    app.router.routes.append(Route(MCP_PATH, BearerAuth(_Current(app), app)))
     return server
 
 
@@ -262,6 +310,10 @@ async def mcp_runtime(app: FastAPI) -> AsyncIterator[None]:
     if not hasattr(app.state, "mcp_tools_factory"):
         yield
         return
+    if not hasattr(app.state, "mcp_resolve_token"):
+        app.state.mcp_resolve_token = token_resolver(
+            db.engine, app.state.container.clock
+        )
     server = _fresh_server(app)
     async with server.session_manager.run():
         yield

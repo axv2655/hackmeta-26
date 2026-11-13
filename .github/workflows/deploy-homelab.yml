@@ -1,0 +1,38 @@
+# Provisional CD: every push to main redeploys meta.anishalle.com.
+#
+# The key in HOMELAB_DEPLOY_KEY logs in as the `deploy` user, whose authorized_keys entry is
+# `restrict,command="sudo -n -u ubuntu /usr/local/bin/hackmeta-deploy"`. Whatever command we
+# send is ignored: the server always fetches, `git reset --hard origin/main`, rebuilds, and
+# waits for /api/v1/health. See deploy/homelab/README.md.
+name: Deploy to homelab
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: homelab-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Deploy origin/main
+        env:
+          DEPLOY_KEY: ${{ secrets.HOMELAB_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HOMELAB_KNOWN_HOSTS }}
+          HOST: ${{ secrets.HOMELAB_HOST }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
+              "deploy@$HOST"

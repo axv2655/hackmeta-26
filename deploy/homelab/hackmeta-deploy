@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Forced command for the `deploy` user (see /home/deploy/.ssh/authorized_keys).
+# Runs as ubuntu via sudo. Takes no input: always deploys origin/main.
+set -euo pipefail
+export HOME=/home/ubuntu
+APP=/home/ubuntu/apps/hackmeta-26
+PORT=8420
+
+exec 9>/tmp/hackmeta-deploy.lock
+flock -w 900 9
+
+cd "$APP"
+echo "==> fetching origin/main"
+git fetch --prune origin main
+before=$(git rev-parse --short --verify -q HEAD || echo none)
+git checkout -q -f -B main origin/main
+git reset -q --hard origin/main
+echo "==> $before -> $(git rev-parse --short HEAD): $(git log -1 --format=%s)"
+
+echo "==> docker compose up -d --build"
+docker compose up -d --build --remove-orphans
+
+echo "==> waiting for /health"
+for _ in $(seq 1 45); do
+  if curl -fsS "http://127.0.0.1:$PORT/api/v1/health" >/dev/null 2>&1; then
+    echo "==> healthy"; exit 0
+  fi
+  sleep 2
+done
+echo "!! backend did not become healthy" >&2
+docker compose logs --tail 60 backend >&2
+exit 1

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as L from 'lucide-react'
+import Leaflet from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 // drop-in icons: src/assets/icons/<name>.svg overrides the bundled Lucide fallback
 const FILES = import.meta.glob('./assets/icons/*.svg', { eager: true, query: '?raw', import: 'default' })
@@ -240,7 +242,7 @@ function TopNav({ view, setView }) {
         <input className="search" placeholder="Search" aria-label="Search" />
       </div>
       <nav className="topnav-center" aria-label="Primary">
-        {[['Home', Home], ['Friends', Friends], ['Video', MonitorPlay], ['Marketplace', Store], ['Groups', Users]].map(([t, I]) => (
+        {[['Home', Home], ['Friends', Friends], ['Video', MonitorPlay], ['Marketplace', Store], ['Groups', Users], ['Moves', L.Map]].map(([t, I]) => (
           <button key={t} className={`tab ${view === t ? 'active' : ''}`} aria-label={t} aria-current={view === t ? 'page' : undefined} data-tip={t === 'Video' ? 'Reels' : t} onClick={() => setView(t)}><I size={24} /></button>
         ))}
       </nav>
@@ -525,6 +527,261 @@ function FriendsPage() {
   )
 }
 
+// ---- Moves: web port of the mobile Moves tab (frontend/mobile/components/moves, lib/mock/moves.ts).
+// Privacy rule (ARCHITECTURE.md 1.5.2): a friend is pinned at the Mark of their Move, never their GPS. Only "Me" sits at my own position.
+// [label, pin emoji, color, icon]; pins are HTML strings so they use the emoji, React surfaces use the icon
+const CATS = { coffee: ['Coffee', '☕', '#FB724B', L.Coffee], study: ['Study', '📚', '#0866FF', L.GraduationCap], gym: ['Gym', '🏋️', '#45BD62', L.Dumbbell], party: ['Party', '🎉', '#A033FF', L.PartyPopper], music: ['Music', '🎵', '#F3425F', L.Music], food: ['Food', '🍜', '#F7B928', L.Utensils], shopping: ['Shopping', '🛍️', '#2ABBA7', L.Store] }
+// placeholder Bitmoji sets a/b in public/fb/bitmoji, same assignment as mobile lib/mock/bitmoji.ts
+const MV_USERS = { maya: ['Maya Patel', 'a'], tony: ['Tony Nguyen', 'b'], dev: ['Dev Mehta', 'b'], priya: ['Priya Shah', 'a'], jordan: ['Jordan Lee', 'a'], dhivyesh: ['Dhivyesh Kumar', 'b'] }
+const bit = (u, pose = 'selfie') => `/fb/bitmoji/${MV_USERS[u]?.[1] ?? 'b'}/${pose}.png`
+const first = (u) => MV_USERS[u][0].split(' ')[0]
+// Circles: user-defined audiences (ARCHITECTURE.md 5.1). A Move is never public, it goes to Circles and people you pick.
+const CIRCLES = { Roommates: ['tony', 'dev'], 'HS friends': ['maya', 'priya', 'jordan'], 'Study group': ['maya', 'dhivyesh', 'dev'] }
+const MV_HOME = [32.9846, -96.7462]
+const MY_POSITION = [32.98265, -96.74355]
+const PANEL_W = 412
+// status: there = at the Mark now, omw = pulling up, ghost = left within the last 24 h
+const ALL_MOVES = [
+  { id: 'mv-1', user: 'maya', title: 'Grinding the orgo PSET, come suffer with me', place: 'McDermott Library', cat: 'study', area: 'Campus', at: [32.98665, -96.74762], status: 'there', pose: 'study', time: '18 m', joined: ['priya'], dist: '0.3 mi' },
+  { id: 'mv-2', user: 'tony', title: 'Leg day. Need a spotter', place: 'Activity Center', cat: 'gym', area: 'Campus', at: [32.98395, -96.75085], status: 'there', pose: 'gym', time: '6 m', joined: [], dist: '0.4 mi' },
+  { id: 'mv-3', user: 'dev', title: 'Open mic at the Plinth, bring a guitar', place: 'The Plinth', cat: 'music', area: 'Campus', at: [32.98905, -96.75015], status: 'there', pose: 'music', time: '25 m', joined: ['dhivyesh', 'jordan'], dist: '0.5 mi' },
+  { id: 'mv-4', user: 'priya', title: 'Matcha run, anyone?', place: 'Kumo Matcha', cat: 'coffee', area: 'Richardson', at: [32.99052, -96.73958], status: 'omw', pose: 'walk', time: '2 m', joined: [], dist: '0.6 mi' },
+  { id: 'mv-5', user: 'jordan', title: 'Thrifting at CityLine', place: 'CityLine Plaza', cat: 'shopping', area: 'Richardson', at: [32.99805, -96.70315], status: 'there', pose: 'strut', time: '40 m', joined: [], dist: '2.4 mi' },
+  { id: 'mv-6', user: 'dhivyesh', title: 'Rooftop hang tonight', place: 'Northside Rooftop', cat: 'party', area: 'Campus', at: [32.99042, -96.75281], status: 'ghost', pose: 'dance', time: '9 h', joined: ['maya', 'tony'], dist: '0.6 mi' },
+  { id: 'mv-7', user: 'maya', title: 'Late pho', place: 'Pho Bang', cat: 'food', area: 'Richardson', at: [32.96845, -96.73095], status: 'ghost', pose: 'snack', time: '14 h', joined: ['dev'], dist: '1.3 mi' },
+]
+// on-the-way Moves are hidden: that friend is not at the Mark yet
+const MOVES = ALL_MOVES.filter((m) => m.status !== 'omw')
+const statusText = (m) => (m.status === 'ghost' ? `Left ${m.time} ago` : `There · ${m.time}`)
+const pinDetail = (m) => (m.status === 'ghost' ? `${m.time} ago` : m.place)
+// Snap-Map-style pin: full-body Bitmoji on a ground shadow with a name label. Static demo data only, so an HTML string is safe here.
+const pinIcon = ({ img, name, detail, cat, status, extra = 0, delay = 0 }) => Leaflet.divIcon({
+  className: 'pin-wrap', iconSize: [0, 0],
+  html: `<div class="mv-pin ${status}" style="animation-delay:${delay}ms"><div class="mv-body"><img src="${img}" alt="">${cat ? `<span class="mv-badge" style="--c:${status === 'ghost' ? '#8a8d91' : CATS[cat][2]}">${CATS[cat][1]}</span>` : ''}</div><div class="mv-label"><b>${name}${extra ? ` <i>+${extra}</i>` : ''}</b><span>${detail}</span></div></div>`,
+})
+// center a point in the map area left open by the floating panel
+const focus = (map, at, zoom, animate = true) => map?.fitBounds([at, at], { paddingTopLeft: [window.innerWidth > 900 ? PANEL_W : 0, 0], maxZoom: zoom, animate, duration: 0.65 })
+const pinZ = (m, sel) => (sel ? 1000 : m.status === 'ghost' ? -500 : 0)
+
+function MovesMap({ selectedId, onSelect, onClear, mapRef, mine }) {
+  const el = useRef(null)
+  const markers = useRef({})
+  const meMarker = useRef(null)
+  useEffect(() => {
+    const map = Leaflet.map(el.current, { zoomControl: false })
+    focus(map, MV_HOME, 15, false)
+    Leaflet.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', { maxZoom: 20, attribution: '&copy; Stadia Maps &copy; OpenMapTiles &copy; OpenStreetMap contributors' }).addTo(map)
+    Leaflet.control.zoom({ position: 'bottomright' }).addTo(map)
+    MOVES.forEach((m, i) => {
+      markers.current[m.id] = Leaflet.marker(m.at, { icon: pinIcon({ img: bit(m.user, m.pose), name: first(m.user), detail: pinDetail(m), cat: m.cat, status: m.status, extra: m.joined.length, delay: i * 70 }), title: `${first(m.user)} at ${m.place}`, zIndexOffset: pinZ(m) }).addTo(map).on('click', () => onSelect(m.id))
+    })
+    meMarker.current = Leaflet.marker(MY_POSITION, { icon: pinIcon({ img: bit('me', 'walk'), name: 'Me', detail: 'now', status: 'me' }), interactive: false, zIndexOffset: 500 }).addTo(map)
+    map.on('click', onClear)
+    mapRef.current = map
+    return () => { map.remove(); mapRef.current = null; markers.current = {} }
+  }, [onSelect, onClear, mapRef])
+  useEffect(() => {
+    MOVES.forEach((m) => {
+      const mk = markers.current[m.id]
+      mk?.getElement()?.classList.toggle('sel', m.id === selectedId)
+      mk?.setZIndexOffset(pinZ(m, m.id === selectedId))
+    })
+  }, [selectedId])
+  useEffect(() => {
+    // textContent, not HTML: this is typed by the user
+    const label = meMarker.current?.getElement()?.querySelector('.mv-label span')
+    if (label) label.textContent = mine || 'now'
+  }, [mine])
+  return <div ref={el} className="moves-map" />
+}
+
+// round Bitmoji selfie inside a Meta-gradient ring, the list-row avatar
+function Face({ u, size = 52, ghost }) {
+  return <span className={`mv-face${ghost ? ' ghost' : ''}`} style={{ width: size, height: size }}><img src={bit(u)} alt="" /></span>
+}
+
+function MoveRow({ m, pulled, onPick, onPull }) {
+  const ghost = m.status === 'ghost'
+  return (
+    <div className="mv-row">
+      <button className="mv-row-main" onClick={onPick}>
+        <Face u={m.user} ghost={ghost} />
+        <span className="grow">
+          <span className="block clip"><b>{first(m.user)}</b> <span className={`small ${m.status === 'there' ? 'mv-live' : 'muted'}`}>{statusText(m)}</span></span>
+          <span className="block clip">{m.title}</span>
+          <span className="block clip muted">{m.place} · {m.dist}{m.joined.length > 0 && ` · +${m.joined.length} ${ghost ? 'went' : 'going'}`}</span>
+        </span>
+      </button>
+      {!ghost && <button className={pulled ? 'btn-primary' : 'btn-blue mv-pull'} onClick={onPull}>{pulled ? 'Going' : 'Pull up'}</button>}
+    </div>
+  )
+}
+
+function MoveCard({ m, pulled, onPull, onClose }) {
+  const ghost = m.status === 'ghost'
+  const [label, , color, Icon] = CATS[m.cat]
+  return (
+    <div className="mv-card">
+      <button className="icon-btn mv-close" aria-label="Close" onClick={onClose}><L.X size={18} /></button>
+      <div className="mv-card-top">
+        <img className={`mv-hero${ghost ? ' ghost' : ''}`} src={bit(m.user, m.pose)} alt="" />
+        <div>
+          <span className="mv-chip" style={ghost ? undefined : { '--c': color }}><Icon size={14} /> {label}</span>
+          <h2>{MV_USERS[m.user][0]}</h2>
+          <span className={`mv-status ${m.status === 'there' ? 'mv-live' : 'muted'}`}>{statusText(m)}</span>
+        </div>
+      </div>
+      <p className="mv-title">“{m.title}”</p>
+      <p className="row muted mv-place"><L.MapPin size={16} /> {m.place} · {m.area} · {m.dist}</p>
+      {m.joined.length > 0 && (
+        <div className="row">
+          <span className="mv-faces">{m.joined.map((u) => <Face key={u} u={u} size={32} ghost={ghost} />)}</span>
+          <span>{m.joined.map(first).join(', ')} {ghost ? 'went' : m.joined.length > 1 ? 'are there' : 'is there'}</span>
+        </div>
+      )}
+      <div className="row mv-actions">
+        {ghost
+          ? <button className="btn-primary grow"><L.Images size={18} /> See Moments</button>
+          : <button className={`grow ${pulled ? 'btn-blue' : 'btn-primary'}`} onClick={onPull}>{pulled ? <><L.Check size={18} /> You&apos;re going</> : <><L.Navigation size={18} /> Pull up</>}</button>}
+        <button className="btn-gray"><L.MessageCircle size={18} /> Message</button>
+      </div>
+    </div>
+  )
+}
+
+function Moves() {
+  const [sel, setSel] = useState(null)
+  const [query, setQuery] = useState('')
+  const [pulled, setPulled] = useState({})
+  const [draft, setDraft] = useState('')
+  const [mine, setMine] = useState('')
+  const [actsOpen, setActsOpen] = useState(false)
+  const [sheet, setSheet] = useState(false)
+  const [circles, setCircles] = useState(['Roommates'])
+  const [people, setPeople] = useState([])
+  const [shared, setShared] = useState('')
+  const mapRef = useRef(null)
+  const selected = MOVES.find((m) => m.id === sel)
+  const select = useCallback((id) => {
+    setSel(id)
+    focus(mapRef.current, MOVES.find((m) => m.id === id).at, 17)
+  }, [])
+  const clear = useCallback(() => setSel(null), [])
+  // everyone who would see the Move: members of the picked Circles plus people picked directly
+  const audience = [...new Set([...circles.flatMap((c) => CIRCLES[c]), ...people])]
+  const audienceLine = audience.length === 0 ? 'Pick at least one Circle or friend' : `Visible to ${audience.length} ${audience.length === 1 ? 'person' : 'people'}: ${[...circles, ...people.map(first)].join(', ')}`
+  const toggleIn = (set) => (v) => set((xs) => (xs.includes(v) ? xs.filter((x) => x !== v) : [...xs, v]))
+  // step 1: Enter opens the audience sheet. step 2: Share posts it.
+  const share = (e) => {
+    e.preventDefault()
+    if (!draft.trim()) return
+    if (!sheet) { setSheet(true); setActsOpen(false); return }
+    if (audience.length === 0) return
+    setMine(draft.trim())
+    setShared(audienceLine)
+    setDraft('')
+    setSheet(false)
+    clear()
+    focus(mapRef.current, MY_POSITION, 17)
+  }
+  useEffect(() => {
+    if (!shared) return
+    const t = setTimeout(() => setShared(''), 5000)
+    return () => clearTimeout(t)
+  }, [shared])
+  const togglePull = (id) => setPulled((p) => ({ ...p, [id]: !p[id] }))
+  const q = query.trim().toLowerCase()
+  const visible = q ? MOVES.filter((m) => `${MV_USERS[m.user][0]} ${m.title} ${m.place}`.toLowerCase().includes(q)) : MOVES
+  const live = visible.filter((m) => m.status !== 'ghost')
+  const ghosts = visible.filter((m) => m.status === 'ghost')
+  const out = MOVES.filter((m) => m.status !== 'ghost')
+  return (
+    <main className="moves-main">
+      <MovesMap selectedId={sel} onSelect={select} onClear={clear} mapRef={mapRef} mine={mine} />
+      <aside className="mv-glass mv-panel" aria-label="Moves">
+        {selected ? <MoveCard m={selected} pulled={!!pulled[selected.id]} onPull={() => togglePull(selected.id)} onClose={clear} /> : (
+          <>
+            <div className="row mv-head">
+              <input className="pill-input" placeholder="Search friends and Moves" aria-label="Search friends and Moves" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <Face u="me" size={44} />
+            </div>
+            {!q && <>
+              <h3>Out now</h3>
+              <div className="mv-out">
+                {out.map((m) => (
+                  <button key={m.id} className="mv-out-item" onClick={() => select(m.id)}>
+                    <Face u={m.user} size={64} />
+                    <b className="block clip">{first(m.user)}</b>
+                    <span className="muted block clip">{CATS[m.cat][0]}</span>
+                  </button>
+                ))}
+              </div>
+            </>}
+            {live.length > 0 && <><h3>Happening now</h3><div className="mv-group">{live.map((m) => <MoveRow key={m.id} m={m} pulled={!!pulled[m.id]} onPick={() => select(m.id)} onPull={() => togglePull(m.id)} />)}</div></>}
+            {ghosts.length > 0 && <><h3>Earlier</h3><div className="mv-group">{ghosts.map((m) => <MoveRow key={m.id} m={m} onPick={() => select(m.id)} />)}</div></>}
+            {visible.length === 0 && <p className="muted center">No Moves match “{query}”.</p>}
+          </>
+        )}
+      </aside>
+      <div className="mv-top">
+        <div className="mv-glass mv-title-pill">
+          <span><b className="block">Richardson</b><span className="muted row"><L.Users size={14} /> {out.length} friends out</span></span>
+          <span className="mv-weather" role="img" aria-label="Weather: 73 degrees and sunny"><L.Sun size={28} fill="currentColor" /><span><b className="block">73°</b><span className="muted">Sunny</span></span></span>
+        </div>
+        <button className="mv-glass mv-recenter" aria-label="Center on me" onClick={() => { clear(); focus(mapRef.current, MV_HOME, 15) }}><L.Navigation size={20} fill="currentColor" /></button>
+      </div>
+      <form className="mv-dock" onSubmit={share} onKeyDown={(e) => e.key === 'Escape' && setSheet(false)}>
+        <p className={`mv-glass mv-shared${shared ? '' : ' hide'}`} role="status">{shared && <><L.CheckCircle2 size={16} /> Shared. {shared}</>}</p>
+        {sheet && (
+          <section className="mv-glass mv-acts mv-sheet" aria-label="Choose who sees your Move">
+            <div className="row between"><h3>Share your Move</h3><button type="button" className="icon-btn mv-close-inline" aria-label="Cancel" onClick={() => setSheet(false)}><L.X size={18} /></button></div>
+            <div className="row mv-preview"><Face u="me" size={44} /><span className="grow"><b className="block clip">{draft.trim() || 'What are you up to?'}</b><span className="muted row"><L.MapPin size={14} /> Pinned where you are now</span></span></div>
+            <h4>Circles</h4>
+            <div className="mv-picks">
+              {Object.keys(CIRCLES).map((c) => (
+                <button key={c} type="button" className="mv-pick" aria-pressed={circles.includes(c)} onClick={() => toggleIn(setCircles)(c)}><L.Users size={15} /> {c} <span className="mv-count">{CIRCLES[c].length}</span></button>
+              ))}
+            </div>
+            <h4>Friends</h4>
+            <div className="mv-picks">
+              {Object.keys(MV_USERS).map((u) => (
+                <button key={u} type="button" className="mv-pick mv-person" aria-pressed={people.includes(u)} onClick={() => toggleIn(setPeople)(u)}><Face u={u} size={24} /> {first(u)}</button>
+              ))}
+            </div>
+            <p className={`mv-audience row${audience.length === 0 ? ' warn' : ''}`} aria-live="polite">{audience.length === 0 ? <L.EyeOff size={16} /> : <L.Eye size={16} />} {audienceLine}</p>
+            <button type="submit" className="btn-primary mv-send" disabled={audience.length === 0 || !draft.trim()}>Share Move</button>
+          </section>
+        )}
+        {actsOpen && (
+          <section id="mv-acts" className="mv-glass mv-acts" aria-label="What friends are up to">
+            <h3>What friends are up to</h3>
+            <div className="mv-acts-grid">
+              {out.map((m) => {
+                const [label, , color, Icon] = CATS[m.cat]
+                return (
+                  <button key={m.id} type="button" className="mv-act" onClick={() => { select(m.id); setActsOpen(false) }}>
+                    <span className="mv-act-icon" style={{ '--c': color }}><Icon size={22} /></span>
+                    <span className="grow">
+                      <b className="block clip">{label} at {m.place}</b>
+                      <span className="row muted"><Face u={m.user} size={22} /><span className="clip">{first(m.user)}{m.joined.length > 0 && ` +${m.joined.length}`} · {m.time}</span></span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )}
+        <button type="button" className="mv-glass mv-toggle" aria-expanded={actsOpen} aria-controls="mv-acts" aria-label={actsOpen ? 'Hide what friends are up to' : 'Show what friends are up to'} onClick={() => { setActsOpen((o) => !o); setSheet(false) }}>
+          {actsOpen ? <L.ChevronDown size={20} /> : <L.ChevronUp size={20} />}
+        </button>
+        <div className="mv-share">
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="What are you up to?" aria-label="Share a Move, press Enter to choose who sees it" maxLength={60} enterKeyHint="next" />
+        </div>
+      </form>
+    </main>
+  )
+}
+
 export default function App() {
   const [view, setView] = useState('Home')
   const [posts, setPosts] = useState(INITIAL_POSTS)
@@ -536,6 +793,7 @@ export default function App() {
       {view === 'Video' && <Reels />}
       {view === 'Marketplace' && <Marketplace />}
       {view === 'Groups' && <Groups />}
+      {view === 'Moves' && <Moves />}
       {view === 'Home' && <div className="layout">
         <LeftRail />
         <main className="feed">

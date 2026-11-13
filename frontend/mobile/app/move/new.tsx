@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ErrorState } from '@/components/common/ErrorState';
-import { LoadingState } from '@/components/common/LoadingState';
 import { OfflineBar } from '@/components/common/OfflineBar';
 import { AudienceLine } from '@/components/composer/AudienceLine';
 import { AudiencePicker } from '@/components/composer/AudiencePicker';
@@ -59,14 +57,10 @@ export default function NewMoveScreen() {
 
   if (posted) return <SendStep move={posted.move} input={posted.input} onFinish={() => finish(posted.move.id)} />;
 
-  const { phase } = form;
   return (
     <ComposeChrome onClose={close}>
-      {phase.kind === 'loading' ? <LoadingState label="Getting your Move ready" /> : null}
-      {phase.kind === 'error' ? <ErrorState message={phase.message} onRetry={form.retry} /> : null}
-      {phase.kind === 'ready' ? (
         <ComposeBody
-          data={phase.data}
+          data={form.data}
           form={form}
           prefill={prefill}
           onPosted={(move, input) => {
@@ -74,7 +68,6 @@ export default function NewMoveScreen() {
             setPosted({ move, input });
           }}
         />
-      ) : null}
     </ComposeChrome>
   );
 }
@@ -100,8 +93,11 @@ type BodyProps = {
 /** Keeps Circles fresh when the user comes back from "New Circle". */
 function useCircles(initial: Circle[], live: boolean): Circle[] {
   const [circles, setCircles] = useState(initial);
+  const firstFocus = useRef(true);
+  useEffect(() => setCircles(initial), [initial]);
   useFocusEffect(
     useCallback(() => {
+      if (firstFocus.current) { firstFocus.current = false; return; }
       if (!live) return;
       let active = true;
       endpoints.circles.list().then(
@@ -165,12 +161,19 @@ function ComposeBody({ data, form, prefill, onPosted }: BodyProps) {
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
       >
+        {form.loadError ? (
+          <View style={styles.sample}>
+            <Text style={section.error}>Some choices couldn't load: {form.loadError}</Text>
+            <Button title="Retry loading choices" variant="tinted" onPress={form.retry} />
+          </View>
+        ) : null}
         {data.sample ? (
           <View style={styles.sample}>
             <Text style={section.sub}>Sample data: you're offline, so this Move can't be posted.</Text>
           </View>
         ) : null}
         <PlacePicker
+          loading={form.pending.includes('places') || form.pending.includes('draft')}
           places={form.places}
           place={form.place}
           onChoose={form.choosePlace}
@@ -191,6 +194,7 @@ function ComposeBody({ data, form, prefill, onPosted }: BodyProps) {
           source={form.draftSource}
         />
         <AudiencePicker
+          loading={form.pending.includes('friends') || form.pending.includes('circles')}
           circles={circles}
           crews={data.crews}
           friends={data.friends}

@@ -173,7 +173,19 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 
 ### 3.2 Muse API: first thing to verify
 
-The exact Muse API shape is **not known in this repo**. Before building any agent:
+**Current model choice:** `MUSE_DETERMINISTIC=true` is the default and skips all
+model calls. When explicitly disabled, `muse-spark-1.3` is the default model.
+`MUSE_FAST_MODEL=muse-ember-1.0` routes `move_writer`, `place_resolver`, and
+`pseudo_group_label` to Ember; an empty fast-model setting uses the default for all.
+One runner shares validation, fallbacks, caching and the token budget across both
+clients. `/demo/muse-stats` reports each agent's configured model. Poke selection is
+deterministic by default and makes no model call. Existing deployments must
+set `MUSE_MODEL=muse-spark-1.3` and `MUSE_FAST_MODEL=muse-ember-1.0`, then restart; changing
+the source default does not override an environment value. If vision is enabled,
+set `MUSE_VISION_MODEL=muse-spark-1.3` as well. No key still means the fake client.
+
+The HTTP adapter uses the Messages-compatible API documented in
+`docs/BACKEND_TASKS.md` section 7. Before enabling a model with a deployment's key:
 
 1. Get base URL, auth scheme, model id, and whether it supports JSON/structured output, tool calls, and image input.
 2. Put them in `backend/.env` (`MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL`, optional `MUSE_VISION_MODEL`).
@@ -548,11 +560,23 @@ under the map-style and center buttons. Step 1 is only where, a short descriptio
 (Muse's draft plus alternate chips) and who (Circles / Facebook Groups with a "Group"
 tag, plus friends), with the AudienceLine. **Make Move** posts with
 `notify_user_ids: []`, so nobody is poked yet. Step 2 ("Your Move is live") shows
-Muse's picks from `/muse/notify-preview` (with reasons) plus anyone picked by hand,
+deterministic picks from `/muse/notify-preview` (with reasons) plus anyone picked by hand,
 pre-checked; **Poke N** calls `POST /moves/{id}/notify {user_ids}`, which pokes only
 audience members not already poked. **Share link** sends the no-login `/m/{token}`
 page from the user's own phone (9.4). **Done** opens the new Move's card on the map.
 Without a backend the composer runs on the mock world and the Move stays local.
+
+The composer renders an editable form immediately. Its quick draft, friends,
+Circles, crews and places publish independently while the Muse draft runs in
+parallel. List requests have a 12-second deadline; the model draft has a 25-second
+UI deadline. Late replies preserve typed text, selected places, categories and
+audiences. Partial failures show Retry without hiding successful choices. Posting
+still requires server-confirmed audience visibility. This is client background
+loading, not a durable backend queue.
+
+Mobile Facebook controls reuse matching SVGs from `frontend/web/src/assets/icons`.
+Menu shortcuts, including Memories, use the web sidebar sprite. Regenerate these
+local assets with `node scripts/sync-meta-icons.mjs` from `frontend/mobile`.
 
 ### 7.3 Pull up, arrive, leave
 
@@ -607,6 +631,15 @@ decides whether any of them get an actual notification.
   **Ghost rule**: a ghost needs `arrived_at IS NOT NULL`, and the status is either `left`
   or still `there` when the Move ended (people still there at the end ghost). A
   taken-back Pull up has no row, so it never ghosts. Each ghost carries the Move's `text`.
+- At exactly 24 hours after leaving (or Move end for someone still there), the
+  Ghost expires. The person's visit appears in **Facebook Menu → Memories**
+  (`app/memories.tsx`, `GET /me/memories?limit=30&offset=0`). This personal archive
+  reads retained participation records; no destructive migration or new public
+  audience. Original Move visibility and Moment approval still apply. Quiet
+  departures and never-arrived Pull ups are excluded. Turning Ghosts off hides
+  the map trace but keeps one's private Memories. Demo Control's time shift
+  advances both views. The map refreshes every 20 seconds and Memories every minute
+  while focused, as well as on reopening or manual refresh.
 - Tap a ghost → `mark/[id].tsx` ghost sheet: "Tony, Maya and Priya were here 2h ago",
   the Move text, and its **Moments** in a horizontal viewer. CTA: "Poke me next time
   they're out" (stores a preference that boosts those people in the notify picker).
@@ -1322,6 +1355,7 @@ grouped and `'same'` is a tie.
 | GET | `/marks/search?q` | name search |
 | POST | `/marks` | create a Mark |
 | GET | `/marks/{id}` | detail: scores, ghosts, recent Moments |
+| GET | `/me/memories?limit&offset` | personal arrived visits whose Ghost window has expired |
 | POST/DELETE | `/marks/{id}/save` | Saved Marks |
 | GET | `/me/saved` | Saved Marks and saved Reels |
 | POST | `/audience/preview` | `{circle_ids, user_ids}` → `AudienceSummary` |

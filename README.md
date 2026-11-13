@@ -144,6 +144,14 @@ Backend configuration goes in `backend/.env`; see
 - `DATABASE_URL`: optional PostgreSQL connection string; otherwise `DB_PATH`
   defaults to `backend/data/app.db`.
 - `MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL`: enable the live model client.
+  The model defaults to `muse-spark-1.3` to reduce cost. On an existing deployment,
+  change `MUSE_MODEL` to `muse-spark-1.3` and restart the backend. If image input is
+  enabled, also set `MUSE_VISION_MODEL=muse-spark-1.3`.
+- `MUSE_FAST_MODEL`: defaults to `muse-ember-1.0` for short drafts, place extraction,
+  and crew labels. Other agents use `MUSE_MODEL`. Set both model variables on an
+  existing deployment and restart; local defaults do not override environment values.
+- `MUSE_DETERMINISTIC=true` is the default: templates and scored rules skip model
+  calls. Set it to `false` to enable the configured Spark/Ember routing.
 - `DEMO_MODE=offline`: fake Muse and a shiftable clock. `DEMO_MODE=on`: shiftable
   clock while retaining configured Muse. Neither fills in the stub Demo Control routes.
 - `FRONTEND_HOST`: allowed browser origin, default `http://localhost:8081` for

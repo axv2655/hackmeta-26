@@ -18,6 +18,7 @@ from app.muse.client import (
     image_source,
 )
 from app.muse.gateway import MuseGatewayImpl
+from app.muse.lane import MuseLane
 from app.muse.runner import AgentRejected, MuseRunner, extract_json
 from app.ports import MuseGateway, RankedMove
 from app.tables import MuseRun
@@ -47,6 +48,55 @@ def make_runner(engine, clock, client, **kw) -> MuseRunner:
 def runs(engine) -> list[MuseRun]:
     with Session(engine) as s:
         return list(s.exec(select(MuseRun)))
+
+
+async def test_ember_routing_and_spark_share_budget(engine, clock):
+    models = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        models.append(body["model"])
+        return httpx.Response(
+            200,
+            json={
+                "content": [{"type": "text", "text": '{"word":"ok"}'}],
+                "usage": {"input_tokens": 10, "output_tokens": 10},
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    spark = HttpMuseClient(
+        "https://muse.test", "k", "muse-spark-1.3", transport=transport
+    )
+    ember = HttpMuseClient(
+        "https://muse.test", "k", "muse-ember-1.0", transport=transport
+    )
+    lane = MuseLane.build(
+        engine, Container(clock=clock), spark, fast_client=ember, token_budget=80
+    )
+    for agent in ("move_writer", "place_resolver", "pseudo_group_label", "flare"):
+        out = await lane.runner.run_agent(agent, "u1", "prompt", Out, fallback)
+        assert out.word == "ok"
+    out = await lane.runner.run_agent("flare", "u1", "new", Out, fallback)
+    assert out.word == "fallback"
+    assert models == ["muse-ember-1.0"] * 3 + ["muse-spark-1.3"]
+    stats = lane.runner.get_stats()
+    assert stats["tokens_used"] == 80 and stats["budget_exhausted"]
+    assert stats["by_agent"]["move_writer"]["model"] == "muse-ember-1.0"
+
+
+async def test_fast_client_failure_uses_fallback_without_changing_other_agents(
+    engine, clock
+):
+    spark = FakeMuseClient({"move_ranker": {"word": "ranked"}})
+    ember = FakeMuseClient({"move_writer": ValueError("offline")})
+    lane = MuseLane.build(engine, Container(clock=clock), spark, fast_client=ember)
+    assert (
+        await lane.runner.run_agent("move_writer", "u1", "p", Out, fallback)
+    ).word == "fallback"
+    assert (
+        await lane.runner.run_agent("move_ranker", "u1", "p", Out, fallback)
+    ).word == "ranked"
 
 
 async def test_valid_output_parses_and_logs(engine, clock) -> None:
@@ -168,14 +218,14 @@ async def test_http_client_speaks_anthropic_messages() -> None:
     client = HttpMuseClient(
         "https://muse.test/",
         "k",
-        "muse-wonder-1.0",
+        "muse-spark-1.3",
         transport=httpx.MockTransport(handler),
     )
     out = await client.complete("[t] sys", "prompt", max_tokens=100)
     assert out.text == '{"word": "hi"}' and out.input_tokens == 12
     assert seen["url"] == "https://muse.test/v1/messages"
     assert seen["auth"] == "Bearer k"
-    assert seen["body"]["model"] == "muse-wonder-1.0"
+    assert seen["body"]["model"] == "muse-spark-1.3"
     assert seen["body"]["max_tokens"] > 100  # thinking headroom on top
     assert seen["body"]["messages"][0]["content"] == [
         {"type": "text", "text": "prompt"}
@@ -217,14 +267,16 @@ async def test_http_client_sends_images_only_with_vision() -> None:
     assert image_source("https://x/y.jpg") == {"type": "url", "url": "https://x/y.jpg"}
 
 
-def test_offline_and_unconfigured_use_the_fake_client() -> None:
+def test_offline_and_unconfigured_use_the_fake_client(monkeypatch) -> None:
+    monkeypatch.delenv("MUSE_MODEL", raising=False)
     configured = dict(
         MUSE_BASE_URL="https://api.meta.ai",
         MUSE_API_KEY="k",
-        MUSE_MODEL="muse-wonder-1.0",
         _env_file=None,
     )
-    assert isinstance(client_from_settings(Settings(**configured)), HttpMuseClient)
+    client = client_from_settings(Settings(**configured))
+    assert isinstance(client, HttpMuseClient)
+    assert client.model == "muse-spark-1.3"
     assert isinstance(
         client_from_settings(Settings(**configured, DEMO_MODE="offline")),
         FakeMuseClient,
@@ -288,3 +340,16 @@ async def test_deterministic_mode_never_calls_the_model(engine, clock) -> None:
     assert client.calls == [] and runs(engine) == []  # no network, no log row
     stats = runner.get_stats()
     assert stats["calls"] == 1 and stats["fallbacks"] == 1 and stats["muse_calls"] == 0
+
+
+async def test_deterministic_mode_bypasses_fast_and_default_clients(engine, clock):
+    spark = FakeMuseClient({"flare": {"word": "spark"}})
+    ember = FakeMuseClient({"move_writer": {"word": "ember"}})
+    lane = MuseLane.build(
+        engine, Container(clock=clock), spark, fast_client=ember, deterministic=True
+    )
+    for agent in ("move_writer", "flare"):
+        result = await lane.runner.run_agent(agent, "u1", "p", Out, fallback)
+        assert result.word == "fallback"
+    assert spark.calls == ember.calls == []
+    assert runs(engine) == []

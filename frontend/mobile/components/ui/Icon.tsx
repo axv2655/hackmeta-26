@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Path, Rect, SvgXml } from 'react-native-svg';
 import LArrowLeft from 'lucide-react-native/icons/arrow-left';
 import LAtSign from 'lucide-react-native/icons/at-sign';
 import LBell from 'lucide-react-native/icons/bell';
@@ -74,6 +74,7 @@ import LVolumeX from 'lucide-react-native/icons/volume-x';
 import LZap from 'lucide-react-native/icons/zap';
 
 import { colors } from '@/lib/theme';
+import { metaIcon } from './metaIcons';
 
 // ---------------------------------------------------------------------------
 // Custom glyphs
@@ -302,6 +303,13 @@ export function Icon({ name, size = 24, color = colors.text, filled = false, str
   const a11y = accessibilityLabel
     ? ({ accessible: true, accessibilityRole: 'image', accessibilityLabel } as const)
     : ({ accessible: false, importantForAccessibility: 'no', 'aria-hidden': true } as const);
+
+  const xml = metaIcon(resolved);
+  if (xml) return (
+    <View style={[{ width: size, height: size }, style]} {...a11y}>
+      <SvgXml xml={xml} width={size} height={size} color={color} />
+    </View>
+  );
 
   if (!isCustom(resolved)) {
     const Lucide: LucideComponent = LUCIDE[resolved];

@@ -83,6 +83,7 @@ function PromptCard({ token }: { token: string }) {
     try {
       const how = await copyText(prompt);
       if (how === "copied") toast("Prompt copied. Paste it into Muse.");
+      if (how === "failed") toast("Couldn't copy. Press and hold the text to copy it.");
     } catch {
       toast("Couldn't copy. Select the text and copy it.");
     }

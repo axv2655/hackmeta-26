@@ -15,6 +15,15 @@ import { cat } from './categories'
 const PANEL_W = 412
 const area = (address) => address?.split(',').pop()?.trim() || 'Nearby'
 
+// "7:00" in the viewer's own time zone
+function clockTime(iso) {
+  const d = new Date(iso)
+  return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// tendency tab: "Started 7:00, Tony's Kumo Moves usually last ~2h" (live Moves with history only)
+const tendencyText = (m) => (m.status === 'live' && m.tendency?.line ? `Started ${clockTime(m.starts_at)}, ${m.tendency.line}` : null)
+
 function fromMove(m, me) {
   const active = m.participants.filter((p) => p.status !== 'left')
   const creator = active.find((p) => p.user.id === m.creator.id)
@@ -23,6 +32,7 @@ function fromMove(m, me) {
     status: creator?.status === 'going' ? 'omw' : 'there', time: ago(m.starts_at),
     joined: active.filter((p) => p.user.id !== m.creator.id).map((p) => p.user),
     mine: m.creator.id === me, myStatus: m.my_status, audience: m.audience, reason: m.muse_reason,
+    tendency: tendencyText(m),
   }
 }
 
@@ -145,6 +155,7 @@ function MoveCard({ p, busy, onPull, onEnd, onClose, moments, onSnap }) {
       <p className="row muted mv-place"><L.MapPin size={16} /> {p.mark.name} · {area(p.mark.address)}</p>
       {audience && <p className="row muted mv-place"><L.Eye size={16} /> {audience}</p>}
       {p.reason && !p.mine && <p className="row muted mv-place"><L.Sparkles size={16} /> {p.reason}</p>}
+      {p.tendency && !ghost && <p className="row muted mv-place"><L.Clock size={16} /> {p.tendency}</p>}
       {names.length > 0 && (
         <div className="row">
           <span className="mv-faces">{p.joined.map((u) => <Face key={u.id} id={u.id} size={32} ghost={ghost} />)}</span>

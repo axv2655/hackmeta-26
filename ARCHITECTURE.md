@@ -1044,6 +1044,29 @@ Kumo from campus. Go together?" Accepting opens a prefilled message. No ride boo
   heuristic result immediately and swap in Muse's result when it lands.
 - `GET /demo/muse-stats` shows calls, tokens, fallback rate. Watch it during testing.
 
+### 10.13 Tendency tab — `agents/move_tendency.py`, `domain/move_tendency.py`
+
+People skip a Move that started 40 minutes ago because it looks over. Every live
+Move gets a small tab: **"Started 7:00, Tony's Kumo Moves usually last ~2h"**. The
+viewer works out that there is still time.
+
+- **Facts (Python)**: the median length of the creator's last 30 ended Moves at the
+  same Mark; else in the same category; else all of them. A level needs at least 2
+  Moves. Moves under 10 min or at least `STALE_AFTER` (3 h, auto-ended) do not count.
+  No level qualifies: no tab, never a guess.
+- **Words (Muse)**: the template "{Name}'s {Mark|category|} Moves usually last ~2h"
+  is returned at once (`source: heuristic`). With the model on, one batched call in
+  the background rewrites the lines; the check rejects a line that changes the
+  length, is over 70 characters or has "!". The next read shows Muse's line.
+- **Wire**: `MoveRead.tendency` on every Move route, live Moves only. The route
+  waits at most 1 s for `MuseGateway.move_tendencies` (a gateway extra), else null.
+  The client adds "Started 7:00, " from `starts_at` in the viewer's time zone.
+- **Privacy**: reads only Move times, Mark ids and categories of the creator's own
+  past Moves. No coordinates, no other people.
+- **Demo**: Tony posts the seeded Kumo Matcha runs in the history (15.1), so his
+  live Kumo Move shows "Started {time}, Tony's Kumo Matcha Moves usually last ~1.5h".
+  Shift the clock (`/demo/time`) to show that it still holds 40 minutes in.
+
 ---
 
 ## 11. Mocked Facebook surfaces
@@ -1271,7 +1294,12 @@ type Move = { id: string; creator: UserLite; mark: Mark; text: string; category:
               open: boolean; starts_at: string; fill_deadline?: string; ends_at?: string;
               participants: Participant[]; my_status?: 'going'|'there'|'left';
               moments_count: number; muse_reason?: string;
-              audience?: AudienceSummary /* creator only */ };
+              audience?: AudienceSummary /* creator only */;
+              tendency?: MoveTendency /* live Moves with history, 10.13 */ };
+
+type MoveTendency = { line: string; typical_minutes: number;
+                      basis: 'mark'|'category'|'all'; sample_size: number;
+                      source: 'muse'|'heuristic' };
 
 type AudienceSummary = { count: number; circles: {id: string; name: string}[];
                          people: UserLite[] };

@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 
 import { ReasonLine } from '@/components/common/ReasonLine';
+import { TendencyTab } from '@/components/common/TendencyTab';
 import { BitmojiFace } from '@/components/moves/SheetParts';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -65,6 +66,7 @@ export function MoveCard({ move, sample, onPull, onClose }: MoveCardProps) {
 
       <Text style={styles.title}>“{move.title}”</Text>
       {move.reason && !ghost ? <ReasonLine text={move.reason} style={styles.reason} /> : null}
+      {move.tendency && !ghost ? <TendencyTab text={move.tendency} style={styles.reason} /> : null}
       {move.kind === 'flare' && move.fillDeadline && !ghost ? (
         <View style={styles.reason}>
           <FillChip deadline={move.fillDeadline} />

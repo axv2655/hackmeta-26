@@ -4,11 +4,13 @@ import { useRouter } from 'expo-router';
 
 import { MuseBadge } from '@/components/common/MuseBadge';
 import { ReasonLine } from '@/components/common/ReasonLine';
+import { TendencyTab } from '@/components/common/TendencyTab';
 import { PersonAvatar } from '@/components/friends/PersonAvatar';
 import { Icon } from '@/components/ui/Icon';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { categoryMeta } from '@/lib/categories';
 import { ago, untilLabel } from '@/lib/format';
+import { tendencyText } from '@/lib/tendency';
 import { colors, radius, spacing, type as typeScale } from '@/lib/theme';
 import type { Move } from '@/lib/types';
 
@@ -49,6 +51,7 @@ export function MoveHeader({ move }: { move: Move }) {
   const fillsAt = live && move.kind === 'flare' ? move.fill_deadline : null;
   useTick(30_000, live);
   const cat = categoryMeta(move.category);
+  const tendency = tendencyText(move);
 
   return (
     <View style={styles.wrap}>
@@ -77,6 +80,8 @@ export function MoveHeader({ move }: { move: Move }) {
         {move.kind === 'flare' ? <Pill icon="flame" label="Flare" color={colors.love} /> : null}
         {move.open ? <Pill icon="globe" label="Open Move · nearby people can find it" color={colors.blue} /> : null}
       </View>
+
+      {tendency ? <TendencyTab text={tendency} /> : null}
 
       {fillsAt ? (
         <View style={styles.fill}>

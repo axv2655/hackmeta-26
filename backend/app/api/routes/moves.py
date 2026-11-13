@@ -15,6 +15,10 @@ sent to `/moves/nearby` is rounded to 3 decimals and used for that one query.
 Ranking: the feed and the map ask `MuseGateway.rank_moves` for an order and a
 one-line reason (10.5). If Muse errors or takes over `RANK_TIMEOUT_S`, the
 Moves keep their start-time order (newest first) with no reason.
+
+Tendency tab: every live Move carries `tendency` (how long its creator's Moves
+usually last) when `MuseGateway.move_tendencies` knows it within
+`TENDENCY_TIMEOUT_S`; otherwise it is null and the client shows no tab.
 """
 
 import asyncio
@@ -32,10 +36,12 @@ from app.api.routes.marks import MarkServiceDep
 from app.core.areas import coarse
 from app.core.composition import build_move_service
 from app.core.db import SessionDep
+from app.domain.move_tendency import TendencyNote
 from app.models.audience import AudienceSummary
 from app.models.marks import MarkRead
 from app.models.moves import (
     LeaveBody,
+    MoveTendencyRead,
 )
 from app.models.moves import (
     MoveCreateBody as MoveCreateBody,
@@ -57,6 +63,7 @@ from app.services.moves import MoveService
 logger = logging.getLogger(__name__)
 
 RANK_TIMEOUT_S = 2.0
+TENDENCY_TIMEOUT_S = 1.0
 
 router = APIRouter(tags=["moves"], dependencies=[Depends(invalidate_on_write)])
 
@@ -82,14 +89,20 @@ class MovePresenter:
         self.moves = moves
         self.marks = marks
 
-    def one(self, move: MoveSnapshot) -> MoveRead:
-        [read] = self.many([move])
+    def one(
+        self, move: MoveSnapshot, tendencies: Mapping[str, TendencyNote] | None = None
+    ) -> MoveRead:
+        [read] = self.many([move], tendencies=tendencies)
         return read
 
     def many(
-        self, moves: Sequence[MoveSnapshot], reasons: Mapping[str, str] | None = None
+        self,
+        moves: Sequence[MoveSnapshot],
+        reasons: Mapping[str, str] | None = None,
+        tendencies: Mapping[str, TendencyNote] | None = None,
     ) -> list[MoveRead]:
         reasons = reasons or {}
+        tendencies = tendencies or {}
         people = self.moves.users(
             {m.creator_id for m in moves}
             | {p.user_id for m in moves for p in m.participants}
@@ -137,6 +150,11 @@ class MovePresenter:
                     if m.id in audiences
                     else None
                 ),
+                tendency=(
+                    MoveTendencyRead.from_domain(tendencies[m.id])
+                    if m.status == "live" and m.id in tendencies
+                    else None
+                ),
             )
             for m in moves
         ]
@@ -176,14 +194,39 @@ async def rank(
     return [by_id[move_id] for move_id in order], reasons
 
 
+async def tendencies(
+    muse: MuseGateway, moves: Sequence[MoveSnapshot]
+) -> dict[str, TendencyNote]:
+    """Tendency notes for the live Moves, or {} when Muse is slow or down."""
+    fn = getattr(muse, "move_tendencies", None)
+    live = [m for m in moves if m.status == "live"]
+    if fn is None or not live:
+        return {}
+    try:
+        return dict(await asyncio.wait_for(fn(live), TENDENCY_TIMEOUT_S))
+    except Exception:
+        logger.warning("move tendencies failed; no tendency tab")
+        return {}
+
+
+async def present(
+    muse: MuseGateway, show: MovePresenter, move: MoveSnapshot
+) -> MoveRead:
+    return show.one(move, await tendencies(muse, [move]))
+
+
 # --- Endpoints ---------------------------------------------------------------
 
 
 @router.post("/moves", status_code=status.HTTP_201_CREATED)
 async def create_move(
-    body: MoveCreateBody, me: CurrentUserDep, moves: MoveServiceDep, show: PresenterDep
+    body: MoveCreateBody,
+    me: CurrentUserDep,
+    moves: MoveServiceDep,
+    show: PresenterDep,
+    c: ContainerDep,
 ) -> MoveRead:
-    return show.one(await moves.create(me.id, body.to_domain()))
+    return await present(c.muse, show, await moves.create(me.id, body.to_domain()))
 
 
 @router.get("/moves/feed")
@@ -200,7 +243,8 @@ async def moves_feed(
     async def compute() -> list[MoveRead]:
         live = await run_in_threadpool(moves.list_live_visible, me.id)
         ranked, reasons = await rank(c.muse, me.id, live)
-        return await run_in_threadpool(show.many, ranked, reasons)
+        notes = await tendencies(c.muse, ranked)
+        return await run_in_threadpool(show.many, ranked, reasons, notes)
 
     return await cached(request, me.id, c.clock.now, compute)
 
@@ -234,31 +278,45 @@ async def moves_nearby(
     async def compute() -> list[MoveRead]:
         near = await run_in_threadpool(find_near)
         ranked, reasons = await rank(c.muse, me.id, near)
-        return await run_in_threadpool(show.many, ranked, reasons)
+        notes = await tendencies(c.muse, ranked)
+        return await run_in_threadpool(show.many, ranked, reasons, notes)
 
     return await cached(request, me.id, c.clock.now, compute)
 
 
 @router.get("/moves/{move_id}")
-def move_detail(
-    move_id: str, me: CurrentUserDep, moves: MoveServiceDep, show: PresenterDep
+async def move_detail(
+    move_id: str,
+    me: CurrentUserDep,
+    moves: MoveServiceDep,
+    show: PresenterDep,
+    c: ContainerDep,
 ) -> MoveRead:
-    return show.one(moves.get(me.id, move_id))
+    move = await run_in_threadpool(moves.get, me.id, move_id)
+    return await present(c.muse, show, move)
 
 
 @router.post("/moves/{move_id}/join")
 async def join_move(
-    move_id: str, me: CurrentUserDep, moves: MoveServiceDep, show: PresenterDep
+    move_id: str,
+    me: CurrentUserDep,
+    moves: MoveServiceDep,
+    show: PresenterDep,
+    c: ContainerDep,
 ) -> MoveRead:
     """I'm going."""
-    return show.one(await moves.join(me.id, move_id))
+    return await present(c.muse, show, await moves.join(me.id, move_id))
 
 
 @router.post("/moves/{move_id}/arrive")
 async def arrive_at_move(
-    move_id: str, me: CurrentUserDep, moves: MoveServiceDep, show: PresenterDep
+    move_id: str,
+    me: CurrentUserDep,
+    moves: MoveServiceDep,
+    show: PresenterDep,
+    c: ContainerDep,
 ) -> MoveRead:
-    return show.one(await moves.arrive(me.id, move_id))
+    return await present(c.muse, show, await moves.arrive(me.id, move_id))
 
 
 @router.post("/moves/{move_id}/leave")
@@ -267,17 +325,23 @@ async def leave_move(
     me: CurrentUserDep,
     moves: MoveServiceDep,
     show: PresenterDep,
+    c: ContainerDep,
     body: LeaveBody | None = None,
 ) -> MoveRead:
     """Take back a Pull up (no ghost), leave (a ghost if you were there), or
     leave quietly with `{"quiet": true}` (no ghost, nobody is told)."""
     quiet = body.quiet if body is not None else False
-    return show.one(await moves.leave(me.id, move_id, quiet=quiet))
+    move = await moves.leave(me.id, move_id, quiet=quiet)
+    return await present(c.muse, show, move)
 
 
 @router.post("/moves/{move_id}/end")
 async def end_move(
-    move_id: str, me: CurrentUserDep, moves: MoveServiceDep, show: PresenterDep
+    move_id: str,
+    me: CurrentUserDep,
+    moves: MoveServiceDep,
+    show: PresenterDep,
+    c: ContainerDep,
 ) -> MoveRead:
     """The creator ends their Move."""
-    return show.one(await moves.end(me.id, move_id))
+    return await present(c.muse, show, await moves.end(me.id, move_id))

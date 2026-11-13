@@ -15,6 +15,7 @@ days from `now` (never "N days ago"), which keeps them correct on weekends.
 Patterns (ARCHITECTURE.md 15.1), eight weeks back at most (hours are in
 `now`'s zone; `history_moves` passes demo-local time):
   * Anish + Priya (+ Tony on alternate weeks): matcha on Tuesday afternoons,
+    Tony posts the Kumo Matcha runs (his tendency tab),
     four distinct matcha spots in the last month.
   * Anish + Tony + Maya: Wednesday lunch every other week.
   * Anish + Maya + Dev: Thursday climbing that **stopped four weeks ago**.
@@ -70,6 +71,11 @@ def _matcha(now: datetime) -> list[HistoryEvent]:
             ("anish", "priya", "tony") if weeks_back % 2 == 0 else ("anish", "priya")
         )
         spot = MATCHA_SPOTS_THIS_MONTH[weeks_back % len(MATCHA_SPOTS_THIS_MONTH)]
+        if spot == "kumo_matcha" and "tony" in users:
+            # Tony posts the Kumo runs: his live Kumo Move gets a tendency tab
+            # ("Tony's Kumo Matcha Moves usually last ~1.5h", 10.13). Same
+            # people, so hangouts and affinity are unchanged.
+            users = ("tony", *(u for u in users if u != "tony"))
         events.append(_event(now, TUESDAY, weeks_back, 14, 90, users, spot, "coffee"))
     return events
 

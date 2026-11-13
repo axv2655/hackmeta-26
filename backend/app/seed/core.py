@@ -443,6 +443,7 @@ def seed(session: Session, clock: Clock) -> None:
     commit: the runner commits once every lane's step has run."""
     now = clock.now()
     session.add_all(_user(person, now) for person in PEOPLE)
+    session.flush()  # Postgres checks foreign keys: users go in first
     session.add_all(_friendship(a, b, now - timedelta(days=d)) for a, b, d in FRIENDS)
     session.add_all(_settings(person.id) for person in PEOPLE)
     session.add_all(AutojoinPref(user_id=u, other_user_id=o) for u, o in AUTOJOIN)

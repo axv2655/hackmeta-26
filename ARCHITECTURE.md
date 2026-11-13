@@ -136,7 +136,7 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 │ muse/           MuseClient port + adapter, one module per agent, prompts, fallbacks     │
 │ realtime/       ConnectionHub: user_id → sockets, publish(event)                        │
 │ scheduler/      asyncio loop: move expiry, empty-flare follow-up, flare scan, revive scan       │
-│ repositories    SQLModel over SQLite (file: backend/data/app.db)                        │
+│ repositories    SQLModel over Postgres (DATABASE_URL); SQLite file when unset           │
 └───────────────┬─────────────────────────────────────────────────────────────────────────┘
                 │ HTTPS
                 ▼
@@ -151,7 +151,7 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 | Build type | **Expo dev build** (EAS or `expo run:ios`) for BLE; app must also run in Expo Go with BLE simulated | BLE needs native modules. Expo Go fallback keeps everyone unblocked. |
 | Map | `react-native-maps` (Apple Maps on iOS) | Works in Expo Go, no API key on iOS. |
 | Backend | Existing FastAPI layered template | Already scaffolded; keep the inward-dependency rule from `backend/ARCHITECTURE.md`. |
-| Storage | SQLite via SQLModel, one file, recreated from seed on demand | Zero setup, relational joins for affinity queries, easy reset before the demo. |
+| Storage | Postgres via SQLModel (`DATABASE_URL`, hosted Timescale for dev; psycopg driver), recreated from seed on demand. Falls back to a SQLite file when `DATABASE_URL` is unset; tests always use in-memory SQLite. | Shared data across phones and teammates, env-only config so the backend runs unchanged in Docker on the homelab, easy reset before the demo. Foreign keys are enforced, so seeds insert parents first (`test_seed_respects_foreign_keys`). |
 | Realtime | One WebSocket per client, server push only | Simpler and more reliable on venue Wi-Fi than push notifications. |
 | Push | In-app banners from WebSocket events + `expo-notifications` **local** notifications for lock-screen effect | Remote push needs credentials and a dev build; local notifications give the same visual. |
 | Auth | Mocked "Continue with Facebook": pick a seeded user. `X-User-Id` header | No real auth in a one-day demo. Verified badge is a seeded flag. |
@@ -277,7 +277,7 @@ Backend additions: `sqlmodel`, `httpx` (move from dev to runtime), `python-multi
 
 ## 5. Data model
 
-SQLite, SQLModel. IDs are short string UUIDs. All timestamps are UTC ISO 8601. Tables
+Postgres (or SQLite locally), SQLModel. IDs are short string UUIDs. All timestamps are UTC ISO 8601. Tables
 live in `backend/app/tables.py`.
 
 ### 5.1 People and audiences

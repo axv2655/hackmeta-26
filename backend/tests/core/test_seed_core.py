@@ -13,6 +13,7 @@ from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, col, create_engine, func, select
 
 from app.core import db
+from app.core.clock import SystemClock
 from app.domain import moves as rules
 from app.domain.privacy import can_see, resolve_audience
 from app.ports import Category
@@ -146,7 +147,9 @@ def test_times_follow_the_clock(engine: Engine, session: Session) -> None:
 
 def test_command_line_runner_builds_the_world(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
-    env = {**os.environ, "DB_PATH": str(path)}
+    # DATABASE_URL wins over DB_PATH, so point it at the file too: a developer's
+    # .env may hold a shared Postgres URL that this test must never seed.
+    env = {**os.environ, "DB_PATH": str(path), "DATABASE_URL": f"sqlite:///{path}"}
     subprocess.run(
         [sys.executable, "-m", "app.seed.seed"], cwd=BACKEND, env=env, check=True
     )
@@ -356,3 +359,20 @@ def test_every_seed_mark_is_in_the_supported_area(world: Session) -> None:
 
     marks = world.exec(select(Mark)).all()
     assert marks and {coarse_area(m.lat, m.lng) for m in marks} == {core.HOME_AREA}
+
+
+def test_seed_respects_foreign_keys(tmp_path: Path) -> None:
+    """Postgres enforces foreign keys and SQLite does not by default, so seed a
+    SQLite file with enforcement on: any insert-order bug fails here first."""
+    from sqlalchemy import event
+
+    from app.seed.seed import run
+
+    engine = db.make_engine(str(tmp_path / "fk.db"))
+    event.listen(
+        engine, "connect", lambda conn, _: conn.execute("PRAGMA foreign_keys=ON")
+    )
+    db.reset(engine)
+    with Session(engine) as session:
+        run(session, SystemClock())
+        assert count(session, User) == len(core.PEOPLE)

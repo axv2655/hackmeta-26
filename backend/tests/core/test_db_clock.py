@@ -118,3 +118,18 @@ def test_only_the_clock_reads_the_wall_clock() -> None:
         if WALL_CLOCK.search(line)
     ]
     assert offenders == []
+
+
+def test_database_target_order() -> None:
+    pg = "postgres://u:p@host:5432/db?sslmode=require"
+    assert db.database_target(db.MEMORY, pg) == db.MEMORY  # tests stay in memory
+    assert db.database_target("data/app.db", pg) == pg
+    assert db.database_target("data/app.db", None) == "data/app.db"
+
+
+def test_postgres_urls_use_psycopg_without_connecting() -> None:
+    for url in ("postgres://u:p@h:1/d", "postgresql://u:p@h:1/d"):
+        engine = db.make_engine(url)
+        assert engine.url.drivername == "postgresql+psycopg"
+        assert engine.url.host == "h"
+    assert db.make_engine("sqlite:///x.db").url.get_backend_name() == "sqlite"

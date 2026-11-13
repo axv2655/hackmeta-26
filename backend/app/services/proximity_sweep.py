@@ -15,7 +15,7 @@ list.
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -310,3 +310,42 @@ def purge(engine: Engine, clock: Clock) -> int:
         )
         session.commit()
         return (sightings.rowcount or 0) + (pairs.rowcount or 0)
+
+
+# --- Arrival -----------------------------------------------------------------
+
+
+async def arrive_copresent(
+    engine: Engine,
+    container: Container,
+    proximity: ProximityGateway,
+    user_ids: Sequence[str],
+    arrive: Callable[[str, str], Awaitable[object]],
+) -> list[tuple[str, str]]:
+    """BLE co-presence with someone already `there` counts as arrival (7.3):
+    every `going` participant among `user_ids` who is with the creator or a
+    `there` participant becomes `there`. Returns `(user_id, move_id)` pairs."""
+    with Session(engine) as session:
+        rows = session.exec(
+            select(MoveParticipant.user_id, MoveParticipant.move_id)
+            .join(Move, col(Move.id) == MoveParticipant.move_id)
+            .where(
+                col(MoveParticipant.user_id).in_(list(set(user_ids))),
+                MoveParticipant.status == "going",
+                Move.status == "live",
+            )
+        ).all()
+    arrived: list[tuple[str, str]] = []
+    for user_id, move_id in rows:
+        move = container.moves.get(move_id)
+        if move is None:
+            continue
+        anchors = {move.creator_id, *_there_ids(move)} - {user_id}
+        if not anchors & proximity.copresent_cluster(user_id):
+            continue
+        try:
+            await arrive(user_id, move_id)
+            arrived.append((user_id, move_id))
+        except Exception:
+            logger.exception("BLE arrival of %s at move %s failed", user_id, move_id)
+    return arrived

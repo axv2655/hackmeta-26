@@ -546,6 +546,15 @@ export type ReelPlace = {
 // --- proximity --------------------------------------------------------------
 
 export type ProximityAcceptResult = { move_id: string; status: 'there' };
+export type BleToken = { token: string; uuid: string; expires_at: string };
+export type BleSighting = { token: string; rssi: number };
+export type BleSightingsResult = {
+  accepted: number;
+  together: number;
+  arrived: string[];
+  prompted: string[];
+  auto_joined: string[];
+};
 export type CopresenceResult = { pairs: number; prompted: string[]; auto_joined: string[] };
 
 /** Realtime `proximity.prompt` data. */

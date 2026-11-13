@@ -678,12 +678,18 @@ interface Proximity {
 type Sighting = { token: string; rssi: number; seenAt: string };
 ```
 
-- `ble.ts` (dev build): advertises service UUID `SPONT_SERVICE_UUID` with a 8-byte
-  **rotating token** as service data, scans for the same UUID, batches sightings every
-  10 s to `POST /proximity/sightings`.
-- `sim.ts` (Expo Go and demo fallback): no radio. Co-presence is injected by the Demo
-  Control panel through `POST /demo/copresence`.
-- `index.ts` picks `ble.ts` when the native module is present and `ble_opt_in` is true.
+- **Built** as a local Expo module, `frontend/mobile/modules/moves-ble` (Swift,
+  `CBPeripheralManager` + `CBCentralManager`), driven by `frontend/mobile/lib/ble.ts`
+  (`useBleProximity`, mounted in the root layout). iOS cannot advertise service data, so
+  the **rotating token is the service UUID itself**: `4D4F5645-…` ("MOVE" + 12 random
+  bytes). The phone scans for that prefix and batches the strongest RSSI per token every
+  5 s to `POST /proximity/sightings`. Foreground only; no native module (Expo Go, web)
+  or `EXPO_PUBLIC_PROXIMITY=sim` means no radio.
+- Sim fallback: co-presence is injected by the Demo Control panel through
+  `POST /demo/copresence`.
+- Runs only while `ble_opt_in` is on. Sightings ingest also does **arrival** (7.3): a
+  `going` participant who is co-present with the creator or anyone `there` becomes
+  `there` (`repositories/proximity_ble.py`, `services/proximity_sweep.arrive_copresent`).
 
 **Tokens**: `POST /proximity/token` returns a random token valid for 15 minutes; the
 server maps token → user. Devices never broadcast user IDs. Strangers cannot resolve a

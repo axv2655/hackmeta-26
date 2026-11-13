@@ -7,7 +7,10 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "ios": {
-      "bundleIdentifier": "com.alanroybal.hackmeta26"
+      "bundleIdentifier": "com.alanroybal.hackmeta26",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Moves uses Bluetooth, only while the app is open and only if you turn it on, to notice when you're with friends at a Move so it can mark you as there. It broadcasts a rotating code, never your name or location."
+      }
     },
     "plugins": [
       "expo-router",

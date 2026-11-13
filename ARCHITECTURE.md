@@ -1,6 +1,6 @@
-# Spontaneous: Architecture and Build Spec
+# Meta Moves: Architecture and Build Spec
 
-Working name: **Spontaneous** (the feature is "Moves"). Meta Career Programs AI Hackathon 2026.
+Project name: **Meta Moves** (the feature is "Moves"). Meta Career Programs AI Hackathon 2026.
 Submission: **Friday 10:30 a.m.** Judging is a live demo to five judges in a private room.
 
 This document is the single source of truth for every agent building this app. Read
@@ -1392,7 +1392,7 @@ the remaining time goes to M6.
 | Privacy pushback from judges | Section 1.5 rules are visible in the UI: audience line, place-not-person, opt-ins, hidden-from. Privacy pass (12.5) before the demo. |
 | Pairwise ranking algorithm | Team supplies it; placeholder behind the `domain/ranking.py` interface until then. |
 | Glasses audio path | Try Ray-Ban Meta as a Bluetooth headset early; phone mic is the fallback. |
-| App name and final branding | Working name "Spontaneous"; "Moves" is the feature name inside Facebook. Team to confirm. |
+| App name and final branding | "Meta Moves"; "Moves" is the feature name inside Facebook. |
 | Demo area center | Seed constant; set to wherever the demo phones physically are so distances read correctly. |
 | Real Facebook Groups integration | Out of scope; mocked. Circles carry an `fb_group_name` to show the tie-in. |
 

@@ -2,7 +2,7 @@
 
 ## Project
 
-**Spontaneous** (feature name: **Moves**), a Meta Career Programs AI Hackathon 2026 entry. We mock a
+**Meta Moves** (feature name: **Moves**), a Meta Career Programs AI Hackathon 2026 entry. We mock a
 Facebook surface; we never touch real Facebook code. Judging is a live demo to five judges, submission
 **Friday 10:30 a.m.**
 

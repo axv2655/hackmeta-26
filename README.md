@@ -1,9 +1,9 @@
-# Moves
+# Meta Moves
 
-**Moves turns “I'm already going” into “come join me,” letting friends share what they're doing on Facebook and Pull up without the pressure of a direct invitation.**
+**Meta Moves turns “I'm already going” into “come join me,” letting friends share what they're doing on Facebook and Pull up without the pressure of a direct invitation.**
 
-Built for the Meta Career Programs AI Hackathon 2026. The project working name is
-**Spontaneous**; **Moves** is the feature inside our mocked Facebook experience.
+Built for the Meta Career Programs AI Hackathon 2026. **Meta Moves** is our
+spontaneous activity-sharing feature inside a mocked Facebook experience.
 
 ## Why Moves
 
@@ -20,7 +20,6 @@ companion for moments when someone already has their laptop open.
 Our starting hypothesis is that people who already enjoy checking in on friends
 through location sharing may value an explicit invitation to join them. The
 prototype shares activities at selected places, never people's live positions.
-Audience growth and conversion are hypotheses to validate, not measured results.
 
 ## A user story
 
@@ -46,59 +45,6 @@ the Move; joining does not automatically create a Circle or widen its audience.
 5. **Moments** and **Ghosts** can preserve the shared experience after it ends,
    subject to audience and approval rules.
 
-| Term | Meaning |
-| --- | --- |
-| Move | A spontaneous activity someone is doing or about to do. |
-| Mark / Saved Mark | A place pin / a place someone saved for later. |
-| Pull up | Join a Move. |
-| Circle | A user-selected audience group. |
-| Flare | A Move with a short window for friends to join. |
-| Moment | A photo or clip from a Move; tagged people must approve wider visibility. |
-| Ghost | A trace of an earlier visit at a Mark, subject to visibility settings. |
-| Pseudo-group | A recurring group inferred from hangout history for suggestions. |
-| Open Move | An explicitly opted-in Move discoverable by nearby people through BLE, not a public post. |
-
-## Where Muse adds value
-
-The core AI uses the hackathon's **Muse model API**. The backend already contains
-agents for recipient selection, Move ranking, drafting, place resolution, Flare
-suggestions, taste learning, group revival, and alternatives when a Move stays
-quiet. Their presence does not mean every client flow is integrated; see status below.
-
-The design rule is **Python computes facts; Muse interprets context and proposes
-choices.** Permissions, audience membership, calendar overlap, notification caps,
-and state transitions remain deterministic. Muse cannot grant visibility or post
-a Move on someone's behalf.
-
-The strongest next refinement is to make recommendations sensitive to the meaning
-of an activity and people's stated preferences:
-
-| Focus | Example | Why use a model? |
-| --- | --- | --- |
-| Intent-aware recipient selection | “Quiet study, company welcome” and “coffee and a catch-up” at the same café can suit different friends. | Interpret free text and contextual preferences beyond a place/category match. |
-| Taste from feedback | “Loved the drinks, too loud to study” should improve future study suggestions without ruling out the café for social visits. | Extract conditional preferences from natural-language feedback. |
-| A timely Flare | Suggest a Saved Mark that fits an opted-in free window, the user's preferences, and available friends; let the user decide. | Compare the meaning and suitability of eligible options after code checks feasibility. |
-
-These are proposed refinements, not claims of demonstrated model superiority.
-The current notify picker primarily receives structured social signals; the ranker
-uses a simplified taste match. Richer preference context would make the semantic
-examples above more convincing. Drafting a caption alone is a supporting convenience.
-
-For judging, demonstrate a pair of Moves at the same place with different intent,
-show the supplied evidence and resulting recommendations, and compare Muse with
-the existing affinity-based fallback. Use a small set of human-labeled scenarios
-to check relevance, unsupported explanations, and audience violations. A later
-pilot can measure joins and confirmed arrivals per nudge, plus dismissals and
-notification volume. Don't claim uplift before measuring it.
-
-Research on [language-based recommendation with little interaction history](https://research.google/pubs/large-language-models-are-competitive-near-cold-start-recommenders-for-language-and-item-based-preferences/)
-supports exploring this direction; it does not establish performance for Moves.
-
-Every agent runs through a shared runner with output validation, fallback behavior,
-and a `muse_runs` log. Without Muse configuration, or with `DEMO_MODE=offline`, the
-backend uses `FakeMuseClient`. Offline behavior keeps development usable but is
-not evidence of a live Muse integration.
-
 ## Privacy by design
 
 - Location is opt-in. Choose a place manually when permissions are denied.
@@ -114,22 +60,6 @@ These are product requirements. The backend includes privacy tests, but this
 prototype is not a production Facebook integration. Account endpoints exist;
 requests still trust `X-User-Id`, which is demo authentication rather than a
 production security boundary.
-
-## Current implementation
-
-Status below is based on source inspection, not an end-to-end device certification.
-
-| Area | Present in the repository | Remaining distinction |
-| --- | --- | --- |
-| Mobile | Facebook shell, map, composer with audience preview, Muse recipient preview, API-backed Moves and join/leave, WebSocket refresh, local demo fallbacks. | Mixes real API flows with mock content. Offline posts are local-only. Device and multi-user validation still needed. |
-| Desktop web | React Facebook shell and Leaflet Moves map with local interactions. | Uses bundled data and component state; no backend API connection in the current `App.jsx`. |
-| Core backend | SQLModel persistence, accounts, Moves lifecycle, Marks, Circles, audiences, Moments, invitations, realtime, seed data, and tests. | Demo auth and seeded data remain part of the prototype. |
-| Muse backend | Real HTTP adapter, fake client, agent runner, prompts, agents, notification pipeline, scheduler registrations, and tests. | End-to-end behavior also depends on the supporting services being wired and live Muse configuration. |
-| Supporting surfaces | Service code and tests for calendar, proximity ingestion, hangout history, ratings/ranking, and leaderboards. | `app/lanes/surfaces.py` registers nothing yet. Calendar, proximity, ratings, Reels, glasses, and Demo Control route files are stubs. |
-
-The architecture describes the target as well as completed work. In particular,
-real BLE, a working `/demo/*` panel, and every P1/P2 user journey should not be
-presented as complete merely because they appear in the spec.
 
 ## Stack and layout
 

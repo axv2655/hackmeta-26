@@ -1,4 +1,4 @@
-# Self-hosting the backend (homelab: NGINX terminates TLS in front of it).
+# Web + backend on the same server (NGINX terminates TLS in front of it).
 #
 #   backend/.env   DATABASE_URL and friends (see backend/.env.example)
 #   .env           BACKEND_PORT, PUBLIC_BASE_URL and APNS_* for this host
@@ -8,7 +8,9 @@
 #   docker compose exec backend python -m app.seed.seed   # wipes and reseeds!
 services:
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file: ./backend/.env
     environment:

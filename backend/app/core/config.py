@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "hackmeta-26"
     API_V1_STR: str = "/api/v1"
     FRONTEND_HOST: str = "http://localhost:8081"
+    # Optional Vite build. The combined Docker image sets this to /web.
+    WEB_DIST_DIR: str = str(BACKEND_DIR.parent / "frontend" / "web" / "dist")
     FASTAPI_ENV: Literal["development", "staging", "production"] = "development"
     SENTRY_DSN: HttpUrl | None = None
     # Held as a secret so the password never shows up in a repr or a log line.

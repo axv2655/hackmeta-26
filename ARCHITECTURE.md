@@ -169,7 +169,13 @@ calendar, voice, fill timers) must have a trigger in the Demo Control panel
 | AI | Muse behind a `MuseClient` port, JSON-only outputs, heuristic fallback for every agent | Muse is essential, but a failed call must never break the live demo. |
 | Local time | Each phone sends `X-Timezone` and `X-UTC-Offset` on every request; the server remembers the zone per user in memory (`core/timezones.py`) and uses it for every time it writes into copy, including background Muse scans and quiet hours. US Central only when a user has never reported a zone. | "Free til 2:50" must match the clock on the phone reading it, wherever that person is. A zone name is not a location. |
 | Places | Seeded `marks` table for the demo area, plus user-created Marks | No external Places API dependency. |
-| Hosting | Laptop on the same Wi-Fi (`--host 0.0.0.0`) with a tunnel as backup (`EXPO_PUBLIC_BACKEND_URL`) | Already supported by `frontend/lib/backend.js`. |
+| Hosting | One web + API container on the mobile backend's existing server; root Dockerfile and Compose build Vite and FastAPI together | Web at `/` (`/web` redirects), mobile API at `/api/v1`, same origin and port. The deployment hostname comes from `EXPO_PUBLIC_BACKEND_URL`; no hostname is committed. Local LAN/tunnel development remains available. |
+
+Desktop web is still a client using local demo data. `app/web.py` mounts its built
+files last, after API, WebSocket, media, invite, docs and MCP routes. There is no
+SPA catch-all for missing files or unknown API URLs. `WEB_DIST_DIR` defaults to
+`frontend/web/dist` locally and `/web` in the combined image; API-only development
+still boots without a web build. Rebuild/restart the server to publish changes.
 
 ### 3.2 Muse API: first thing to verify
 

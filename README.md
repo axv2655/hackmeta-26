@@ -138,6 +138,14 @@ npm run dev
 Vite normally serves <http://localhost:5173>. This is a separate client from Expo
 web and currently runs on local demo data.
 
+To host desktop web on the mobile backend's existing server, run
+`docker compose up -d --build backend` from the repository root. The combined
+image serves web at `/` (`/web` redirects there) and keeps the mobile API at
+`/api/v1`. Use the origin configured as the mobile build's
+`EXPO_PUBLIC_BACKEND_URL`. The teammate's hostname is not stored in the repo.
+See [web deployment instructions](frontend/web/README.md) for proxy setup and
+non-Docker hosting. Pushing code does not itself rebuild the running server.
+
 Backend configuration goes in `backend/.env`; see
 [backend/.env.example](backend/.env.example). Relevant settings:
 

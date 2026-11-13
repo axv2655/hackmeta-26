@@ -54,6 +54,8 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen name="post/share" />
+            {/* "Hey Meta, start a Move": voice -> draft -> confirm (ARCHITECTURE.md 11.4). */}
+            <Stack.Screen name="glasses" />
             {/* Make a Move from the Moves map (ARCHITECTURE.md 7.2). */}
             <Stack.Screen
               name="move/new"

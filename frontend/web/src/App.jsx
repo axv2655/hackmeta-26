@@ -41,14 +41,12 @@ const ADS = [
   { title: 'Eleven v4 Turbo: the API for expressive real-time voice', domain: 'elevenlabs.io', img: '/fb/ad-elevenlabs.jpg' },
 ]
 const INITIAL_POSTS = [
-  { id: 1, author: 'Priya Shah', time: '2h', text: 'Sunrise hike this morning. Worth the 5am alarm.', image: 200, likes: 128, comments: [{ author: 'Marcus Lee', text: 'Unreal view!' }], shares: 4 },
+  { id: 1, author: 'Priya Shah', time: '2h', text: 'Sunrise hike this morning. Worth the 5am alarm.', image: 'posts/p5.jpg', likes: 128, comments: [{ author: 'Marcus Lee', text: 'Unreal view!' }], shares: 4 },
   { id: 2, author: 'Marcus Lee', time: '5h', text: 'Shipped our hackathon project at 3am. Sleep is for the weak. 🚀', likes: 54, comments: [], shares: 1 },
-  { id: 3, author: 'Sofia Gomez', time: '1d', text: 'New recipe: miso caramel brownies.', image: 20, likes: 342, comments: [{ author: 'Ava Chen', text: 'Recipe please 🙏' }, { author: 'Jordan Kim', text: 'Bring some Monday' }], shares: 12 },
+  { id: 3, author: 'Sofia Gomez', time: '1d', text: 'New recipe: homemade sprinkle donuts. Dangerously easy.', image: 'reels/r5.jpg', likes: 342, comments: [{ author: 'Ava Chen', text: 'Recipe please 🙏' }, { author: 'Jordan Kim', text: 'Bring some Monday' }], shares: 12 },
 ]
 
-const hue = (name) => [...name].reduce((h, c) => h + c.charCodeAt(0), 0) % 360
-// offline-safe placeholder art: a two-tone gradient per hue
-const art = (h) => `linear-gradient(135deg, hsl(${h} 60% 55%), hsl(${(h + 60) % 360} 70% 35%))`
+const photo = (src) => `url(/fb/mock/${src})` // stock photos shared with the mobile app (mobile/assets/mock)
 const PAGES = ['Rivera Studio', 'Hackmeta Team']
 const MENU = [['Settings & privacy', L.Settings, true], ['Help & support', L.CircleHelp, true], ['Report a problem', L.MessageSquareWarning, false, 'CTRL B'], ['Display & accessibility', L.Moon, true], ['Log out', L.LogOut, false]]
 
@@ -321,12 +319,14 @@ function RightRail() {
   )
 }
 
+const STORY_PHOTOS = ['stories/s6.jpg', 'stories/s2.jpg', 'stories/s4.jpg', 'stories/s3.jpg']
+
 function Stories() {
   return (
     <div className="stories">
       <div className="story create"><div className="story-img" /><span className="story-plus"><Plus size={22} /></span><span>Create story</span></div>
-      {FRIENDS.slice(0, 4).map((f) => (
-        <div key={f} className="story" style={{ backgroundImage: art(hue(f)) }}>
+      {FRIENDS.slice(0, 4).map((f, i) => (
+        <div key={f} className="story" style={{ backgroundImage: photo(STORY_PHOTOS[i]) }}>
           <span className="story-ring"><Avatar name={f} size={36} /></span>
           <span className="story-name">{f}</span>
         </div>
@@ -367,7 +367,7 @@ function Post({ post, onLike, onComment }) {
         <div>{post.group && <strong className="group-name">{post.group}</strong>}<strong className={post.group ? 'muted small' : ''}>{post.author}</strong><div className="muted">{post.time} · <Globe size={12} /></div></div>
       </div>
       <p className="post-text">{post.text}</p>
-      {post.image != null && <div className="post-img" style={{ backgroundImage: art(post.image) }} role="img" aria-label="Post photo" />}
+      {post.image != null && <div className="post-img" style={{ backgroundImage: photo(post.image), backgroundSize: 'cover', backgroundPosition: 'center' }} role="img" aria-label="Post photo" />}
       <div className="divider" />
       <div className="react-bar">
         <button className={post.liked ? 'liked' : ''} onClick={onLike} aria-pressed={!!post.liked} aria-label="Like"><i className={`ui ${post.liked ? 'like-on' : 'like'}`} />{post.likes + (post.liked ? 1 : 0)}</button>
@@ -436,10 +436,10 @@ function Marketplace() {
   )
 }
 
-const GROUPS = [['Hackathon Builders', 'Last active a day ago'], ['Dallas Startup Network', 'Last active a week ago'], ['Weekend Hikers of Texas', 'Last active 29 weeks ago']]
+const GROUPS = [['Hackathon Builders', 'Last active a day ago', 'posts/p4.jpg'], ['Dallas Startup Network', 'Last active a week ago', 'reels/r1.jpg'], ['Weekend Hikers of Texas', 'Last active 29 weeks ago', 'reels/r3.jpg']]
 const GROUP_POSTS = [
-  { id: 101, group: 'Hackathon Builders', author: 'Marcus Lee', time: 'Yesterday at 12:00 PM', text: 'Demo day tips: show the working product in the first 30 seconds, then explain how it works.', image: 210, likes: 64, comments: [], shares: 3 },
-  { id: 102, group: 'Weekend Hikers of Texas', author: 'Priya Shah', time: '2d', text: 'Trail report: dry, shaded, and the creek crossing is easy this week.', image: 120, likes: 31, comments: [], shares: 1 },
+  { id: 101, group: 'Hackathon Builders', author: 'Marcus Lee', time: 'Yesterday at 12:00 PM', text: 'Demo day tips: show the working product in the first 30 seconds, then explain how it works.', image: 'posts/p4.jpg', likes: 64, comments: [], shares: 3 },
+  { id: 102, group: 'Weekend Hikers of Texas', author: 'Priya Shah', time: '2d', text: 'Trail report: dry, shaded, and the creek crossing is easy this week.', image: 'reels/r4.jpg', likes: 31, comments: [], shares: 1 },
 ]
 
 function Groups() {
@@ -451,8 +451,8 @@ function Groups() {
         <button className="btn-blue wide-btn"><L.Plus size={18} /> Create new group</button>
         <div className="divider" />
         <div className="row between"><h3 className="side-h">Groups you&apos;ve joined</h3><a className="blue">See all</a></div>
-        {GROUPS.map(([g, when]) => (
-          <a key={g} className="side-item"><span className="group-pic" style={{ backgroundImage: art(hue(g)) }} /><span className="grow"><b className="block">{g}</b><span className="muted">{when}</span></span></a>
+        {GROUPS.map(([g, when, pic]) => (
+          <a key={g} className="side-item"><span className="group-pic" style={{ backgroundImage: photo(pic), backgroundSize: 'cover', backgroundPosition: 'center' }} /><span className="grow"><b className="block">{g}</b><span className="muted">{when}</span></span></a>
         ))}
       </SideNav>
       <main className="page-main narrow">
@@ -467,7 +467,7 @@ function Groups() {
   )
 }
 
-const REELS = [['Ava Chen', 'Camping snack haul', '615K', '1.2K', '3.5K', 30], ['Noah Patel', 'Sunset skate session', '82K', '940', '1.1K', 200], ['Lena Novak', 'One-pan pasta in 10 minutes', '240K', '3.4K', '9.8K', 330]]
+const REELS = [['Ava Chen', 'Canoe morning on the lake', '615K', '1.2K', '3.5K', 'reels/r6.jpg'], ['Noah Patel', 'Golden hour at the beach', '82K', '940', '1.1K', 'stories/s1.jpg'], ['Lena Novak', 'Date-night plating at home', '240K', '3.4K', '9.8K', 'reels/r2.jpg']]
 
 function Reels() {
   const [i, setI] = useState(0)
@@ -483,7 +483,7 @@ function Reels() {
         ))}
       </aside>
       <main className="reel-stage">
-        <div className="reel" style={{ backgroundImage: art(h) }}>
+        <div className="reel" style={{ backgroundImage: photo(h), backgroundSize: 'cover', backgroundPosition: 'center' }}>
           <button className="reel-mute" aria-label={muted ? 'Unmute' : 'Mute'} onClick={() => setMuted(!muted)}>{muted ? <L.VolumeX size={20} /> : <L.Volume2 size={20} />}</button>
           <div className="reel-meta">
             <div className="row"><Avatar name={who} size={36} /><b>{who}</b> · <a>Follow</a></div>

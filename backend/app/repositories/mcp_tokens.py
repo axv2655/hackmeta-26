@@ -1,7 +1,7 @@
 """Issue, list, revoke and resolve per-user MCP tokens (ARCHITECTURE.md 11.4).
 
-issue    a fresh token for a user; the plain token is returned once and
-         only its hash is stored.
+issue    the user's token: one per user, so this replaces any earlier
+         one. The plain token is returned once; only its hash is stored.
 list     a user's tokens (hint, label, dates), never the token itself.
 revoke   deletes one of the user's own tokens; `/mcp` rejects it at once.
 resolve  the user a presented token belongs to, or None. Stamps
@@ -39,6 +39,8 @@ class McpTokenService:
         self.clock = clock
 
     def issue(self, user_id: str, label: str | None = None) -> IssuedToken:
+        for old in self.list(user_id):
+            self.session.delete(old)
         token = new_token()
         record = McpToken(
             id=f"mt_{new_id()}",

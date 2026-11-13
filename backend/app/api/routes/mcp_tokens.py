@@ -1,6 +1,7 @@
 """Per-user tokens for the Meta AI connector at `/mcp` (ARCHITECTURE.md 11.4).
 
-POST   /mcp/tokens              {username, password, label?} -> the token, once
+POST   /mcp/tokens              {username, password, label?} -> your token, once;
+                                replaces your previous one (one token per user)
 GET    /mcp/tokens              the signed-in user's tokens (hints, no secrets)
 DELETE /mcp/tokens/{token_id}   revoke one of the signed-in user's tokens
 

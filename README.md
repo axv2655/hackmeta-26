@@ -179,8 +179,9 @@ Tools: `draft_move` (writes nothing), `confirm_move`, `share_move`, `pull_up`
 call acts as the user who owns the token, and `confirm_move` should only be
 called after the user says yes.
 
-Each user mints their own token with their username and password (seeded
-people: first name and `moves`). It is shown once; only its hash is stored:
+Each user has one token, minted with their username and password (seeded
+people: first name and `moves`). Minting again replaces it. It is shown once;
+only its hash is stored. No env var is needed:
 
 ```sh
 curl -s http://localhost:8000/api/v1/mcp/tokens -H "Content-Type: application/json" \
@@ -189,14 +190,6 @@ curl -s http://localhost:8000/api/v1/mcp/tokens -H "Content-Type: application/js
 
 `GET /api/v1/mcp/tokens` lists your tokens (hints only) and
 `DELETE /api/v1/mcp/tokens/{id}` revokes one, both with `X-User-Id`.
-
-Optional demo token in `backend/.env` (never commit it), for driving `/mcp`
-before anyone mints one:
-
-```sh
-MCP_TOKEN=<long random string>      # e.g. python -c "import secrets; print(secrets.token_urlsafe(32))"
-MCP_USER_ID=u_anish                 # who the demo token acts as (default u_anish)
-```
 
 Any other token, or none, is rejected with 401.
 
@@ -221,7 +214,7 @@ npx @modelcontextprotocol/inspector
 Or from a terminal:
 
 ```sh
-curl -s http://localhost:8000/mcp   -H "Authorization: Bearer $MCP_TOKEN"   -H "Content-Type: application/json"   -H "Accept: application/json, text/event-stream"   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+curl -s http://localhost:8000/mcp   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -H "Accept: application/json, text/event-stream"   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
 ## Checks

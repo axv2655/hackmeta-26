@@ -1092,8 +1092,8 @@ FastAPI app at `/mcp`. Meta AI (the assistant on the Ray-Ban Meta glasses) calls
   `X-API-Key`); a missing, unknown or revoked token is 401. Each token belongs to one user and every
   tool call acts as that user. Users mint tokens with `POST /api/v1/mcp/tokens` (username and
   password, since `X-User-Id` is spoofable), list and revoke them with `X-User-Id`. Only a SHA-256
-  of each token is stored (`mcp_tokens` table, `repositories/mcp_tokens.py`). An optional env demo
-  token `MCP_TOKEN` acts as `MCP_USER_ID`. Do not read `X-User-Id` on `/mcp`. The public URL is the
+  of each token is stored (`mcp_tokens` table, `repositories/mcp_tokens.py`). One token per user:
+  minting again replaces it. No shared env token. Do not read `X-User-Id` on `/mcp`. The public URL is the
   `PUBLIC_BASE_URL` tunnel plus `/mcp`; the connector must be reachable off the venue Wi-Fi.
 - **Tools** (names are the contract; argument details beyond those listed are set by the MCP build):
 
@@ -1636,7 +1636,7 @@ the remaining time goes to M6.
 | "Is the AI essential?" | Lead with features that cannot exist without Muse: who gets notified, the autonomous flare, revive, taste. Show reasoning chips everywhere. |
 | Privacy pushback from judges | Section 1.5 rules are visible in the UI: audience line, place-not-person, opt-ins, hidden-from. Privacy pass (12.5) before the demo. |
 | Pairwise ranking algorithm | Team supplies it; placeholder behind the `domain/ranking.py` interface until then. |
-| Glasses path | Primary is the Meta AI connector (`/mcp`): needs a public HTTPS URL, `MCP_TOKEN`, and the connector accepted by Meta AI on the demo glasses. Test early; if it fails the voice screen (glasses as a Bluetooth headset, then phone mic) and a laptop MCP client are the fallbacks. |
+| Glasses path | Primary is the Meta AI connector (`/mcp`): needs a public HTTPS URL, a per-user token from `POST /api/v1/mcp/tokens`, and the connector accepted by Meta AI on the demo glasses. Test early; if it fails the voice screen (glasses as a Bluetooth headset, then phone mic) and a laptop MCP client are the fallbacks. |
 | App name and final branding | "Meta Moves"; "Moves" is the feature name inside Facebook. |
 | Demo area center | Seed constant; set to wherever the demo phones physically are so distances read correctly. |
 | Real Facebook Groups integration | Out of scope; mocked. Circles carry an `fb_group_name` to show the tie-in. |

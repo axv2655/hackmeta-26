@@ -5,10 +5,10 @@ Streamable HTTP, stateless, JSON responses, served by this FastAPI app at
 or `X-API-Key: <token>`; anything else is 401. Every tool call acts as the
 token's owner, so two people's connectors never share an identity.
 
-Tokens come from `POST /api/v1/mcp/tokens` (username and password) and are
-stored only as SHA-256 hashes (`repositories/mcp_tokens.py`). The optional env
-`MCP_TOKEN` is a demo token for `MCP_USER_ID`, compared in constant time, so a
-laptop can drive `/mcp` before anyone mints one. Tokens are never logged.
+Each user has one token, from `POST /api/v1/mcp/tokens` (username and
+password); minting again replaces it. Only its SHA-256 is stored
+(`repositories/mcp_tokens.py`). There is no shared env token. Tokens are never
+logged.
 
 The tools themselves live in `app/services/mcp_tools.py`; this module is only
 transport, auth and the tool descriptions the model reads.
@@ -16,7 +16,6 @@ transport, auth and the tool descriptions the model reads.
 
 from __future__ import annotations
 
-import hmac
 import os
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -26,8 +25,7 @@ import anyio
 from fastapi import FastAPI
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import Field, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 from sqlalchemy import Engine
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -35,7 +33,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.container import Container
 from app.core import db
-from app.core.config import BACKEND_DIR
 from app.repositories.glasses_places import DEFAULT_DEMO_MARK_ID, SqlPlaceFinder
 from app.repositories.mcp_people import SqlPeopleDirectory
 from app.repositories.mcp_tokens import token_resolver
@@ -47,19 +44,6 @@ MCP_PATH = "/mcp"
 USER_SCOPE_KEY = "moves.mcp_user_id"
 DEMO_MARK_ENV = "GLASSES_DEMO_MARK_ID"
 
-
-class McpSettings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=BACKEND_DIR / ".env", env_ignore_empty=True, extra="ignore"
-    )
-
-    # Optional demo token acting as MCP_USER_ID. Unset: only minted per-user
-    # tokens work, so a forgotten env var never means "open".
-    MCP_TOKEN: SecretStr | None = None
-    MCP_USER_ID: str = "u_anish"
-
-
-mcp_settings = McpSettings()
 
 type ToolsFactory = Callable[[FastAPI, str], MovesTools]
 type TokenResolver = Callable[[str], str | None]
@@ -91,8 +75,6 @@ class BearerAuth:
         await reply(scope, receive, send)
 
     async def _user_for(self, offered: list[bytes]) -> str | None:
-        if demo := _demo_user(offered):
-            return demo
         resolve: TokenResolver = self.host.state.mcp_resolve_token
         for token in offered:
             user_id = await anyio.to_thread.run_sync(resolve, token.decode())
@@ -111,18 +93,6 @@ def _offered(scope: Scope) -> list[bytes]:
     if key := headers.get(b"x-api-key", b"").strip():
         offered.append(key)
     return offered
-
-
-def _demo_user(offered: list[bytes]) -> str | None:
-    """`MCP_USER_ID` when the env demo token was offered, else None."""
-    secret = mcp_settings.MCP_TOKEN
-    if secret is None or not secret.get_secret_value():
-        return None
-    expected = secret.get_secret_value().encode()
-    # Compare every candidate so timing does not reveal which one matched.
-    if any([hmac.compare_digest(c, expected) for c in offered]):
-        return mcp_settings.MCP_USER_ID
-    return None
 
 
 def tools_for(container: Container, user_id: str, engine: Engine) -> MovesTools:

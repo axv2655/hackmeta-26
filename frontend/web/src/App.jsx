@@ -155,7 +155,11 @@ const MENU_SECTIONS = [
 const cr = (n, F) => pick(`cr-${n}`, F)
 const CREATE = [['Post', cr('post', L.SquarePen)], ['Story', cr('story', L.BookOpen)], ['Reel', cr('reel', L.Clapperboard)], ['Life update', cr('life-update', L.Star)], ['Note', cr('note', L.MessageSquare)], null, ['Page', cr('page', L.Flag)], ['Ad', cr('ad', L.Megaphone)], ['Group', Users], ['Event', cr('event', L.CalendarPlus)], ['Marketplace listing', cr('marketplace-listing', L.ShoppingBag)], ['Fundraiser', cr('fundraiser', L.HeartHandshake)]]
 
-function AppMenu() {
+// menu / shortcut labels that open one of our pages
+const NAV = { Memories: 'Memories', Friends: 'Friends', Groups: 'Groups', Marketplace: 'Marketplace', Reels: 'Video', 'News Feed': 'Home' }
+const navProps = (label, go) => (NAV[label] ? { href: '#', onClick: (e) => { e.preventDefault(); go(NAV[label]) } } : {})
+
+function AppMenu({ onNav }) {
   const [q, setQ] = useState('')
   const match = (label) => label.toLowerCase().includes(q.trim().toLowerCase())
   return (
@@ -170,7 +174,7 @@ function AppMenu() {
               <section key={sec} className="menu-sec">
                 <h3>{sec}</h3>
                 {shown.map(([label, desc]) => (
-                  <a key={label} className="menu-row tall">
+                  <a key={label} className="menu-row tall" {...navProps(label, onNav)}>
                     <img className="menu-img" src={`/fb/menu/${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.webp`} alt="" />
                     <span className="grow"><b>{label}</b><span className="small">{desc}</span></span>
                   </a>
@@ -255,7 +259,7 @@ function TopNav({ view, setView }) {
         <button className="me-btn" aria-label="Your profile" data-tip="Account" aria-expanded={open === 'profile'} onClick={() => toggle('profile')}>
           <Avatar name={ME} size={40} /><span className="me-chev"><L.ChevronDown size={12} strokeWidth={3} /></span>
         </button>
-        {open === 'menu' && <AppMenu />}
+        {open === 'menu' && <AppMenu onNav={(v) => { setView(v); setOpen(null) }} />}
         {open === 'chats' && <ChatsPanel chats={chats} setChats={setChats} />}
         {open === 'profile' && <ProfileMenu />}
         {open === 'notifs' && <NotifPanel notifs={notifs} setNotifs={setNotifs} />}
@@ -264,11 +268,11 @@ function TopNav({ view, setView }) {
   )
 }
 
-function LeftRail() {
+function LeftRail({ setView }) {
   return (
     <aside className="left-rail">
       <a className="rail-item"><Avatar name={ME} size={36} /> {ME}</a>
-      {SHORTCUTS.map(([s, sheet, y]) => <a key={s} className="rail-item"><i className="sprite" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `0 ${y}px` }} />{s}</a>)}
+      {SHORTCUTS.map(([s, sheet, y]) => <a key={s} className="rail-item" {...navProps(s, setView)}><i className="sprite" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `0 ${y}px` }} />{s}</a>)}
       <a className="rail-item"><span className="rail-icon see-more"><L.ChevronDown size={20} /></span>See more</a>
       <footer className="rail-footer">Hackathon demo, not affiliated with Meta. Third-party icons © their respective owners, used with permission.</footer>
     </aside>
@@ -782,6 +786,55 @@ function Moves() {
   )
 }
 
+// ---- Memories: photo albums synced from past Moves where friends showed up together
+const MEM_PHOTOS = { 'mv-6': [['p3', 'maya'], ['p5', 'tony']], 'mv-7': [['p2', 'dev']] }
+const MEMORIES = [
+  // ended Moves that someone joined become a shared album
+  ...MOVES.filter((m) => m.status === 'ghost' && m.joined.length > 0).map((m) => ({ id: m.id, title: m.title, place: m.place, cat: m.cat, when: `${m.time} ago`, who: [m.user, ...m.joined], photos: MEM_PHOTOS[m.id] ?? [] })),
+  { id: 'mem-1', title: 'Matcha and PSET grind', place: 'Kumo Matcha', cat: 'coffee', when: 'Sat, Nov 7', who: ['priya', 'maya', 'jordan'], photos: [['p1', 'priya'], ['p4', 'jordan']] },
+  { id: 'mem-2', title: 'Leg day', place: 'Activity Center', cat: 'gym', when: 'Thu, Nov 5', who: ['tony', 'dev'], photos: [['p6', 'tony']] },
+].map((m) => ({ ...m, photos: m.photos.map(([p, by]) => [`/fb/memories/${p}.jpg`, by]) }))
+const who = (u) => (u === 'me' ? 'You' : first(u))
+
+function Memories() {
+  // photos I add this session: { memoryId: [[objectUrl, 'me']] }
+  const [added, setAdded] = useState({})
+  const add = (id, files) => setAdded((a) => ({ ...a, [id]: [...(a[id] ?? []), ...[...files].map((f) => [URL.createObjectURL(f), 'me'])] }))
+  return (
+    <div className="page">
+      <SideNav title="Memories" gear={false} items={[['Memories Home', L.Images], ['Notifications', L.Bell], ['Highlights', L.Sparkles], ['Hide People', L.UserX], ['Hide Dates', L.CalendarX]]} />
+      <main className="page-main narrow">
+        <img className="mem-banner" src="/fb/memories-header.png" alt="" />
+        <h2>Memories from your outings</h2>
+        <p className="muted mem-sub">Every time friends show up to the same Move, it lands here as a shared album. Only the people who were there can see it and add photos.</p>
+        {MEMORIES.map((m) => {
+          const [, , color, Icon] = CATS[m.cat]
+          const photos = [...m.photos, ...(added[m.id] ?? [])]
+          return (
+            <article key={m.id} className="card mem">
+              <div className="row">
+                <span className="mv-act-icon" style={{ '--c': color }}><Icon size={22} /></span>
+                <div className="grow"><b className="block clip mem-title">{m.title}</b><span className="muted">{m.place} · {m.when}</span></div>
+                <label className="btn-blue mem-add"><L.ImagePlus size={16} /> Add photos<input className="sr-only" type="file" accept="image/*" multiple onChange={(e) => { add(m.id, e.target.files); e.target.value = '' }} /></label>
+              </div>
+              <div className="row mem-who"><span className="mv-faces">{m.who.map((u) => <Face key={u} u={u} size={32} />)}</span><span>{m.who.map(first).join(', ')} and you showed up</span></div>
+              <div className="mem-grid">
+                {photos.map(([src, by], i) => (
+                  <figure key={src}>
+                    <img src={src} alt={`Photo ${i + 1} from ${m.title}, added by ${who(by)}`} loading="lazy" />
+                    <figcaption><Face u={by} size={22} /> {who(by)}</figcaption>
+                    <a className="mem-dl" href={src} download={`${m.title} ${i + 1}.jpg`} aria-label={`Download photo ${i + 1} from ${m.title}`}><L.Download size={16} /></a>
+                  </figure>
+                ))}
+              </div>
+            </article>
+          )
+        })}
+      </main>
+    </div>
+  )
+}
+
 // ---- Skeleton loaders: one shimmer block, composed into a placeholder per page layout
 const Skel = ({ w = '100%', h = 14, r = 8, className = '' }) => <span className={`skel ${className}`} style={{ width: w, height: h, borderRadius: r }} />
 const times = (n, fn) => Array.from({ length: n }, (_, i) => fn(i))
@@ -801,6 +854,11 @@ function PageSkeleton({ view }) {
     </div>
   ) : view === 'Video' ? (
     <div className="page reels"><SkelSide dark /><div className="reel-stage"><Skel className="skel-reel" w="auto" h="calc(100vh - 96px)" r={12} /></div></div>
+  ) : view === 'Memories' ? (
+    <div className="page">
+      <SkelSide />
+      <main className="page-main narrow"><Skel h={150} r={12} /><Skel w={280} h={24} />{times(2, (i) => <div key={i} className="card"><SkelRow size={44} /><div className="mem-grid">{times(3, (j) => <Skel key={j} className="skel-sq" h="auto" r={12} />)}</div></div>)}</main>
+    </div>
   ) : view === 'Moves' ? (
     <main className="moves-main skel-map">
       <aside className="mv-glass mv-panel"><Skel h={44} r={22} /><div className="skel-circles">{times(4, (i) => <Skel key={i} w={64} h={64} r="50%" />)}</div>{times(5, (i) => <SkelRow key={i} size={52} />)}</aside>
@@ -835,8 +893,9 @@ export default function App() {
       {view === 'Marketplace' && <Marketplace />}
       {view === 'Groups' && <Groups />}
       {view === 'Moves' && <Moves />}
+      {view === 'Memories' && <Memories />}
       {view === 'Home' && <div className="layout">
-        <LeftRail />
+        <LeftRail setView={setView} />
         <main className="feed">
           <Stories />
           <Composer onPost={(text) => setPosts((ps) => [{ id: Date.now(), author: ME, time: 'Just now', text, likes: 0, comments: [], shares: 0 }, ...ps])} />

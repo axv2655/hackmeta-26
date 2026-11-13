@@ -55,7 +55,7 @@ export default function SuggestionScreen() {
   return (
     <View style={styles.page}>
       <ScreenHeader variant="compact" title="Muse" backIcon="close" onBack={close} />
-      {state.kind === 'loading' ? <LoadingState label="Loading suggestion" /> : null}
+      {state.kind === 'loading' ? <LoadingState label="Loading suggestion" variant="detail" /> : null}
       {state.kind === 'error' ? <ErrorState message={state.message} onRetry={() => void load()} /> : null}
       {state.kind === 'gone' ? (
         <EmptyState

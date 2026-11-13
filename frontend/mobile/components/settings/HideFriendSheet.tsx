@@ -57,7 +57,7 @@ type BodyProps = {
 };
 
 function Body({ status, error, rows, onRetry, onPick }: BodyProps) {
-  if (status === 'idle' || status === 'loading') return <LoadingState label="Loading friends" />;
+  if (status === 'idle' || status === 'loading') return <LoadingState label="Loading friends" rows={5} />;
   if (status === 'error') return <ErrorState message={error ?? 'Could not load friends'} onRetry={onRetry} />;
   if (rows.length === 0) {
     return <EmptyState icon="users" title="No friends to hide from" body="Friends you add show up here." />;

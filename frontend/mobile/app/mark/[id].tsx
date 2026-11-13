@@ -93,7 +93,7 @@ export default function MarkScreen() {
 
   return (
     <StackScreen title={title}>
-      {state.status === 'loading' ? <LoadingState label="Loading place" /> : null}
+      {state.status === 'loading' ? <LoadingState label="Loading place" variant="detail" /> : null}
       {state.status === 'error' ? <ErrorState message={state.error} onRetry={() => void load()} /> : null}
       {state.status === 'missing' ? (
         <EmptyState icon="map-pin" title="This place isn't available" body="It may have been removed." />

@@ -19,6 +19,7 @@ import { useOpenTarget } from '@/lib/nav';
 import { setInboxFocused, useInbox } from '@/lib/store/inbox';
 import type { Notification } from '@/lib/types';
 import { colors, spacing } from '@/lib/theme';
+import { Appear } from '@/components/common/Appear';
 
 type Section = { key: 'new' | 'earlier'; title: string; data: Notification[] };
 type Sheet = { kind: 'header' } | { kind: 'row'; n: Notification };
@@ -125,8 +126,10 @@ export default function NotificationsScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(n) => n.id}
-        renderItem={({ item }) => (
-          <MoveNotificationRow notification={item} onPress={openRow} onPressMore={openRowSheet} />
+        renderItem={({ item, index }) => (
+          <Appear index={index}>
+            <MoveNotificationRow notification={item} onPress={openRow} onPressMore={openRowSheet} />
+          </Appear>
         )}
         renderSectionHeader={({ section }: { section: SectionListData<Notification, Section> }) => (
           <NotificationSectionHeader title={section.title} />

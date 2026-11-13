@@ -17,6 +17,7 @@ import { useSaved } from '@/lib/saved';
 import { useSession } from '@/lib/session';
 import { colors, spacing } from '@/lib/theme';
 import type { Move } from '@/lib/types';
+import { Appear } from '@/components/common/Appear';
 
 function Body({ move, myId }: { move: Move; myId: string }) {
   const mine = move.creator.id === myId;
@@ -67,7 +68,9 @@ export default function MoveDetailScreen() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} />}
       >
-        <Body move={move} myId={myId} />
+        <Appear>
+          <Body move={move} myId={myId} />
+        </Appear>
       </ScrollView>
     );
   } else if (status === 'missing' || !id) {
@@ -81,7 +84,7 @@ export default function MoveDetailScreen() {
   } else if (status === 'error') {
     content = <ErrorState message={error ?? 'Could not load this Move'} onRetry={() => void load(id)} />;
   } else {
-    content = <LoadingState label="Loading Move" />;
+    content = <LoadingState label="Loading Move" variant="detail" />;
   }
 
   return (

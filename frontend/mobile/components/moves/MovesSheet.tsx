@@ -150,7 +150,7 @@ function SheetList({ moves, status, error, onRetry, onSelect, onPull }: SheetLis
   const ghosts = moves.filter((m) => m.status === 'ghost');
 
   if (moves.length === 0 && (status === 'loading' || status === 'idle')) {
-    return <LoadingState label="Loading Moves" style={styles.stateBox} />;
+    return <LoadingState label="Loading Moves" rows={3} style={styles.stateBox} />;
   }
   if (moves.length === 0 && status === 'error') {
     return <ErrorState message={error ?? "Couldn't load Moves"} onRetry={onRetry} style={styles.stateBox} />;

@@ -50,7 +50,7 @@ export function ProfileFriendsSection({
           style={styles.state}
         />
       ) : (
-        <LoadingState label="Loading friends" style={styles.state} />
+        <LoadingState label="Loading friends" rows={3} style={styles.state} />
       )}
     </View>
   );

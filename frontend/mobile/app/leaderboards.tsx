@@ -12,6 +12,7 @@ import { categoryMeta } from '@/lib/categories';
 import { parseCategory, useBoard, useLeaderboards, type BoardTab } from '@/lib/ratings';
 import { colors, hairlineWidth, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 import type { Category, LeaderboardSpot, MyListRow } from '@/lib/types';
+import { Appear } from '@/components/common/Appear';
 
 const TABS: { key: BoardTab; label: string }[] = [
   { key: 'spots', label: 'Top spots' },
@@ -95,7 +96,7 @@ export default function LeaderboardsScreen() {
         <FlatList<LeaderboardSpot>
           data={spots.rows}
           keyExtractor={(r) => r.mark.id}
-          renderItem={({ item }) => <SpotRow spot={item} onPress={() => openMark(item.mark.id)} />}
+          renderItem={({ item, index }) => <Appear index={index}><SpotRow spot={item} onPress={() => openMark(item.mark.id)} /></Appear>}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
           ListEmptyComponent={empty ? <EmptyState icon="star" title={empty.title} body={empty.body} /> : null}
           contentContainerStyle={styles.list}
@@ -104,7 +105,7 @@ export default function LeaderboardsScreen() {
         <FlatList<MyListRow>
           data={mine.rows}
           keyExtractor={(r) => `${r.category}:${r.mark.id}`}
-          renderItem={({ item }) => <MyRow row={item} onPress={() => openMark(item.mark.id)} />}
+          renderItem={({ item, index }) => <Appear index={index}><MyRow row={item} onPress={() => openMark(item.mark.id)} /></Appear>}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
           ListEmptyComponent={empty ? <EmptyState icon="star" title={empty.title} body={empty.body} /> : null}
           contentContainerStyle={styles.list}

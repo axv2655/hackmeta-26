@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { MetaShortcutIcon } from '@/components/ui/MetaShortcutIcon';
 import { useMemories } from '@/lib/memories';
 import { colors, spacing } from '@/lib/theme';
+import { Appear } from '@/components/common/Appear';
 
 export default function MemoriesScreen() {
   const { items, status, error, hasMore, load } = useMemories();
@@ -33,10 +34,10 @@ export default function MemoriesScreen() {
           <Text style={styles.sub}>Only you can see this collection. Moments keep their original audience.</Text>
         </View>
         {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
-        {status === 'loading' && !items.length ? <LoadingState label="Loading Memories" /> : null}
+        {status === 'loading' && !items.length ? <LoadingState label="Loading Memories" variant="cards" /> : null}
         {status === 'ready' && !items.length ? <EmptyState icon="history" title="Memories are on their way"
           body="Pull up to a Move. When you leave, or it ends, it shows up here." /> : null}
-        {items.map((memory) => <MemoryPost key={memory.move_id} memory={memory} />)}
+        {items.map((memory, i) => <Appear key={memory.move_id} index={i}><MemoryPost memory={memory} /></Appear>)}
         {hasMore ? <Button title={status === 'loading' ? 'Loading...' : 'Older Memories'} disabled={status === 'loading'}
           onPress={() => void load(true)} variant="tinted" /> : null}
       </ScrollView>

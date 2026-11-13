@@ -61,7 +61,7 @@ export function FriendsStep({ step, total, next, finish }: StepProps) {
       <View style={styles.bleed}>
         <Text style={styles.section}>Friend requests</Text>
         {!loaded ? (
-          <LoadingState label="Loading requests" style={styles.state} />
+          <LoadingState label="Loading requests" rows={2} style={styles.state} />
         ) : incoming.length ? (
           incoming.map((p) => <PersonRow key={p.user.id} person={p} subtitle="Wants to be friends" />)
         ) : (
@@ -70,7 +70,7 @@ export function FriendsStep({ step, total, next, finish }: StepProps) {
 
         <Text style={styles.section}>People you may know</Text>
         {suggested.status === 'loading' ? (
-          <LoadingState label="Finding people" style={styles.state} />
+          <LoadingState label="Finding people" rows={4} style={styles.state} />
         ) : suggested.status === 'error' ? (
           <ErrorState message={suggested.error ?? 'Could not load people'} onRetry={suggested.reload} style={styles.state} />
         ) : people.length ? (

@@ -65,7 +65,7 @@ export default function DemoScreen() {
 
   return (
     <StackScreen title="Demo Control">
-      {screen.kind === 'loading' ? <LoadingState label="Checking demo mode" /> : null}
+      {screen.kind === 'loading' ? <LoadingState label="Checking demo mode" variant="spinner" /> : null}
       {screen.kind === 'off' ? (
         <EmptyState
           icon="lock"

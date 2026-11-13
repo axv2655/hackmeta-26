@@ -1,5 +1,7 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import Animated, { FadeIn } from 'react-native-reanimated';
+
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { colors, spacing, type as typeScale } from '@/lib/theme';
@@ -16,7 +18,7 @@ export type EmptyStateProps = {
 /** Shown when a list loaded fine but has nothing in it. */
 export function EmptyState({ icon, title, body, action, style }: EmptyStateProps) {
   return (
-    <View style={[styles.wrap, style]}>
+    <Animated.View entering={FadeIn.duration(220)} style={[styles.wrap, style]}>
       {icon ? (
         <View style={styles.iconCircle}>
           <Icon name={icon} size={28} color={colors.textSecondary} />
@@ -29,7 +31,7 @@ export function EmptyState({ icon, title, body, action, style }: EmptyStateProps
       {action ? (
         <Button title={action.label} onPress={action.onPress} variant="tinted" style={styles.button} />
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 

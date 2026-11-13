@@ -11,6 +11,7 @@ import { useCrews } from '@/lib/crews';
 import { composerHref, draftToComposer } from '@/lib/nav';
 import type { PseudoGroup } from '@/lib/types';
 import { colors, spacing, type as typeScale } from '@/lib/theme';
+import { Appear } from '@/components/common/Appear';
 
 const INTRO = "Only you see these. Muse infers them from Moves you've been to together.";
 
@@ -60,7 +61,8 @@ export default function CrewsScreen() {
           />
         }
         refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
+          <Appear index={index}>
           <CrewCard
             crew={item}
             reviving={reviving === item.id}
@@ -69,6 +71,7 @@ export default function CrewsScreen() {
             onNotify={() => notify(item)}
             onToggleMute={() => void useCrews.getState().setMuted(item.id, !item.muted)}
           />
+          </Appear>
         )}
       />
     );

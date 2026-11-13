@@ -68,7 +68,7 @@ export default function UserProfileScreen() {
   if (isSelf || (status === 'loading' && !profile)) {
     return (
       <StackScreen title={title}>
-        <LoadingState label="Loading profile" />
+        <LoadingState label="Loading profile" variant="detail" />
       </StackScreen>
     );
   }

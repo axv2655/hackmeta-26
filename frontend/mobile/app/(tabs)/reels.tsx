@@ -50,7 +50,7 @@ function ReelsStatus({ status, error, onRetry }: { status: string; error: string
       ) : status === 'ready' ? (
         <EmptyState icon="reels" title="No Reels yet" body="Check back soon." action={{ label: 'Refresh', onPress: onRetry }} />
       ) : (
-        <LoadingState label="Loading Reels" />
+        <LoadingState label="Loading Reels" variant="spinner" />
       )}
     </View>
   );

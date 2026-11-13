@@ -37,7 +37,7 @@ function skipAction(flow: RateFlow, close: () => void): (() => void) | null {
 
 function Body({ flow, close, toBoard }: { flow: RateFlow; close: () => void; toBoard: () => void }) {
   const { step, questions } = flow;
-  if (step.kind === 'loading') return <LoadingState label="Getting your list" />;
+  if (step.kind === 'loading') return <LoadingState label="Getting your list" variant="spinner" />;
   if (step.kind === 'error') {
     return <ErrorState message={step.message} onRetry={step.restart ? flow.reload : flow.submit} />;
   }
@@ -65,7 +65,7 @@ function Body({ flow, close, toBoard }: { flow: RateFlow; close: () => void; toB
   if (step.kind === 'result') {
     return <RatingResultCard result={step.result} taste={step.taste} onLeaderboard={toBoard} onDone={close} />;
   }
-  if (!questions) return <LoadingState />;
+  if (!questions) return <LoadingState variant="detail" />;
   if (step.kind === 'face') return <FaceStep questions={questions} onPick={flow.pickFace} />;
   if (step.kind === 'compare') {
     return (

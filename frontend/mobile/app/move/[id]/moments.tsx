@@ -14,6 +14,7 @@ import { useMoveDetail } from '@/lib/moveDetail';
 import { useSession } from '@/lib/session';
 import { colors, radius, spacing, type as typeScale } from '@/lib/theme';
 import type { Moment } from '@/lib/types';
+import { Appear } from '@/components/common/Appear';
 
 const COLS = 3;
 const GAP = 2;
@@ -67,7 +68,7 @@ export default function MomentsScreen() {
   };
 
   let content;
-  if (status === 'loading') content = <LoadingState label="Loading Moments" />;
+  if (status === 'loading') content = <LoadingState label="Loading Moments" variant="grid" />;
   else if (status === 'error') content = <ErrorState message={error ?? 'Could not load Moments'} onRetry={() => void load()} />;
   else {
     content = (
@@ -99,7 +100,7 @@ export default function MomentsScreen() {
             body="Photos people add at this Move show up here once everyone tagged says OK."
           />
         }
-        renderItem={({ item }) => <Tile m={item} size={size} myId={myId} onPress={() => setOpenId(item.id)} />}
+        renderItem={({ item, index }) => <Appear index={index}><Tile m={item} size={size} myId={myId} onPress={() => setOpenId(item.id)} /></Appear>}
       />
     );
   }

@@ -10,6 +10,7 @@ import { StackScreen } from '@/components/common/StackScreen';
 import { Button } from '@/components/ui/Button';
 import { useCircles } from '@/lib/circles';
 import { colors, hairline, spacing, type as typeScale } from '@/lib/theme';
+import { Appear } from '@/components/common/Appear';
 
 const NEW: Href = '/circles/new';
 
@@ -48,13 +49,15 @@ export default function CirclesScreen() {
         }
         ItemSeparatorComponent={() => <View style={styles.sep} />}
         refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
+          <Appear index={index}>
           <CircleRow
             circle={item}
             onPress={() => {
               if (!item.id.startsWith('tmp_')) router.push(`/circles/${encodeURIComponent(item.id)}` as Href);
             }}
           />
+          </Appear>
         )}
       />
     );

@@ -49,7 +49,7 @@ export function MemberPicker({ list, selected, onToggle, onFindFriends }: Props)
     return needle ? list.friends.filter((f) => f.name.toLowerCase().includes(needle)) : list.friends;
   }, [list.friends, q]);
 
-  if (list.status === 'loading') return <LoadingState label="Loading friends" style={styles.state} />;
+  if (list.status === 'loading') return <LoadingState label="Loading friends" rows={4} style={styles.state} />;
   if (list.status === 'error') return <ErrorState message={list.error ?? 'Could not load friends'} onRetry={list.reload} style={styles.state} />;
   if (!list.friends.length) {
     return (

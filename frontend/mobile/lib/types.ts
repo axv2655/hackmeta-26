@@ -77,7 +77,16 @@ export type MuseMark = {
 };
 
 export type Ghost = { user: UserLite; move_id: string; at: string; text: string };
-export type Memory = { move_id: string; mark_id: string; mark_name: string; category: Category; at: string; text: string };
+/** A visit you arrived at, from the moment you left (or the Move ended). `people`: the others who were there. */
+export type Memory = {
+  move_id: string;
+  mark_id: string;
+  mark_name: string;
+  category: Category;
+  at: string;
+  text: string;
+  people: UserLite[];
+};
 export type NearbyMark = Mark & { distance_km: number; ghosts: Ghost[] };
 
 export type MediaType = 'photo' | 'clip';
@@ -546,6 +555,15 @@ export type ReelPlace = {
 // --- proximity --------------------------------------------------------------
 
 export type ProximityAcceptResult = { move_id: string; status: 'there' };
+export type BleToken = { token: string; uuid: string; expires_at: string };
+export type BleSighting = { token: string; rssi: number };
+export type BleSightingsResult = {
+  accepted: number;
+  together: number;
+  arrived: string[];
+  prompted: string[];
+  auto_joined: string[];
+};
 export type CopresenceResult = { pairs: number; prompted: string[]; auto_joined: string[] };
 
 /** Realtime `proximity.prompt` data. */

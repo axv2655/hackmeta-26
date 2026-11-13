@@ -1,14 +1,22 @@
 # Meta Moves desktop web
 
-This Vite client uses local demo data. Hosting it alongside the backend does not
-replace that data with live mobile data.
+The desktop Facebook shell for Moves. It talks to the same backend as the mobile
+app (`/api/v1` plus the `/api/v1/ws` socket): log in as a seeded person (their
+first name, password `moves`), and Moves, Pull up, posting a Move, Snapshots,
+notifications, friends, contacts and Memories are live. The Home feed posts,
+Stories, Reels, Marketplace, Groups and Messenger are still demo content.
+
+The page never reads the viewer's location: "near" queries use the fixed campus
+point in `src/api.js`.
 
 ## Local development
 
 ```sh
 npm ci
-npm run dev
+npm run dev        # Vite proxies /api and /media to BACKEND_URL (default http://localhost:8000)
 ```
+
+Start the backend first (`backend/`: `uv run uvicorn app.main:app --reload`).
 
 ## Same-host deployment
 

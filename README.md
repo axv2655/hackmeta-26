@@ -5,26 +5,36 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](frontend/mobile/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](backend/pyproject.toml)
 
-**Meta Moves turns “I'm already going” into “come join me,” letting friends share what they're doing on Facebook and Pull up without the pressure of a direct invitation.**
+**Meta Moves turns “I'm already going” into “come join me”: share what you're doing on Facebook, and friends can Pull up with one tap.**
 
 Built for the Meta Career Programs AI Hackathon 2026. **Meta Moves** is our
 spontaneous activity-sharing feature inside a mocked Facebook experience.
 
-## Why Moves
+## Why young adults want this
 
-Getting coffee, studying at the library, going to the gym, or trying somewhere new
-doesn't always need a plan. Sometimes you're already going and would enjoy company,
-but choosing whom to text and asking them to commit feels like extra work.
+Location sharing has become a normal part of how young people keep up with each
+other. Friends leave it on for each other and check the map to see who's at the
+library, who's out, and who's nearby. The appeal isn't the GPS dot. Two things
+drive it:
 
-Moves makes that everyday invitation easy: share what you're doing with a chosen
-audience, and friends can join with one tap. The goal is to give young adults a
-reason to use Facebook alongside Instagram, growing Facebook's younger audience
-through spontaneous time together. Mobile is the primary experience; web is a
-companion for moments when someone already has their laptop open.
+- **People like sharing what they're doing.** Posting "at the gym" or "studying
+  at the café" is a small, casual way to stay present in friends' lives.
+- **People like knowing what their friends are doing.** Opening the map to see
+  where everyone is feels social, even when nobody says anything.
 
-Our starting hypothesis is that people who already enjoy checking in on friends
-through location sharing may value an explicit invitation to join them. The
-prototype shares activities at selected places, never people's live positions.
+What location sharing never does is let you act on that. You can see a friend at
+the coffee shop, but joining still means texting, asking, and waiting for an
+answer. Most people don't bother, and the moment passes.
+
+Moves keeps the part people love and adds the missing step. You share **what**
+you're doing and **where** (a place you pick, not your live position) with the
+friends you choose, and they can join with one tap. Seeing what friends are up to
+turns into actually spending time together. Muse, the AI, makes sure the right
+friends hear about it.
+
+This gives young adults a reason to use Facebook alongside Instagram, growing
+Facebook's younger audience through real time together. Mobile is the primary
+experience; web is a companion for when a laptop is already open.
 
 ## A user story
 
@@ -47,8 +57,9 @@ the Move; joining does not automatically create a Circle or widen its audience.
    a notification are separate choices.
 4. Friends tap **Pull up**. The Move distinguishes people on the way from people
    who have arrived.
-5. **Moments** and **Ghosts** can preserve the shared experience after it ends,
-   subject to audience and approval rules.
+5. Everyone adds photos to the **Move Recap** while they're there. Afterward,
+   **Ghosts** on the map show friends where the fun was, and **Memories** keep
+   your own record of every outing.
 
 ## Privacy by design
 
@@ -61,188 +72,174 @@ the Move; joining does not automatically create a Circle or widen its audience.
 - Muse proposes; the user approves posting a Move or sending a Flare.
 - Tagged people approve a Moment before it becomes visible beyond participants.
 
-These are product requirements. The backend includes privacy tests, but this
-prototype is not a production Facebook integration. Account endpoints exist;
-requests still trust `X-User-Id`, which is demo authentication rather than a
-production security boundary.
+Every rule is enforced in the backend and covered by automated tests, so privacy
+holds no matter which client is talking to the server.
 
-## Stack and layout
+## Architecture at a glance
 
-| Layer | Current implementation |
+![Meta Moves architecture: the mobile app, desktop web, Muse in Meta AI and share links all talk to the Meta Moves server, which uses Postgres, the Muse model and Apple push](docs/diagrams/architecture.png)
+
+- **One hosted server** runs everything: the REST API (`/api/v1`), live updates over a
+  WebSocket, the MCP connector for Muse in Meta AI, no-login invite pages, and the desktop
+  web app at `/`. Every push to `main` deploys automatically.
+- **Muse powers every decision**: who to poke, how Moves are ranked, Flares for free time,
+  taste from ratings, and reviving crews that are drifting apart. Each agent also has an
+  instant scored path, so Muse always answers fast.
+- **Muse in Meta AI** can draft and post Moves by voice through our MCP connector, from
+  any device Meta AI runs on.
+- **Privacy is built into the server**: one visibility check (`can_see`) guards every Move,
+  no response ever carries a user's coordinates, and "near me" queries are coarse and never
+  stored.
+
+Diagram source: [docs/diagrams/architecture.mmd](docs/diagrams/architecture.mmd). Full details,
+more diagrams and the product rules: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Stack
+
+| Layer | Implementation |
 | --- | --- |
-| Mobile | Expo SDK 57, React Native 0.86, React 19, TypeScript, expo-router, react-native-maps, zustand, AsyncStorage. |
-| Web | Vite, React 19, JavaScript, Leaflet. |
-| API | FastAPI, Python 3.12.11+, uv, Pydantic, HTTPX. |
-| Database | SQLModel; PostgreSQL via psycopg when `DATABASE_URL` is set, SQLite otherwise. |
-| Realtime | Server-push WebSocket at `/api/v1/ws`; REST under `/api/v1`. |
-| AI | Muse behind `MuseClient`, with validated outputs and heuristic fallbacks. |
+| Mobile | Expo SDK 57, React Native 0.86, React 19, TypeScript, expo-router, zustand, react-native-maps, a native Swift Bluetooth module |
+| Web | Vite, React 19, Leaflet |
+| Server | FastAPI, Python 3.12, uv, SQLModel, Pydantic |
+| Database | PostgreSQL |
+| Realtime | WebSocket at `/api/v1/ws` plus Apple push notifications |
+| AI | Muse, behind a `MuseClient` port with a scored fast path for every agent |
+| Hosting | One Docker image (web + API) with Postgres via Compose, deployed on every push to `main` |
 
-The architecture calls for TanStack Query for server state. The current mobile
-implementation uses zustand stores and fetch helpers; TanStack Query is not yet
-in its dependency manifest.
+## Repository layout
 
 ```text
-frontend/mobile/   Phone app and its API integration
-frontend/web/      Desktop web prototype
-backend/app/       Domain rules, services, repositories, API, Muse, seeds
-backend/tests/     Core, Muse, surfaces, messaging, and contract tests
-docs/             Backend task plan and supporting documentation
+backend/app/        Server: domain rules, services, repositories, routes, Muse, seed data
+backend/tests/      Tests by lane (core, muse, surfaces, ...) plus contract and integration
+frontend/mobile/    Expo app (the main experience)
+frontend/web/       Desktop web app
+deploy/homelab/     Server deploy script
+docs/               Task plan, Muse search, diagrams, build reviews
+postman/            API smoke collections
 ```
 
-## Run locally
+## Using the app
 
-Use separate terminals for the backend and each client. Frontend dependencies are
-installed independently in `frontend/mobile/` and `frontend/web/`.
+The server is hosted and always on, so the apps just connect to it:
 
-Backend:
+- **Mobile:** set `EXPO_PUBLIC_BACKEND_URL` in `frontend/mobile/.env` to the server's URL,
+  then `cd frontend/mobile && npm ci && npx expo start`.
+- **Desktop web:** open the server's URL in a browser. The web app is served at `/`.
+
+Sign in as anyone in the demo world: username is their first name (for example `anish`),
+password `moves`.
+
+### Mobile builds
+
+- **Expo Go** runs the whole app, with Bluetooth proximity driven from Demo Control
+  (`EXPO_PUBLIC_PROXIMITY=sim`).
+- **iOS dev build** adds real Bluetooth proximity through the native `moves-ble` module:
+  `npx expo run:ios`, or `scripts/install-ios.sh` to build and install on connected phones,
+  with `EXPO_PUBLIC_PROXIMITY=ble`.
+- `EXPO_PUBLIC_DEMO=1` adds Demo Control to the Menu.
+
+## Deployment
+
+Every push to `main` redeploys the server through
+[.github/workflows/deploy-homelab.yml](.github/workflows/deploy-homelab.yml): it pulls `main`,
+rebuilds the combined web + API image, and waits for the health check. Postgres runs alongside
+it. See [deploy/homelab/README.md](deploy/homelab/README.md).
 
 ```sh
-cd backend
-uv sync
+docker compose up -d --build                         # web + API + Postgres
+docker compose exec backend python -m app.seed.seed  # WARNING: wipes and reseeds
+```
+
+Server settings live in `backend/.env` (see [backend/.env.example](backend/.env.example)):
+
+| Setting | What it does |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string. |
+| `MUSE_BASE_URL`, `MUSE_API_KEY` | The Muse model API. |
+| `MUSE_MODEL`, `MUSE_FAST_MODEL` | `muse-spark-1.3` for reasoning, `muse-ember-1.0` for short drafts, place extraction and crew labels. |
+| `MUSE_DETERMINISTIC` | `true` (default): every agent uses its instant scored path. `false`: agents ask the model, with the scored path as backup. |
+| `MUSE_VISION_MODEL` | Model for image input (Reel frames). |
+| `MUSE_TOKEN_BUDGET` | Token cap per server process (default 400k). |
+| `DEMO_MODE` | `on`: Demo Control and a shiftable clock. `offline`: same, with the built-in Muse client. |
+| `AUTH_REQUIRE_SESSION` | `true`: every request must carry a login session token. |
+| `PUBLIC_BASE_URL` | Public origin for share links (`/m/{token}`). |
+| `APNS_*` | Apple push credentials. |
+
+## Demo Control
+
+With `DEMO_MODE=on` on the server and `EXPO_PUBLIC_DEMO=1` in the app, Demo Control (in the
+Menu) puts every timed or multi-person moment one tap away: shift time, fire a Flare scan,
+put friends together for a proximity prompt, have friends post, join or leave, end a Move,
+and trigger the "nobody bit" path. Reset restores the world without dropping data. Full list
+in [ARCHITECTURE.md](ARCHITECTURE.md) section 15.2.
+
+## Muse in Meta AI (MCP connector)
+
+The server is a remote [MCP](https://modelcontextprotocol.io) server at `POST /mcp`, so Muse
+in Meta AI can start a Move by voice: "Hey Meta, send Dhivyesh a move, getting boba."
+
+- **Tools**: `draft_move` (reads back the place and who gets poked), `confirm_move` (posts
+  after the user says yes), `share_move`, `pull_up`, `friends_nearby`, `get_my_active_move`.
+  Writes are idempotent on `request_id`, and every call acts as the token's owner.
+- **Tokens**: one per user, minted with username and password and shown once; only a hash is
+  stored. In the app, **Settings, then Connect Muse** hands Meta AI the URL and token.
+
+```sh
+# Mint a token
+curl -s https://<server>/api/v1/mcp/tokens -H "Content-Type: application/json" \
+  -d '{"username":"anish","password":"moves","label":"Meta AI"}'
+
+# List the tools
+curl -s https://<server>/mcp -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+Register in Meta AI with URL `https://<server>/mcp` and header `Authorization: Bearer <token>`.
+`GET /api/v1/mcp/tokens` lists your tokens and `DELETE /api/v1/mcp/tokens/{id}` revokes one.
+
+## Development
+
+Run the stack on your own machine to build features (three terminals; a phone must be on the
+same Wi-Fi):
+
+```sh
+# Server: http://localhost:8000/docs
+cd backend && uv sync
+uv run python -m app.seed.seed        # WARNING: wipes and rebuilds the database
 uv run uvicorn app.main:app --reload --host 0.0.0.0
+
+# Mobile: finds the server on port 8000 of this machine
+cd frontend/mobile && npm ci && npx expo start
+
+# Desktop web: http://localhost:5173, proxies /api and /media to the server
+cd frontend/web && npm ci && npm run dev
 ```
 
-API docs: <http://localhost:8000/docs>. Startup creates missing tables; populating
-the demo world is a separate step. For a disposable development database:
+Without `DATABASE_URL` the server uses a SQLite file, so no database setup is needed.
+`uv run python -m app.seed.topup` adds missing demo data without wiping anything, and
+`uv run python -m app.muse.smoke` checks the Muse connection by calling every agent once.
+
+### Checks
 
 ```sh
-cd backend
-uv run python -m app.seed.seed
+cd backend && uv run pytest && uv run ruff check . && uv run ruff format --check .
+cd frontend/mobile && npm run typecheck
+cd frontend/web && npm run lint && npm run build
 ```
 
-**Seeding drops and rebuilds the configured database**, including a PostgreSQL
-database selected by `DATABASE_URL`. Use it only against data you intend to reset.
-Seeded people can sign in with their first name as username and `moves` as password.
+Backend tests run on an in-memory database, never the server's.
 
-Mobile:
+## Docs
 
-```sh
-cd frontend/mobile
-npm ci
-npx expo start
-```
-
-For a physical phone, use the same Wi-Fi as the backend. The client discovers
-port 8000 on the Expo host; set `EXPO_PUBLIC_BACKEND_URL` in
-`frontend/mobile/.env` to override it. Real BLE is a planned dev-build feature;
-it is not installed in the current mobile dependency manifest.
-
-Desktop web:
-
-```sh
-cd frontend/web
-npm ci
-npm run dev
-```
-
-Vite normally serves <http://localhost:5173>. This is a separate client from Expo
-web and currently runs on local demo data.
-
-To host desktop web on the mobile backend's existing server, run
-`docker compose up -d --build backend` from the repository root. The combined
-image serves web at `/` (`/web` redirects there) and keeps the mobile API at
-`/api/v1`. Use the origin configured as the mobile build's
-`EXPO_PUBLIC_BACKEND_URL`. The teammate's hostname is not stored in the repo.
-See [web deployment instructions](frontend/web/README.md) for proxy setup and
-non-Docker hosting. Pushing code does not itself rebuild the running server.
-
-Backend configuration goes in `backend/.env`; see
-[backend/.env.example](backend/.env.example). Relevant settings:
-
-- `DATABASE_URL`: optional PostgreSQL connection string; otherwise `DB_PATH`
-  defaults to `backend/data/app.db`.
-- `MUSE_BASE_URL`, `MUSE_API_KEY`, `MUSE_MODEL`: enable the live model client.
-  The model defaults to `muse-spark-1.3` to reduce cost. On an existing deployment,
-  change `MUSE_MODEL` to `muse-spark-1.3` and restart the backend. If image input is
-  enabled, also set `MUSE_VISION_MODEL=muse-spark-1.3`.
-- `MUSE_FAST_MODEL`: defaults to `muse-ember-1.0` for short drafts, place extraction,
-  and crew labels. Other agents use `MUSE_MODEL`. Set both model variables on an
-  existing deployment and restart; local defaults do not override environment values.
-- `MUSE_DETERMINISTIC=true` is the default: templates and scored rules skip model
-  calls. Set it to `false` to enable the configured Spark/Ember routing.
-- `DEMO_MODE=offline`: fake Muse and a shiftable clock. `DEMO_MODE=on`: shiftable
-  clock while retaining configured Muse. Neither fills in the stub Demo Control routes.
-- `FRONTEND_HOST`: allowed browser origin, default `http://localhost:8081` for
-  Expo web. When connecting the Vite client, set its actual origin instead.
-
-Never commit secrets. Public Expo variables are bundled into the client and must
-not contain API keys.
-
-## Moves MCP server (Muse / Meta AI)
-
-The backend serves a remote [MCP](https://modelcontextprotocol.io) server at
-`POST /mcp` (Streamable HTTP, stateless, JSON responses; protocol versions
-2025-11-25, 2025-06-18 and 2025-03-26) so Muse can draft and post Moves.
-
-Tools: `draft_move` (writes nothing), `confirm_move`, `share_move`, `pull_up`
-(all idempotent on `request_id`), `friends_nearby`, `get_my_active_move`. Every
-call acts as the user who owns the token, and `confirm_move` should only be
-called after the user says yes.
-
-Each user has one token, minted with their username and password (seeded
-people: first name and `moves`). Minting again replaces it. It is shown once;
-only its hash is stored. No env var is needed:
-
-```sh
-curl -s http://localhost:8000/api/v1/mcp/tokens -H "Content-Type: application/json" \
-  -d '{"username":"anish","password":"moves","label":"Ray-Bans"}'
-```
-
-`GET /api/v1/mcp/tokens` lists your tokens (hints only) and
-`DELETE /api/v1/mcp/tokens/{id}` revokes one, both with `X-User-Id`.
-
-Any other token, or none, is rejected with 401.
-
-Run it and expose it with a tunnel:
-
-```sh
-cd backend
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
-cloudflared tunnel --url http://localhost:8000     # prints https://<name>.trycloudflare.com
-```
-
-Register in Muse: URL `https://<name>.trycloudflare.com/mcp`, header
-`Authorization: Bearer <your token>` (or `X-API-Key: <your token>`).
-
-Test it with the inspector (choose "Streamable HTTP", set the URL above and the
-Authorization header):
-
-```sh
-npx @modelcontextprotocol/inspector
-```
-
-Or from a terminal:
-
-```sh
-curl -s http://localhost:8000/mcp   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -H "Accept: application/json, text/event-stream"   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-## Checks
-
-```sh
-cd backend
-uv run pytest
-uv run ruff check .
-uv run ruff format --check .
-```
-
-```sh
-cd frontend/mobile
-npm run typecheck
-```
-
-```sh
-cd frontend/web
-npm run lint
-npm run build
-```
-
-## Project references
-
-- [Architecture and product rules](ARCHITECTURE.md): source of truth for scope,
-  privacy, AI behavior, contracts, and the demo.
-- [Backend task plan](docs/BACKEND_TASKS.md): lane ownership and issue breakdown.
-- [Backend layering guide](backend/ARCHITECTURE.md): template conventions; some
-  introductory descriptions predate the implemented database and features.
-- [Surfaces implementation prompts](PROMPTS.md).
-- [Contributor instructions](AGENTS.md).
+| Doc | What it is |
+| --- | --- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Source of truth: product rules, diagrams, data model, Muse, API, demo |
+| [AGENTS.md](AGENTS.md) | Rules for contributors and coding agents |
+| [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md) | How a server feature is layered, and how to add one |
+| [docs/BACKEND_TASKS.md](docs/BACKEND_TASKS.md) | Server lanes and issue breakdown |
+| [docs/MUSE_SEARCH.md](docs/MUSE_SEARCH.md) | The map's Muse prompt box |
+| [frontend/web/README.md](frontend/web/README.md) | Desktop web app and same-host deploy |
+| [deploy/homelab/README.md](deploy/homelab/README.md) | Auto-deploy and the server database |
+| [PROMPTS.md](PROMPTS.md) | Implementation prompts for the surfaces lane |
+| `docs/*AUDIT*.md`, `docs/CORE_*.md` | Build reviews from earlier milestones |

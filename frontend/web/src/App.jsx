@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as L from 'lucide-react'
-import Leaflet from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import { MeCard, SnapStrip, SnapshotCamera } from './Snapshot'
+import { ago, endpoints, errorText, setSession, useEvents, useLoad, useRealtime, useSession } from './api'
+import Login from './Login'
+import MemoriesFeed from './Memories'
+import Moves from './Moves'
+import { Avatar, bit, Face } from './people'
 
 // drop-in icons: src/assets/icons/<name>.svg overrides the bundled Lucide fallback
 const FILES = import.meta.glob('./assets/icons/*.svg', { eager: true, query: '?raw', import: 'default' })
@@ -29,7 +31,8 @@ const spr = (sheet, y, x = 0) => function Sprite() { return <i className="sprite
 const fr = (n) => pick(`fr-${n}`, L.Circle)
 const Chevron = pick('fr-chevron', L.ChevronRight)
 
-const ME = 'Alex Rivera'
+// the signed-in user's display name
+const useMe = () => useSession()?.user.name ?? ''
 const FRIENDS = ['Priya Shah', 'Marcus Lee', 'Sofia Gomez', 'Jordan Kim', 'Ava Chen', 'Noah Patel', 'Lena Novak', 'Omar Haddad']
 // Facebook sidebar sprites (Meta-provided assets): [label, sheet, y-offset]
 const SHORTCUTS = [['Meta AI', 'meta-ai', 0], ['Friends', 'sidebar', -851], ['Pages', 'sidebar', -333], ['Groups', 'sidebar', -185], ['Memories', 'sidebar', -1221], ['Saved', 'sidebar', -518], ['Reels', 'sidebar', -111], ['Marketplace', 'sidebar', -999]]
@@ -46,42 +49,22 @@ const INITIAL_POSTS = [
 const hue = (name) => [...name].reduce((h, c) => h + c.charCodeAt(0), 0) % 360
 // offline-safe placeholder art: a two-tone gradient per hue
 const art = (h) => `linear-gradient(135deg, hsl(${h} 60% 55%), hsl(${(h + 60) % 360} 70% 35%))`
-// same 3 placeholder photos as Cadence (Team-37-backend Avatar.tsx); picked per name, initials show if offline
-const PFPS = [
-  'https://cdn.21st.dev/assets/localized/f9ec2aa53d0e5399b925d1dc86f057ffd36f42755e94579862cf6ee4b68a06d1.png',
-  'https://cdn.21st.dev/assets/localized/7bdeb01a33494b48dfd2e499ed79069c4d6538c0f8f0eeff3c6c323f3d29be4c.png',
-  'https://cdn.21st.dev/assets/localized/11a67bb27c5e011bb9028042fa7fb6eba2bc69a09c43cec351ada077cc4b869d.png',
-]
-const Avatar = ({ name, size = 40 }) => (
-  <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.4, background: `hsl(${hue(name)} 55% 50%)` }} aria-hidden="true">
-    {name.split(' ').map((p) => p[0]).join('')}
-    <img src={PFPS[hue(name) % PFPS.length]} alt="" onError={(e) => e.currentTarget.remove()} />
-  </span>
-)
-
-// demo notifications; text is plain JSX parts so nothing is injected as HTML
-const NOTIFS = [
-  { id: 1, who: ME, badge: ['#0866ff', L.Shield], text: ['Someone tried to log in, but we stopped them.'], time: '1h', unread: true, isNew: true },
-  { id: 2, who: ME, badge: ['#0866ff', L.Shield], text: ['You approved a login.'], time: '14h', unread: true },
-  { id: 3, who: 'Priya Shah', badge: ['#0866ff', L.MessageSquare], text: [<b key="b">Priya Shah</b>, ' posted a link: "Sunrise hike photos"'], time: '1d', unread: true },
-  { id: 4, who: 'Sofia Gomez', badge: ['#0866ff', L.Image], text: [<b key="b">Sofia Gomez</b>, ' added a new photo: "Miso caramel brownies".'], time: '1d', meta: '27 reactions · 11 comments', unread: true },
-  { id: 5, who: 'Omar Haddad', badge: ['#65676b', L.UserPlus], text: ['You have a new friend suggestion: ', <b key="b">Omar Haddad</b>, '.'], time: '2d', unread: false },
-]
 const PAGES = ['Rivera Studio', 'Hackmeta Team']
 const MENU = [['Settings & privacy', L.Settings, true], ['Help & support', L.CircleHelp, true], ['Report a problem', L.MessageSquareWarning, false, 'CTRL B'], ['Display & accessibility', L.Moon, true], ['Log out', L.LogOut, false]]
 
 function ProfileMenu() {
+  const me = useMe()
   return (
     <div className="dropdown" role="menu">
       <div className="profiles">
-        <a className="menu-row"><Avatar name={ME} size={36} /><b>{ME}</b></a>
+        <a className="menu-row"><Avatar user={useSession().user} size={36} /><b>{me}</b></a>
         <div className="divider" />
         {PAGES.map((pg) => <a key={pg} className="menu-row"><span className="switch-ring"><Avatar name={pg} size={28} /></span><b>{pg}</b></a>)}
         <div className="divider" />
         <button className="btn-gray wide"><L.CircleUserRound size={18} /> See all profiles</button>
       </div>
       {MENU.map(([label, I, more, sub]) => (
-        <a key={label} className="menu-row" role="menuitem">
+        <a key={label} className="menu-row" role="menuitem" {...(label === 'Log out' ? { href: '#', onClick: (e) => { e.preventDefault(); setSession(null) } } : {})}>
           <span className="menu-icon"><I size={20} /></span>
           <span className="grow">{label}{sub && <span className="muted sub">{sub}</span>}</span>
           {more && <L.ChevronRight size={24} className="muted" />}
@@ -92,41 +75,53 @@ function ProfileMenu() {
   )
 }
 
+// notification type -> badge [color, icon]
+const notifBadge = (type) => (type.startsWith('friend') ? ['#65676b', L.UserPlus] : type.startsWith('muse') || type.includes('suggest') || type.includes('flare') ? ['#8b3dff', L.Sparkles] : type.includes('moment') ? ['#45bd62', L.Image] : ['#0866ff', L.MapPin])
+const DAY = 86_400_000
+
 function NotifRow({ n, onRead }) {
-  const B = n.badge[1]
+  const [color, B] = notifBadge(n.type)
+  const who = n.data.user_id ?? n.data.creator_id
   return (
-    <a className="notif" onClick={() => onRead(n.id)}>
-      <span className="notif-pic"><Avatar name={n.who} size={56} /><span className="notif-badge" style={{ background: n.badge[0] }}><B size={14} color="#fff" /></span></span>
-      <span className="grow">
-        {n.text}
-        <span className={`notif-time ${n.unread ? 'blue' : 'muted'}`}>{n.time}{n.meta && ` · ${n.meta}`}</span>
+    <a className="notif" onClick={() => onRead(n)}>
+      <span className="notif-pic">
+        {who ? <Face id={who} size={56} /> : <span className="avatar" style={{ width: 56, height: 56, background: color }}><B size={26} color="#fff" /></span>}
+        <span className="notif-badge" style={{ background: color }}><B size={14} color="#fff" /></span>
       </span>
-      {n.unread && <span className="dot" aria-label="Unread" />}
+      <span className="grow">
+        <b>{n.title}</b> {n.body}
+        <span className={`notif-time ${n.read_at ? 'muted' : 'blue'}`}>{ago(n.created_at)}</span>
+      </span>
+      {!n.read_at && <span className="dot" aria-label="Unread" />}
     </a>
   )
 }
 
-function NotifPanel({ notifs, setNotifs }) {
+function NotifPanel({ notifs, onNav }) {
   const [tab, setTab] = useState('All')
-  const [push, setPush] = useState(true)
-  const shown = tab === 'All' ? notifs : notifs.filter((n) => n.unread)
-  const read = (id) => setNotifs((ns) => ns.map((n) => (n.id === id ? { ...n, unread: false } : n)))
+  const list = notifs.data ?? []
+  const shown = tab === 'All' ? list : list.filter((n) => !n.read_at)
+  const markRead = (ids) => {
+    const now = new Date().toISOString()
+    notifs.set((ns) => ns.map((n) => (!ids || ids.includes(n.id) ? { ...n, read_at: n.read_at ?? now } : n)))
+    endpoints.notifications.read(ids).catch(notifs.reload) // a failed write puts the server's state back
+  }
+  const open = (n) => {
+    if (!n.read_at) markRead([n.id])
+    if (n.data.move_id || n.type.includes('move')) onNav('Moves')
+    else if (n.type.startsWith('friend')) onNav('Friends')
+  }
+  const fresh = shown.filter((n) => Date.now() - new Date(n.created_at).getTime() < DAY)
+  const earlier = shown.filter((n) => !fresh.includes(n))
   return (
     <div className="dropdown notifs" role="dialog" aria-label="Notifications">
-      <div className="row between"><h2>Notifications</h2><button className="icon-btn" aria-label="Options"><L.Ellipsis size={20} /></button></div>
+      <div className="row between"><h2>Notifications</h2><button className="icon-btn" aria-label="Mark all as read" data-tip="Mark all as read" onClick={() => markRead()}><L.CheckCheck size={20} /></button></div>
       <div className="row">{['All', 'Unread'].map((t) => <button key={t} className={`pill ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t}</button>)}</div>
-      {push && (
-        <div className="push">
-          <button className="icon-btn push-x" aria-label="Dismiss" onClick={() => setPush(false)}><L.X size={20} /></button>
-          <b>Your push notifications are off</b>
-          <span className="muted">Turn on notifications to stay connected</span>
-          <div className="row"><button className="btn-blue" onClick={() => setPush(false)}>Turn on</button><button className="btn-gray" onClick={() => setPush(false)}>Not now</button></div>
-        </div>
-      )}
-      <div className="row between"><h3>New</h3><a className="blue">See all</a></div>
-      {shown.filter((n) => n.isNew).map((n) => <NotifRow key={n.id} n={n} onRead={read} />)}
-      <h3>Earlier</h3>
-      {shown.filter((n) => !n.isNew).map((n) => <NotifRow key={n.id} n={n} onRead={read} />)}
+      {notifs.loading && !notifs.data && <p className="muted center">Loading...</p>}
+      {notifs.error && <p className="muted center">{notifs.error} <button className="blue" onClick={notifs.reload}>Retry</button></p>}
+      {notifs.data && shown.length === 0 && <p className="muted center">{tab === 'Unread' ? "You're all caught up." : 'No notifications yet.'}</p>}
+      {fresh.length > 0 && <><h3>New</h3>{fresh.map((n) => <NotifRow key={n.id} n={n} onRead={open} />)}</>}
+      {earlier.length > 0 && <><h3>Earlier</h3>{earlier.map((n) => <NotifRow key={n.id} n={n} onRead={open} />)}</>}
     </div>
   )
 }
@@ -236,10 +231,11 @@ function TopNav({ view, setView }) {
   const [chats, setChats] = useState(CHATS)
   const unreadChats = chats.filter((c) => c.unread).length
   const [open, setOpen] = useState(null)
-  const [notifs, setNotifs] = useState(NOTIFS)
+  const notifs = useLoad(endpoints.notifications.list)
+  useEvents(['notification'], notifs.reload)
   const ref = useDismiss(open, setOpen)
   const toggle = (k) => setOpen((o) => (o === k ? null : k))
-  const unread = notifs.filter((n) => n.unread).length
+  const unread = (notifs.data ?? []).filter((n) => !n.read_at).length
   return (
     <header className="topnav">
       <div className="topnav-left">
@@ -258,21 +254,22 @@ function TopNav({ view, setView }) {
           <Bell size={20} />{unread > 0 && <span className="badge">{unread}</span>}
         </button>
         <button className="me-btn" aria-label="Your profile" data-tip="Account" aria-expanded={open === 'profile'} onClick={() => toggle('profile')}>
-          <Avatar name={ME} size={40} /><span className="me-chev"><L.ChevronDown size={12} strokeWidth={3} /></span>
+          <Avatar user={useSession().user} size={40} /><span className="me-chev"><L.ChevronDown size={12} strokeWidth={3} /></span>
         </button>
         {open === 'menu' && <AppMenu onNav={(v) => { setView(v); setOpen(null) }} />}
         {open === 'chats' && <ChatsPanel chats={chats} setChats={setChats} />}
         {open === 'profile' && <ProfileMenu />}
-        {open === 'notifs' && <NotifPanel notifs={notifs} setNotifs={setNotifs} />}
+        {open === 'notifs' && <NotifPanel notifs={notifs} onNav={(v) => { setView(v); setOpen(null) }} />}
       </div>
     </header>
   )
 }
 
 function LeftRail({ setView }) {
+  const user = useSession().user
   return (
     <aside className="left-rail">
-      <a className="rail-item"><Avatar name={ME} size={36} /> {ME}</a>
+      <a className="rail-item"><Avatar user={user} size={36} /> {user.name}</a>
       {SHORTCUTS.map(([s, sheet, y]) => <a key={s} className="rail-item" {...navProps(s, setView)}><i className="sprite" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `0 ${y}px` }} />{s}</a>)}
       <a className="rail-item"><span className="rail-icon see-more"><L.ChevronDown size={20} /></span>See more</a>
       <footer className="rail-footer">Privacy · Consumer Health Privacy · Terms · Advertising · Ad Choices · Cookies · More</footer>
@@ -308,11 +305,14 @@ function Ad({ ad, onHide }) {
 
 function RightRail() {
   const [ads, setAds] = useState(ADS)
+  const friends = useLoad(endpoints.friends.list)
   return (
     <aside className="right-rail">
       <h3>Contacts</h3>
-      {FRIENDS.map((f) => (
-        <a key={f} className="rail-item"><span className="online"><Avatar name={f} size={36} /></span>{f}</a>
+      {friends.error && <p className="muted small">{friends.error}</p>}
+      {friends.data?.length === 0 && <p className="muted small">No friends yet.</p>}
+      {friends.data?.map(({ user: u }) => (
+        <a key={u.id} className="rail-item"><Face id={u.id} size={36} />{u.name}</a>
       ))}
       <div className="divider" />
       <h3>Sponsored</h3>
@@ -336,6 +336,7 @@ function Stories() {
 }
 
 function Composer({ onPost }) {
+  const user = useSession().user
   const [text, setText] = useState('')
   const submit = (e) => {
     e.preventDefault()
@@ -346,8 +347,8 @@ function Composer({ onPost }) {
   return (
     <form className="card composer" onSubmit={submit}>
       <div className="row">
-        <Avatar name={ME} />
-        <input className="pill-input" value={text} onChange={(e) => setText(e.target.value)} placeholder={`What's on your mind, ${ME.split(' ')[0]}?`} aria-label="Create post" />
+        <Avatar user={user} />
+        <input className="pill-input" value={text} onChange={(e) => setText(e.target.value)} placeholder={`What's on your mind, ${user.first_name}?`} aria-label="Create post" />
         <button type="button" className="icon-btn" aria-label="Live video" data-tip="Live video"><img src="/fb/live.webp" width="24" height="24" alt="" /></button>
         <button type="button" className="icon-btn" aria-label="Photo/video" data-tip="Photo/video"><img src="/fb/photo.webp" width="24" height="24" alt="" /></button>
         <button type="button" className="icon-btn" aria-label="Feeling/activity" data-tip="Feeling/activity"><img src="/fb/feeling.webp" width="24" height="24" alt="" /></button>
@@ -357,6 +358,7 @@ function Composer({ onPost }) {
 }
 
 function Post({ post, onLike, onComment }) {
+  const user = useSession().user
   const [draft, setDraft] = useState('')
   return (
     <article className="card post">
@@ -376,7 +378,7 @@ function Post({ post, onLike, onComment }) {
         <div key={i} className="row comment"><Avatar name={c.author} size={32} /><div className="bubble"><strong>{c.author}</strong><div>{c.text}</div></div></div>
       ))}
       <form className="row comment" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { onComment(draft.trim()); setDraft('') } }}>
-        <Avatar name={ME} size={32} />
+        <Avatar user={user} size={32} />
         <input id={`c${post.id}`} className="pill-input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Write a comment..." aria-label="Write a comment" />
       </form>
     </article>
@@ -441,6 +443,7 @@ const GROUP_POSTS = [
 ]
 
 function Groups() {
+  const me = useMe()
   const [posts, setPosts] = useState(GROUP_POSTS)
   return (
     <div className="page">
@@ -457,7 +460,7 @@ function Groups() {
         {posts.map((p) => (
           <Post key={p.id} post={p}
             onLike={() => setPosts((ps) => ps.map((x) => (x.id === p.id ? { ...x, liked: !x.liked } : x)))}
-            onComment={(text) => setPosts((ps) => ps.map((x) => (x.id === p.id ? { ...x, comments: [...x.comments, { author: ME, text }] } : x)))} />
+            onComment={(text) => setPosts((ps) => ps.map((x) => (x.id === p.id ? { ...x, comments: [...x.comments, { author: me, text }] } : x)))} />
         ))}
       </main>
     </div>
@@ -503,28 +506,53 @@ function Reels() {
   )
 }
 
-const REQUESTS = [['Nicole Carter', 15], ['Chloe Martin', 1], ['Daniel Reyes', 24], ['Grace Whitfield', 16], ['Ruth Lambert', 19], ['Samuel Okafor', 8], ['Maya Brooks', 3], ['Ethan Wu', 11], ['Isabel Torres', 6], ['Victor Hale', 2]]
+function PersonCard({ user, line, children }) {
+  return (
+    <div className="request card">
+      <img src={bit(user.id)} alt="" />
+      <div className="request-body"><b>{user.name}</b><span className="muted small">{line}</span>{children}</div>
+    </div>
+  )
+}
+const mutual = (n) => (n ? `${n} mutual friend${n === 1 ? '' : 's'}` : 'No mutual friends')
 
 function FriendsPage() {
+  const requests = useLoad(endpoints.friends.requests)
+  const suggestions = useLoad(endpoints.friends.suggestions)
   const [done, setDone] = useState({})
+  useEvents(['notification'], requests.reload)
+  const act = async (id, fn, label) => {
+    setDone((d) => ({ ...d, [id]: '...' }))
+    try { await fn(id); setDone((d) => ({ ...d, [id]: label })) } catch (e) { setDone((d) => ({ ...d, [id]: errorText(e) })) }
+  }
+  const incoming = requests.data?.incoming ?? []
   return (
     <div className="page">
       <SideNav title="Friends" items={[['Home', fr('home')], ['Friend requests', fr('requests'), true], ['Suggestions', fr('suggestions'), true], ['All friends', fr('all'), true], ['Birthdays', spr('friends', -127, -158)], ['Custom lists', fr('lists'), true]]} />
       <main className="page-main">
-        <div className="row between"><h2>Friend Requests</h2><a className="blue">See all</a></div>
+        <div className="row between"><h2>Friend Requests</h2></div>
+        {requests.loading && !requests.data && <p className="muted">Loading...</p>}
+        {requests.error && <p className="muted">{requests.error} <button className="blue" onClick={requests.reload}>Retry</button></p>}
+        {requests.data && incoming.length === 0 && <p className="muted">No new requests.</p>}
         <div className="grid requests">
-          {REQUESTS.map(([name, mutual]) => (
-            <div key={name} className="request card">
-              <img src={PFPS[hue(name) % PFPS.length]} alt="" />
-              <div className="request-body">
-                <b>{name}</b>
-                <span className="muted small">{mutual} mutual friend{mutual === 1 ? '' : 's'}</span>
-                {done[name] ? <span className="muted">{done[name]}</span> : <>
-                  <button className="btn-primary" onClick={() => setDone({ ...done, [name]: 'Request accepted' })}>Confirm</button>
-                  <button className="btn-gray" onClick={() => setDone({ ...done, [name]: 'Request removed' })}>Delete</button>
-                </>}
-              </div>
-            </div>
+          {incoming.map(({ user, mutual_count: n }) => (
+            <PersonCard key={user.id} user={user} line={mutual(n)}>
+              {done[user.id] ? <span className="muted">{done[user.id]}</span> : <>
+                <button className="btn-primary" onClick={() => act(user.id, endpoints.friends.accept, 'Request accepted')}>Confirm</button>
+                <button className="btn-gray" onClick={() => act(user.id, endpoints.friends.drop, 'Request removed')}>Delete</button>
+              </>}
+            </PersonCard>
+          ))}
+        </div>
+        <div className="row between"><h2>People you may know</h2></div>
+        {suggestions.error && <p className="muted">{suggestions.error}</p>}
+        {suggestions.data?.length === 0 && <p className="muted">No suggestions right now.</p>}
+        <div className="grid requests">
+          {suggestions.data?.map(({ user, mutual_count: n, relation }) => (
+            <PersonCard key={user.id} user={user} line={mutual(n)}>
+              {done[user.id] || relation === 'outgoing' ? <span className="muted">{done[user.id] ?? 'Request sent'}</span>
+                : <button className="btn-blue" onClick={() => act(user.id, endpoints.friends.request, 'Request sent')}><L.UserPlus size={16} /> Add friend</button>}
+            </PersonCard>
           ))}
         </div>
       </main>
@@ -532,332 +560,11 @@ function FriendsPage() {
   )
 }
 
-// ---- Moves: web port of the mobile Moves tab (frontend/mobile/components/moves, lib/mock/moves.ts).
-// Privacy rule (ARCHITECTURE.md 1.5.2): a friend is pinned at the Mark of their Move, never their GPS. Only "Me" sits at my own position.
-// [label, pin emoji, color, icon]; pins are HTML strings so they use the emoji, React surfaces use the icon
-const CATS = { coffee: ['Coffee', '☕', '#FB724B', L.Coffee], study: ['Study', '📚', '#0866FF', L.GraduationCap], gym: ['Gym', '🏋️', '#45BD62', L.Dumbbell], party: ['Party', '🎉', '#A033FF', L.PartyPopper], music: ['Music', '🎵', '#F3425F', L.Music], food: ['Food', '🍜', '#F7B928', L.Utensils], shopping: ['Shopping', '🛍️', '#2ABBA7', L.Store] }
-// placeholder Bitmoji sets a/b in public/fb/bitmoji, same assignment as mobile lib/mock/bitmoji.ts
-const MV_USERS = { maya: ['Maya Patel', 'a'], tony: ['Tony Nguyen', 'b'], dev: ['Dev Mehta', 'b'], priya: ['Priya Shah', 'a'], jordan: ['Jordan Lee', 'a'], dhivyesh: ['Dhivyesh Kumar', 'b'] }
-const bit = (u, pose = 'selfie') => `/fb/bitmoji/${MV_USERS[u]?.[1] ?? 'b'}/${pose}.png`
-const first = (u) => MV_USERS[u][0].split(' ')[0]
-// Circles: user-defined audiences (ARCHITECTURE.md 5.1). A Move is never public, it goes to Circles and people you pick.
-const CIRCLES = { Roommates: ['tony', 'dev'], 'HS friends': ['maya', 'priya', 'jordan'], 'Study group': ['maya', 'dhivyesh', 'dev'] }
-const MV_HOME = [32.9846, -96.7462]
-const MY_POSITION = [32.98265, -96.74355]
-const PANEL_W = 412
-// status: there = at the Mark now, omw = pulling up, ghost = left within the last 24 h
-const ALL_MOVES = [
-  { id: 'mv-1', user: 'maya', title: 'Grinding the orgo PSET, come suffer with me', place: 'McDermott Library', cat: 'study', area: 'Campus', at: [32.98665, -96.74762], status: 'there', pose: 'study', time: '18 m', joined: ['priya'], dist: '0.3 mi' },
-  { id: 'mv-2', user: 'tony', title: 'Leg day. Need a spotter', place: 'Activity Center', cat: 'gym', area: 'Campus', at: [32.98395, -96.75085], status: 'there', pose: 'gym', time: '6 m', joined: [], dist: '0.4 mi' },
-  { id: 'mv-3', user: 'dev', title: 'Open mic at the Plinth, bring a guitar', place: 'The Plinth', cat: 'music', area: 'Campus', at: [32.98905, -96.75015], status: 'there', pose: 'music', time: '25 m', joined: ['dhivyesh', 'jordan'], dist: '0.5 mi' },
-  { id: 'mv-4', user: 'priya', title: 'Matcha run, anyone?', place: 'Kumo Matcha', cat: 'coffee', area: 'Richardson', at: [32.99052, -96.73958], status: 'omw', pose: 'walk', time: '2 m', joined: [], dist: '0.6 mi' },
-  { id: 'mv-5', user: 'jordan', title: 'Thrifting at CityLine', place: 'CityLine Plaza', cat: 'shopping', area: 'Richardson', at: [32.99805, -96.70315], status: 'there', pose: 'strut', time: '40 m', joined: [], dist: '2.4 mi' },
-  { id: 'mv-6', user: 'dhivyesh', title: 'Rooftop hang tonight', place: 'Northside Rooftop', cat: 'party', area: 'Campus', at: [32.99042, -96.75281], status: 'ghost', pose: 'dance', time: '9 h', joined: ['maya', 'tony'], dist: '0.6 mi' },
-  { id: 'mv-7', user: 'maya', title: 'Late pho', place: 'Pho Bang', cat: 'food', area: 'Richardson', at: [32.96845, -96.73095], status: 'ghost', pose: 'snack', time: '14 h', joined: ['dev'], dist: '1.3 mi' },
-]
-// on-the-way Moves are hidden: that friend is not at the Mark yet
-const MOVES = ALL_MOVES.filter((m) => m.status !== 'omw')
-// friends' snapshots from Moves happening now (demo photos)
-const DEMO_SNAPS = { 'mv-1': [['/fb/memories/p4.jpg', 'Maya']], 'mv-2': [['/fb/memories/p6.jpg', 'Tony']] }
-const statusText = (m) => (m.status === 'ghost' ? `Left ${m.time} ago` : `There · ${m.time}`)
-const pinDetail = (m) => (m.status === 'ghost' ? `Left ${m.time} ago` : m.place)
-// Snap-Map-style pin: full-body Bitmoji on a ground shadow with a name label. Static demo data only, so an HTML string is safe here.
-const pinIcon = ({ img, name, detail, cat, status, extra = 0, delay = 0 }) => Leaflet.divIcon({
-  className: 'pin-wrap', iconSize: [0, 0],
-  html: `<div class="mv-pin ${status}" style="animation-delay:${delay}ms"><div class="mv-body"><img src="${img}" alt="">${cat ? `<span class="mv-badge" style="--c:${status === 'ghost' ? '#8a8d91' : CATS[cat][2]}">${status === 'ghost' ? '👻' : CATS[cat][1]}</span>` : ''}</div><div class="mv-label"><b>${name}${extra ? ` <i>+${extra}</i>` : ''}</b><span>${detail}</span></div></div>`,
-})
-// center a point in the map area left open by the floating panel. `lift` (px) aims above the point:
-// a pin's coordinate is at its feet, so lifting by half the pin's height centers the person, not their feet.
-const PIN_LIFT = 44
-const focus = (map, at, zoom, animate = true, lift = 0) => {
-  if (!map) return
-  const target = lift ? map.unproject(map.project(at, zoom).subtract([0, lift]), zoom) : at
-  map.fitBounds([target, target], { paddingTopLeft: [window.innerWidth > 900 ? PANEL_W : 0, 0], maxZoom: zoom, animate, duration: 0.65 })
-}
-const pinZ = (m, sel) => (sel ? 1000 : m.status === 'ghost' ? -500 : 0)
-
-function MovesMap({ selectedId, onSelect, onClear, mapRef, mine }) {
-  const el = useRef(null)
-  const markers = useRef({})
-  const meMarker = useRef(null)
-  useEffect(() => {
-    const map = Leaflet.map(el.current, { zoomControl: false })
-    focus(map, MV_HOME, 15, false)
-    // Esri World Light Gray: keyless on any domain. Stadia and CARTO only serve
-    // localhost without an API key; OSM's own tile servers block apps.
-    Leaflet.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors' }).addTo(map)
-    Leaflet.control.zoom({ position: 'bottomright' }).addTo(map)
-    MOVES.forEach((m, i) => {
-      markers.current[m.id] = Leaflet.marker(m.at, { icon: pinIcon({ img: bit(m.user, m.pose), name: first(m.user), detail: pinDetail(m), cat: m.cat, status: m.status, extra: m.joined.length, delay: i * 70 }), title: `${first(m.user)} at ${m.place}`, zIndexOffset: pinZ(m) }).addTo(map).on('click', () => onSelect(m.id))
-    })
-    meMarker.current = Leaflet.marker(MY_POSITION, { icon: pinIcon({ img: bit('me', 'walk'), name: 'Me', detail: 'now', status: 'me' }), title: 'You', zIndexOffset: 500 }).addTo(map).on('click', () => onSelect('me'))
-    map.on('click', onClear)
-    mapRef.current = map
-    return () => { map.remove(); mapRef.current = null; markers.current = {} }
-  }, [onSelect, onClear, mapRef])
-  useEffect(() => {
-    MOVES.forEach((m) => {
-      const mk = markers.current[m.id]
-      mk?.getElement()?.classList.toggle('sel', m.id === selectedId)
-      mk?.setZIndexOffset(pinZ(m, m.id === selectedId))
-    })
-    meMarker.current?.getElement()?.classList.toggle('sel', selectedId === 'me')
-    meMarker.current?.setZIndexOffset(selectedId === 'me' ? 1000 : 500)
-  }, [selectedId])
-  useEffect(() => {
-    // textContent, not HTML: this is typed by the user
-    const label = meMarker.current?.getElement()?.querySelector('.mv-label span')
-    if (label) label.textContent = mine || 'now'
-  }, [mine])
-  return <div ref={el} className="moves-map" />
-}
-
-// round Bitmoji selfie inside a Meta-gradient ring, the list-row avatar
-function Face({ u, size = 52, ghost }) {
-  return <span className={`mv-face${ghost ? ' ghost' : ''}`} style={{ width: size, height: size }}><img src={bit(u)} alt="" /></span>
-}
-
-function MoveRow({ m, pulled, onPick, onPull }) {
-  const ghost = m.status === 'ghost'
-  return (
-    <div className="mv-row">
-      <button className="mv-row-main" onClick={onPick}>
-        <Face u={m.user} ghost={ghost} />
-        <span className="grow">
-          <span className="block clip"><b>{first(m.user)}</b> <span className={`small ${m.status === 'there' ? 'mv-live' : 'muted'}`}>{statusText(m)}</span></span>
-          <span className="block clip">{m.title}</span>
-          <span className="block clip muted">{m.place} · {m.dist}{m.joined.length > 0 && ` · +${m.joined.length} ${ghost ? 'went' : 'going'}`}</span>
-        </span>
-      </button>
-      {!ghost && <button className={pulled ? 'btn-primary' : 'btn-blue mv-pull'} onClick={onPull}>{pulled ? 'Going' : 'Pull up'}</button>}
-    </div>
-  )
-}
-
-function MoveCard({ m, pulled, onPull, onClose, snaps, onSnap }) {
-  const ghost = m.status === 'ghost'
-  const [label, , color, Icon] = CATS[m.cat]
-  return (
-    <div className="mv-card">
-      <button className="icon-btn mv-close" aria-label="Close" onClick={onClose}><L.X size={18} /></button>
-      <div className="mv-card-top">
-        <img className={`mv-hero${ghost ? ' ghost' : ''}`} src={bit(m.user, m.pose)} alt="" />
-        <div>
-          <span className="mv-chip" style={ghost ? undefined : { '--c': color }}><Icon size={14} /> {label}</span>
-          <h2>{MV_USERS[m.user][0]}</h2>
-          <span className={`mv-status ${m.status === 'there' ? 'mv-live' : 'muted'}`}>{statusText(m)}</span>
-        </div>
-      </div>
-      <p className="mv-title">“{m.title}”</p>
-      <p className="row muted mv-place"><L.MapPin size={16} /> {m.place} · {m.area} · {m.dist}</p>
-      {m.joined.length > 0 && (
-        <div className="row">
-          <span className="mv-faces">{m.joined.map((u) => <Face key={u} u={u} size={32} ghost={ghost} />)}</span>
-          <span>{m.joined.map(first).join(', ')} {ghost ? 'went' : m.joined.length > 1 ? 'are there' : 'is there'}</span>
-        </div>
-      )}
-      <SnapStrip snaps={snaps} canSnap={!ghost && pulled} onSnap={onSnap} empty="Nobody has captured this one yet. Be the first." />
-      <div className="row mv-actions">
-        {ghost
-          ? <button className="btn-primary grow"><L.Images size={18} /> See Moments</button>
-          : <button className={`grow ${pulled ? 'btn-blue' : 'btn-primary'}`} onClick={onPull}>{pulled ? <><L.Check size={18} /> You&apos;re going</> : <><L.Navigation size={18} /> Pull up</>}</button>}
-        <button className="btn-gray"><L.MessageCircle size={18} /> Message</button>
-      </div>
-    </div>
-  )
-}
-
-function Moves() {
-  const [sel, setSel] = useState(null)
-  const [query, setQuery] = useState('')
-  const [pulled, setPulled] = useState({})
-  const [draft, setDraft] = useState('')
-  const [mine, setMine] = useState('')
-  const [actsOpen, setActsOpen] = useState(false)
-  const [sheet, setSheet] = useState(false)
-  const [circles, setCircles] = useState(['Roommates'])
-  const [people, setPeople] = useState([])
-  const [shared, setShared] = useState('')
-  const [mineAudience, setMineAudience] = useState('')
-  // snapshots per Move id ('me' is my own Move): [[src, takenBy]], newest first
-  const [snaps, setSnaps] = useState(DEMO_SNAPS)
-  const [cam, setCam] = useState(null)
-  const mapRef = useRef(null)
-  const selected = MOVES.find((m) => m.id === sel)
-  const select = useCallback((id) => {
-    setSel(id)
-    focus(mapRef.current, id === 'me' ? MY_POSITION : MOVES.find((m) => m.id === id).at, 17, true, PIN_LIFT)
-  }, [])
-  const capture = (src) => {
-    setSnaps((s) => ({ ...s, [cam]: [[src, 'You'], ...(s[cam] ?? [])] }))
-    setCam(null)
-  }
-  const clear = useCallback(() => setSel(null), [])
-  // everyone who would see the Move: members of the picked Circles plus people picked directly
-  const audience = [...new Set([...circles.flatMap((c) => CIRCLES[c]), ...people])]
-  const audienceLine = audience.length === 0 ? 'Pick at least one Circle or friend' : `Visible to ${audience.length} ${audience.length === 1 ? 'person' : 'people'}: ${[...circles, ...people.map(first)].join(', ')}`
-  const toggleIn = (set) => (v) => set((xs) => (xs.includes(v) ? xs.filter((x) => x !== v) : [...xs, v]))
-  // step 1: Enter opens the audience sheet. step 2: Share posts it.
-  const share = (e) => {
-    e.preventDefault()
-    if (!draft.trim()) return
-    if (!sheet) { setSheet(true); setActsOpen(false); return }
-    if (audience.length === 0) return
-    setMine(draft.trim())
-    setShared(audienceLine)
-    setMineAudience(audienceLine)
-    setSnaps((s) => ({ ...s, me: [] })) // a new Move starts with no snapshots
-    setDraft('')
-    setSheet(false)
-    select('me')
-  }
-  useEffect(() => {
-    if (!shared) return
-    const t = setTimeout(() => setShared(''), 5000)
-    return () => clearTimeout(t)
-  }, [shared])
-  const togglePull = (id) => setPulled((p) => ({ ...p, [id]: !p[id] }))
-  const q = query.trim().toLowerCase()
-  const visible = q ? MOVES.filter((m) => `${MV_USERS[m.user][0]} ${m.title} ${m.place}`.toLowerCase().includes(q)) : MOVES
-  const live = visible.filter((m) => m.status !== 'ghost')
-  const ghosts = visible.filter((m) => m.status === 'ghost')
-  const out = MOVES.filter((m) => m.status !== 'ghost')
-  return (
-    <main className="moves-main">
-      <MovesMap selectedId={sel} onSelect={select} onClear={clear} mapRef={mapRef} mine={mine} />
-      <aside className="mv-glass mv-panel" aria-label="Moves">
-        <div className="mv-scroll">
-        {sel === 'me' ? <MeCard face={<img className="mv-hero" src={bit('me', 'walk')} alt="" />} mine={mine} audience={mineAudience} snaps={snaps.me ?? []} onSnap={() => setCam('me')} onClose={clear} />
-        : selected ? <MoveCard m={selected} pulled={!!pulled[selected.id]} onPull={() => togglePull(selected.id)} onClose={clear} snaps={snaps[selected.id] ?? []} onSnap={() => setCam(selected.id)} /> : (
-          <>
-            <div className="row mv-head">
-              <input className="pill-input" placeholder="Search friends and Moves" aria-label="Search friends and Moves" value={query} onChange={(e) => setQuery(e.target.value)} />
-              <Face u="me" size={44} />
-            </div>
-            {!q && <>
-              <h3>Out now</h3>
-              <div className="mv-out">
-                {out.map((m) => (
-                  <button key={m.id} className="mv-out-item" onClick={() => select(m.id)}>
-                    <Face u={m.user} size={64} />
-                    <b className="block clip">{first(m.user)}</b>
-                    <span className="muted block clip">{CATS[m.cat][0]}</span>
-                  </button>
-                ))}
-              </div>
-            </>}
-            {live.length > 0 && <><h3>Happening now</h3><div className="mv-group">{live.map((m) => <MoveRow key={m.id} m={m} pulled={!!pulled[m.id]} onPick={() => select(m.id)} onPull={() => togglePull(m.id)} />)}</div></>}
-            {ghosts.length > 0 && <><h3>Earlier</h3><div className="mv-group">{ghosts.map((m) => <MoveRow key={m.id} m={m} onPick={() => select(m.id)} />)}</div></>}
-            {visible.length === 0 && <p className="muted center">No Moves match “{query}”.</p>}
-          </>
-        )}
-      </div>
-      </aside>
-      <div className="mv-top">
-        <div className="mv-glass mv-title-pill">
-          <span><b className="block">Richardson</b><span className="muted row"><L.Users size={14} /> {out.length} friends out</span></span>
-          <span className="mv-weather" role="img" aria-label="Weather: 73 degrees and sunny"><L.Sun size={28} fill="currentColor" /><span><b className="block">73°</b><span className="muted">Sunny</span></span></span>
-        </div>
-        <button className="mv-glass mv-recenter" aria-label="Center on me" onClick={() => { clear(); focus(mapRef.current, MV_HOME, 15) }}><L.Navigation size={20} fill="currentColor" /></button>
-      </div>
-      <form className="mv-dock" onSubmit={share} onKeyDown={(e) => e.key === 'Escape' && setSheet(false)}>
-        <p className={`mv-glass mv-shared${shared ? '' : ' hide'}`} role="status">{shared && <><L.CheckCircle2 size={16} /> Shared. {shared}</>}</p>
-        {sheet && (
-          <section className="mv-glass mv-acts mv-sheet" aria-label="Choose who sees your Move">
-            <div className="row between"><h3>Share your Move</h3><button type="button" className="icon-btn mv-close-inline" aria-label="Cancel" onClick={() => setSheet(false)}><L.X size={18} /></button></div>
-            <div className="row mv-preview"><Face u="me" size={44} /><span className="grow"><b className="block clip">{draft.trim() || 'What are you up to?'}</b><span className="muted row"><L.MapPin size={14} /> Pinned where you are now</span></span></div>
-            <h4>Circles</h4>
-            <div className="mv-picks">
-              {Object.keys(CIRCLES).map((c) => (
-                <button key={c} type="button" className="mv-pick" aria-pressed={circles.includes(c)} onClick={() => toggleIn(setCircles)(c)}><L.Users size={15} /> {c} <span className="mv-count">{CIRCLES[c].length}</span></button>
-              ))}
-            </div>
-            <h4>Friends</h4>
-            <div className="mv-picks">
-              {Object.keys(MV_USERS).map((u) => (
-                <button key={u} type="button" className="mv-pick mv-person" aria-pressed={people.includes(u)} onClick={() => toggleIn(setPeople)(u)}><Face u={u} size={24} /> {first(u)}</button>
-              ))}
-            </div>
-            <p className={`mv-audience row${audience.length === 0 ? ' warn' : ''}`} aria-live="polite">{audience.length === 0 ? <L.EyeOff size={16} /> : <L.Eye size={16} />} {audienceLine}</p>
-            <button type="submit" className="btn-primary mv-send" disabled={audience.length === 0 || !draft.trim()}>Share Move</button>
-          </section>
-        )}
-        {actsOpen && (
-          <section id="mv-acts" className="mv-glass mv-acts" aria-label="What friends are up to">
-            <h3>What friends are up to</h3>
-            <div className="mv-acts-grid">
-              {out.map((m) => {
-                const [label, , color, Icon] = CATS[m.cat]
-                return (
-                  <button key={m.id} type="button" className="mv-act" onClick={() => { select(m.id); setActsOpen(false) }}>
-                    <span className="mv-act-icon" style={{ '--c': color }}><Icon size={22} /></span>
-                    <span className="grow">
-                      <b className="block clip">{label} at {m.place}</b>
-                      <span className="row muted"><Face u={m.user} size={22} /><span className="clip">{first(m.user)}{m.joined.length > 0 && ` +${m.joined.length}`} · {m.time}</span></span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
-        )}
-        <button type="button" className="mv-glass mv-toggle" aria-expanded={actsOpen} aria-controls="mv-acts" aria-label={actsOpen ? 'Hide what friends are up to' : 'Show what friends are up to'} onClick={() => { setActsOpen((o) => !o); setSheet(false) }}>
-          {actsOpen ? <L.ChevronDown size={20} /> : <L.ChevronUp size={20} />}
-        </button>
-        <div className="mv-share">
-          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="What are you up to?" aria-label="Share a Move, press Enter to choose who sees it" maxLength={60} enterKeyHint="next" />
-        </div>
-      </form>
-      {cam && <SnapshotCamera onCapture={capture} onClose={() => setCam(null)} />}
-    </main>
-  )
-}
-
-// ---- Memories: photo albums synced from past Moves where friends showed up together
-const MEM_PHOTOS = { 'mv-6': [['p3', 'maya'], ['p5', 'tony']], 'mv-7': [['p2', 'dev']] }
-const MEMORIES = [
-  // ended Moves that someone joined become a shared album
-  ...MOVES.filter((m) => m.status === 'ghost' && m.joined.length > 0).map((m) => ({ id: m.id, title: m.title, place: m.place, cat: m.cat, when: `${m.time} ago`, who: [m.user, ...m.joined], photos: MEM_PHOTOS[m.id] ?? [] })),
-  { id: 'mem-1', title: 'Matcha and PSET grind', place: 'Kumo Matcha', cat: 'coffee', when: 'Sat, Nov 7', who: ['priya', 'maya', 'jordan'], photos: [['p1', 'priya'], ['p4', 'jordan']] },
-  { id: 'mem-2', title: 'Leg day', place: 'Activity Center', cat: 'gym', when: 'Thu, Nov 5', who: ['tony', 'dev'], photos: [['p6', 'tony']] },
-].map((m) => ({ ...m, photos: m.photos.map(([p, by]) => [`/fb/memories/${p}.jpg`, by]) }))
-const who = (u) => (u === 'me' ? 'You' : first(u))
-
-function Memories() {
-  // photos I add this session: { memoryId: [[objectUrl, 'me']] }
-  const [added, setAdded] = useState({})
-  const add = (id, files) => setAdded((a) => ({ ...a, [id]: [...(a[id] ?? []), ...[...files].map((f) => [URL.createObjectURL(f), 'me'])] }))
+function Memories({ onDoAgain }) {
   return (
     <div className="page">
       <SideNav title="Memories" gear={false} items={[['Memories Home', L.Images], ['Notifications', L.Bell], ['Highlights', L.Sparkles], ['Hide People', L.UserX], ['Hide Dates', L.CalendarX]]} />
-      <main className="page-main narrow">
-        <img className="mem-banner" src="/fb/memories-header.png" alt="" />
-        <h2>Memories from your outings</h2>
-        <p className="muted mem-sub">Every time friends show up to the same Move, it lands here as a shared album. Only the people who were there can see it and add photos.</p>
-        {MEMORIES.map((m) => {
-          const [, , color, Icon] = CATS[m.cat]
-          const photos = [...m.photos, ...(added[m.id] ?? [])]
-          return (
-            <article key={m.id} className="card mem">
-              <div className="row">
-                <span className="mv-act-icon" style={{ '--c': color }}><Icon size={22} /></span>
-                <div className="grow"><b className="block clip mem-title">{m.title}</b><span className="muted">{m.place} · {m.when}</span></div>
-                <label className="btn-blue mem-add"><L.ImagePlus size={16} /> Add photos<input className="sr-only" type="file" accept="image/*" multiple onChange={(e) => { add(m.id, e.target.files); e.target.value = '' }} /></label>
-              </div>
-              <div className="row mem-who"><span className="mv-faces">{m.who.map((u) => <Face key={u} u={u} size={32} />)}</span><span>{m.who.map(first).join(', ')} and you showed up</span></div>
-              <div className="mem-grid">
-                {photos.map(([src, by], i) => (
-                  <figure key={src}>
-                    <img src={src} alt={`Photo ${i + 1} from ${m.title}, added by ${who(by)}`} loading="lazy" />
-                    <figcaption><Face u={by} size={22} /> {who(by)}</figcaption>
-                    <a className="mem-dl" href={src} download={`${m.title} ${i + 1}.jpg`} aria-label={`Download photo ${i + 1} from ${m.title}`}><L.Download size={16} /></a>
-                  </figure>
-                ))}
-              </div>
-            </article>
-          )
-        })}
-      </main>
+      <MemoriesFeed onDoAgain={onDoAgain} />
     </div>
   )
 }
@@ -900,7 +607,15 @@ function PageSkeleton({ view }) {
 }
 
 export default function App() {
+  return useSession() ? <Shell /> : <Login />
+}
+
+function Shell() {
+  useRealtime()
+  const me = useMe()
   const [view, setView] = useState('Home')
+  const [again, setAgain] = useState(null) // "Do It Again" from a Memory: opens the Moves composer prefilled
+  const go = (v) => { setAgain(null); setView(v) } // normal navigation never carries a "Do It Again" seed
   const [posts, setPosts] = useState(INITIAL_POSTS)
   const update = (id, fn) => setPosts((ps) => ps.map((p) => (p.id === id ? fn(p) : p)))
   const [loaded, setLoaded] = useState([])
@@ -913,23 +628,23 @@ export default function App() {
   }, [view, loading])
   return (
     <>
-      <TopNav view={view} setView={setView} />
+      <TopNav view={view} setView={go} />
       {loading ? <PageSkeleton view={view} /> : <>
       {view === 'Friends' && <FriendsPage />}
       {view === 'Video' && <Reels />}
       {view === 'Marketplace' && <Marketplace />}
       {view === 'Groups' && <Groups />}
-      {view === 'Moves' && <Moves />}
-      {view === 'Memories' && <Memories />}
+      {view === 'Moves' && <Moves seed={again} />}
+      {view === 'Memories' && <Memories onDoAgain={(seed) => { setAgain(seed); setView('Moves') }} />}
       {view === 'Home' && <div className="layout">
-        <LeftRail setView={setView} />
+        <LeftRail setView={go} />
         <main className="feed">
           <Stories />
-          <Composer onPost={(text) => setPosts((ps) => [{ id: Date.now(), author: ME, time: 'Just now', text, likes: 0, comments: [], shares: 0 }, ...ps])} />
+          <Composer onPost={(text) => setPosts((ps) => [{ id: Date.now(), author: me, time: 'Just now', text, likes: 0, comments: [], shares: 0 }, ...ps])} />
           {posts.map((p) => (
             <Post key={p.id} post={p}
               onLike={() => update(p.id, (x) => ({ ...x, liked: !x.liked }))}
-              onComment={(text) => update(p.id, (x) => ({ ...x, comments: [...x.comments, { author: ME, text }] }))} />
+              onComment={(text) => update(p.id, (x) => ({ ...x, comments: [...x.comments, { author: me, text }] }))} />
           ))}
         </main>
         <RightRail />

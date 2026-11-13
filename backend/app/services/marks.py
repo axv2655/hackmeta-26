@@ -126,6 +126,8 @@ class Memory:
     mark: MarkSnapshot
     at: datetime
     text: str
+    people: tuple[User, ...] = ()
+    """The others who arrived at that Move, in arrival order."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,18 +257,30 @@ class MarkService:
         )
 
     def memories(self, user_id: str, limit: int = 30, offset: int = 0) -> list[Memory]:
-        """Personal visits after their 24-hour Ghost window, newest first.
+        """Personal visits from the moment one leaves (or the Move ends), newest first.
 
+        The Ghost is the public trace friends see for a day; the Memory is the
+        visitor's private archive, so it starts right away instead of after it.
         Existing participation is retained; no copy or destructive migration.
         Quiet departures have no row and therefore never enter Memories.
         """
-        rows = self.repo.memories(
-            user_id, self.clock.now() - GHOST_WINDOW, limit, offset
-        )
-        return [
-            Memory(c.move_id, mark, at, c.text)
-            for c, mark in rows
+        rows = [
+            (c, mark, at)
+            for c, mark in self.repo.memories(user_id, self.clock.now(), limit, offset)
             if (at := ghost_at(c)) is not None
+        ]
+        people = self.repo.memory_people([c.move_id for c, _, _ in rows])
+        others = {m: [u for u in ids if u != user_id] for m, ids in people.items()}
+        users = self.repo.users({u for ids in others.values() for u in ids})
+        return [
+            Memory(
+                c.move_id,
+                mark,
+                at,
+                c.text,
+                tuple(users[u] for u in others.get(c.move_id, []) if u in users),
+            )
+            for c, mark, at in rows
         ]
 
     def views(self, viewer_id: str, marks: Sequence[MarkSnapshot]) -> list[MarkView]:

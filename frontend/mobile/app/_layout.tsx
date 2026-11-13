@@ -12,6 +12,7 @@ import { ProximityPrompt } from '@/components/moves/ProximityPrompt';
 import '@/components/shell/logoutResets';
 import { RouteError } from '@/components/shell/RouteError';
 import { useShellSession } from '@/components/shell/useShellSession';
+import { useBleProximity } from '@/lib/ble';
 import { useCalendarSync } from '@/lib/calendar';
 import { useLocationPing } from '@/lib/locationPing';
 import { usePush } from '@/lib/push';
@@ -77,6 +78,7 @@ function Shell() {
   usePush();
   useShellSession();
   useLocationPing(); // coarse phone point for the glasses/MCP place lookup
+  useBleProximity(); // real BLE co-presence: auto-arrive, join prompts
   useCalendarSync(); // phone calendar busy blocks, so Muse can find free windows
   const hydrated = useSession((s) => s.hydrated);
   const signedIn = useSession((s) => s.userId !== '');

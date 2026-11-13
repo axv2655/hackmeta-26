@@ -1,0 +1,14 @@
+flowchart LR
+    M["Mobile app (Expo)"] -->|REST + live updates| B["Meta Moves server<br/>FastAPI"]
+    W["Desktop web"] -->|REST + live updates| B
+    A["Muse in Meta AI"] -->|MCP connector| B
+    L["Share link"] -->|no-login invite page| B
+    B --> DB[("Postgres")]
+    B --> MU["Muse model"]
+    B --> AP["Apple push"]
+    classDef client fill:#e7f0ff,stroke:#0866ff,color:#050505
+    classDef core fill:#0866ff,stroke:#0866ff,color:#ffffff
+    classDef svc fill:#f0f2f5,stroke:#8a8d91,color:#050505
+    class M,W,A,L client
+    class B core
+    class DB,MU,AP svc

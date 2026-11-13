@@ -3,6 +3,9 @@ import { Platform } from 'react-native';
 import { coarse } from './location';
 import { api, del, patchJson, postJson, putJson } from './session';
 import type {
+  BleSighting,
+  BleSightingsResult,
+  BleToken,
   AcceptResult,
   AudienceSummary,
   CalendarDay,
@@ -248,6 +251,10 @@ const reels = {
 const proximity = {
   accept: (moveId: string, always?: boolean) =>
     api<ProximityAcceptResult>(`/proximity/prompt/${e(moveId)}/accept`, postJson(always ? { always: true } : {})),
+  /** A rotating BLE token, advertised as a service UUID (needs `ble_opt_in`). */
+  token: () => api<BleToken>('/proximity/token', postJson()),
+  /** What this phone's radio saw. Marks you there when you're with someone already there. */
+  sightings: (sightings: BleSighting[]) => api<BleSightingsResult>('/proximity/sightings', postJson({ sightings })),
 };
 
 type UserBody = { user_id?: string };

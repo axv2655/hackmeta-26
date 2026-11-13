@@ -118,6 +118,8 @@ class MarkRepository(Protocol):
         self, user_id: str, until: datetime, limit: int, offset: int
     ) -> list[tuple[GhostCandidate, MarkSnapshot]]: ...
 
+    def memory_people(self, move_ids: Collection[str]) -> dict[str, list[str]]: ...
+
     def moves_count(self, viewer_id: str, mark_id: str) -> int: ...
 
     def friend_ids(self, user_id: str) -> frozenset[str]: ...
@@ -389,6 +391,26 @@ class SqlMarkRepository:
             )
         )
         return [Ranking(r.user_id, r.mark_id, r.score) for r in rows]
+
+    def memory_people(self, move_ids: Collection[str]) -> dict[str, list[str]]:
+        """Everyone who arrived at each Move, in arrival order.
+
+        Quiet departures have no row, so they never show up here.
+        """
+        if not move_ids:
+            return {}
+        rows = self.session.exec(
+            select(MoveParticipant.move_id, MoveParticipant.user_id)
+            .where(
+                col(MoveParticipant.move_id).in_(move_ids),
+                col(MoveParticipant.arrived_at).is_not(None),
+            )
+            .order_by(col(MoveParticipant.arrived_at), col(MoveParticipant.user_id))
+        )
+        people: dict[str, list[str]] = {}
+        for move_id, user_id in rows:
+            people.setdefault(move_id, []).append(user_id)
+        return people
 
     def users(self, user_ids: Iterable[str]) -> dict[str, User]:
         ids = set(user_ids)

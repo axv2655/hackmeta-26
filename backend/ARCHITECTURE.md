@@ -1,10 +1,10 @@
 # Backend architecture walkthrough
 
-This template keeps the layout of the
-[official FastAPI full-stack template](https://github.com/fastapi/full-stack-fastapi-template/tree/master/backend)
-and adds one fully worked feature, **notes**, that shows how to layer a FastAPI
-app so business rules do not leak into HTTP handlers or storage code. Read the
-files in the order below; each one's module docstring explains its job.
+How the backend is layered, shown on the smallest feature, **notes** (kept from
+the template on purpose). Every real feature (Moves, Muse, ratings, ...) follows
+the same shape. For the whole system, lanes, ports and hooks, see the root
+[ARCHITECTURE.md](../ARCHITECTURE.md) section 3. Each module's docstring explains
+its job.
 
 ## The one rule
 
@@ -39,14 +39,14 @@ knows which concrete adapter is in use.
 | 3 | `backend/app/services/notes.py` | `NoteService.create` asks the domain to validate the title, stamps the time via an injected clock, and hands the entity to the repository. |
 | 4 | `backend/app/domain/notes.py` | `validate_title` strips whitespace and enforces length. Raises `InvalidNote` on failure. |
 | 5 | `backend/app/repositories/notes.py` | The adapter stores the `Note` in a dict. |
-| 6 | `backend/app/models.py` | `NoteRead.from_domain` turns the entity into the response schema. |
+| 6 | `backend/app/models/notes.py` | `NoteRead.from_domain` turns the entity into the response schema. |
 | err | `backend/app/api/errors.py` | If step 4 raised, the handler registered in `main.py` turns `InvalidNote` into a 422 and `NoteNotFound` into a 404. |
 
 The route handler itself is four lines. That is the payoff.
 
 ## Why each split exists
 
-**Schemas (`models.py`) vs entities (`domain/`).** Schemas describe JSON on
+**Schemas (`models/`) vs entities (`domain/`).** Schemas describe JSON on
 the wire and change for client reasons. Entities describe the business and
 change for business reasons. Merging them couples the two.
 
@@ -64,22 +64,27 @@ routes.
 
 ## Adding a feature
 
-1. `domain/<thing>.py`: entity, invariants, error types. No imports from `app`.
-2. `repositories/<thing>.py`: a `Protocol` with only the methods the use cases
-   need, plus an in-memory adapter.
-3. `services/<thing>.py`: one method per use case; constructor takes the port.
-4. `models.py`: request and response schemas with a `from_domain`.
-5. `api/routes/<thing>.py`: thin handlers; register the router in
-   `api/main.py`.
-6. `api/deps.py`: provide the service. `api/errors.py`: map new domain errors.
-7. `tests/test_<thing>.py`: service tests first, then one HTTP round trip.
+1. `domain/<thing>.py`: entity, invariants, error types. Standard library only.
+2. `tables/<owner>.py`: SQLModel table, in the module of the lane that writes it.
+3. `repositories/<thing>.py`: a `Protocol` with only the methods the use cases
+   need, plus the SQL adapter (and an in-memory one if tests want it).
+4. `services/<thing>.py`: one method per use case; the constructor takes ports.
+   Time comes from the `Clock` port, never `datetime.now()`.
+5. `models/<thing>.py`: request and response schemas with a `from_domain`. No
+   user coordinates, ever.
+6. `api/routes/<thing>.py`: thin handlers; register the router in `api/main.py`.
+7. `api/deps.py` (or `deps_core.py`): provide the service. `api/errors.py`: map
+   new domain errors to status codes.
+8. Cross-lane needs: read a port from the `Container`, or react to a hook
+   (`on_move_created`, `on_move_ended`, ...). Wire it in `lanes/<lane>.py`.
+9. `tests/<lane>/test_<thing>.py`: service tests first, then one HTTP round trip.
 
-## Adding a database
+## The database
 
-Follow the numbered steps in `backend/app/core/db.py`. The short version: write
-`SqlNoteRepository` in `repositories/notes.py`, give it a session, and change
-the adapter chosen in `deps.py`. Services, routes, schemas, and tests of the
-service layer are untouched.
+`core/db.py` picks the database: in-memory SQLite in tests, `DATABASE_URL`
+(Postgres) when set, otherwise the SQLite file at `DB_PATH`. Tables come from
+`app/tables/`; `create_all` runs at startup. Notes stay in memory on purpose so
+this walkthrough has no storage noise.
 
 ## When this is too much
 

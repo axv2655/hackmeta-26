@@ -26,17 +26,17 @@ ports; the seed world still needs core C10. Passing surfaces' isolated tests sat
 
 | Order | Task | Issue | Pri | Milestone | Depends on | Why here |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **S11** Seed surfaces | #34 | **P0** | M0 | T0 (+ C10 for a full world) | Demo data for S4/S5/S6/S7. |
+| 1 | **S11** Seed surfaces | #34 | **P0** | M0 | T0 (+ C10 for a full world) | Demo data for S4/S6/S7 (and S5 if built). |
 | 2 | **S10** Demo Control routes | #33 | **P0** | M2 | T0 (+ C1/C4/Muse to be live) | Every timed or hardware demo step needs a trigger. |
 | 3 | **S6** Pairwise ranking + ratings | #29 | P1 | M3 | T0 | Demo step 6. Unblocks S7. |
 | 4 | **S8** Move-ended handler | #31 | P1 | M3 | T0 | Demo step 6 (rating prompt after End). Feeds Muse revive. |
 | 5 | **S7** Leaderboards | #30 | P1 | M3 | T0, S6 | Demo step 6. |
 | 6 | **S1** Proximity ingest | #24 | P1 | M4 | T0 | Also owns `/demo/copresence`. Unblocks S2, S3. |
-| 7 | **S5** Calendar | #28 | P1 | M4 | T0 | Muse M7 consumes `CalendarGateway`. Demo step 5. |
-| 8 | **S4** Reels | #27 | P1 | M4 | T0 | Demo step 2. |
-| 9 | **S2** Proximity sweep | #25 | P1 | M4 | T0, S1 | Demo step 4. |
-| 10 | **S3** Open Moves | #26 | P2 | M5 | T0, S1 | Stretch. |
-| 11 | **S9** Glasses | #32 | P2 | M5 | T0 | Stretch. |
+| 7 | **S4** Reels | #27 | P1 | M4 | T0 | Demo step 2. |
+| 8 | **S2** Proximity sweep | #25 | P1 | M4 | T0, S1 | Demo step 4. |
+| 9 | **S3** Open Moves | #26 | P2 | M5 | T0, S1 | Stretch. |
+| 10 | **S9** Glasses + `/mcp` connector | #32 | P2 | M5 | T0 | Stretch. Demo step 9: "Hey Meta" through the connector, voice screen as backup. |
+| 11 | **S5** Calendar | #28 | P2, deferred | M5 | T0 | No consumer after the flare cut (see S5). Build only if time is left. |
 
 ## Start now vs blocked on T0
 
@@ -46,14 +46,13 @@ only the pure part in the owned file; leave ports, tables, routes and registrati
 | Task | Safe to build now | Still blocked on T0 |
 | --- | --- | --- |
 | S6 | `domain/ranking.py`: `next_comparison`, `apply`, `Face`, `Comparison`, band constants, all ranking unit tests | `services/ratings.py`, routes, `ratings`/`mark_rankings` tables, `on_rating_submitted` |
-| S5 | `free_window(events, now, min_minutes=20)` as a pure function with the horizon rules below, plus its tests | `CalendarGateway`, `calendar_events` table, routes, `Clock` port |
 | S1 | Pure cluster math (connected components), token-expiry and 60 s / -75 dBm / 2 h rules as functions | Ingest, tokens, `copresence` / `proximity_sightings` tables, routes, listener wiring |
 | S8 | Pair generation, hour/weekday bucketing, overlap computation as pure functions | Handler, `hangouts` table, `MoveGateway`, `Notifier`, `EventPublisher`, hook registration |
 | S7 | Score aggregation (friends-only average, "your / friends'" shape, stable ties) as pure functions | Service, routes, `mark_rankings`, friendships table |
 | S11 | Pure date-relative pattern generator (walk back whole weeks, Thursday/weekday logic) | Inserts into any table, `seed/ids.py`, `seed.py` runner |
 | (any) | Contract asks below (comment on #1 before it freezes) | n/a |
 
-**Blocked on T0, do not start:** S10, S4, S2, S3, S9 (every one is mostly port wiring), and the non-pure parts of S1/S5/S6/S7/S8/S11 in the right column.
+**Blocked on T0, do not start:** S10, S4, S2, S3, S9 (every one is mostly port wiring), and the non-pure parts of S1/S6/S7/S8/S11 in the right column.
 
 ## Ground rules (from every issue; do not break)
 
@@ -82,7 +81,7 @@ The proposal on `origin/main` lacks several items the issues use. **`origin/docs
 | --- | --- | --- |
 | `Clock.set_time` / `Clock.shift` | S10 | Added on fixes branch |
 | `MoveGateway.add_open_audience`, `set_autojoin` | S3, S2 | Added on fixes branch |
-| `MuseGateway.notify_preview`, `run_free_time_scan` | S4, S9, S10 | Added on fixes branch |
+| `MuseGateway.notify_preview` | S4, S9, S10 | Added on fixes branch. (`run_free_time_scan` is removed with the flare cut.) |
 | `on_move_created(move_id, notify_user_ids)` | S2 | Added on fixes branch (main still says `(move_id)`) |
 | `app/seed/seed.py`, `app/models/__init__.py`, `proximity_prompt` route stub owned by T0 | S1, S2, S11 | Added on fixes branch |
 | `app/main.py` (lifespan registers the three lanes) listed as T0-owned | all | **Open.** T0 build requires it; owned-files list omits it |
@@ -108,7 +107,7 @@ Do not edit `seed/seed.py` (T0).
 - 8 weeks of history: Anish + Priya (+ Tony) matcha/coffee weekday afternoons (4 matcha spots last month); Anish + Tony + Maya lunch; Anish + Maya + Dev
   climbing Thursdays that **stopped 4 weeks ago**; HS friends one hangout 6 weeks ago.
 - `surfaces.py`: `hangouts` from that history; `ratings` and `mark_rankings`; 4 Reels (Kumo geotag, nobody-there Mark, caption-only, one more); Anish's
-  calendar with a 2:10 to 3:00 gap before a 3:00 class; Anish's saved Kumo Reel from 3 days ago as a `saved_reels` row. Core's C10 (#11) seeds the
+  mock calendar (a few classes; only the notify picker's busy/free signal reads it); Anish's saved Kumo Reel from 3 days ago as a `saved_reels` row. Core's C10 (#11) seeds the
   matching `saved_marks` row (`source=reel`, `source_ref` = the Kumo Reel id): **this is already in C10's build list**, S11 must use the same
   `kumo_reel` id from `seed/ids.py` and the same resolved Mark.
 
@@ -118,13 +117,13 @@ Do not edit `seed/seed.py` (T0).
 3. The Reel set covers friends-there, nobody-there and caption-only.
 4. `S11`'s own tests use only its own factories; they do not import the core seed.
 5. **Handoff check (run in Z1, listed in the asks):** with both seeds run, Anish's `saved_reels` row and `saved_marks` row point at the same Mark, and
-   `free_window` for Anish at the demo time is exactly 2:10 to 3:00.
+   the Kumo Reel is a plain Saved Mark (nothing flares from it).
 
 **Edge cases.** Clock on a weekend or Thursday (walk back whole weeks, not "N days"). Midnight/DST boundaries. Re-running one module (no duplicate
 inserts). Missing `ids.py` entry (clear error). History rows satisfy core constraints (`ends_at` after `starts_at`).
 
 **Test.** Seed into a fresh in-memory DB with a fake Clock; assert per-pair counts, weekday sets, last climbing hangout >= 4 weeks old, HS hangout about
-6 weeks old, Anish's window 2:10 to 3:00, saved Reel 3 days old. Re-run with a shifted Clock and assert identical relative offsets.
+6 weeks old, saved Reel 3 days old. Re-run with a shifted Clock and assert identical relative offsets.
 
 ---
 
@@ -134,14 +133,14 @@ inserts). Missing `ids.py` entry (clear error). History rows satisfy core constr
 
 **Files.** `backend/app/api/routes/demo.py`, `backend/app/services/demo.py`, `backend/tests/surfaces/test_demo.py`.
 
-**Build.** Routes: `reset`, `time`, `flare-scan`, `free-time`, `revive-scan`, `friend-move`, `friend-join`, `end-move`, `nobody-bit`, `route`, `muse-stats`.
+**Build.** Routes: `reset`, `time`, `revive-scan`, `friend-move`, `friend-join`, `end-move`, `nobody-bit`, `route`, `muse-stats`.
 **`/demo/copresence` is S1's** (as stated in #33 itself); do not build it here, and make sure S1's route uses the same `DEMO_MODE` gate.
 
 | Route | Calls |
 | --- | --- |
 | `time` | `Clock.set_time` / `Clock.shift` |
 | `reset` | the injected **`reset` callable** (below), then `Clock.set_time(None)` |
-| `flare-scan` / `free-time` / `revive-scan` / `nobody-bit` / `route` | `MuseGateway.run_flare_scan` / `run_free_time_scan` / `run_revive_scan` / `run_nobody_bit` / `run_route` |
+| `revive-scan` / `nobody-bit` / `route` | `MuseGateway.run_revive_scan` / `run_nobody_bit` / `run_route` |
 | `friend-move` | `MoveGateway.create` |
 | `friend-join` | `MoveGateway.add_participant(move_id, user_id, 'going', 'tap')` |
 | `end-move` | `MoveGateway.end` |
@@ -295,35 +294,25 @@ All times via `Clock`.
 
 ---
 
-## S5. Calendar: mock events, busy blocks, free window, CalendarGateway (#28) · P1 · M4
+## S5. Calendar: mock events and busy blocks, no free-window consumer (#28) · P2 (deferred) · M5
 
-**Goal.** The free window Muse's flare agent (M7) needs, from mock events or device busy blocks, never storing titles.
+**Does S5 still have a consumer? No.** Its only consumer was M7's flare agent (`CalendarGateway.free_window`). Flares and `free_time` are removed, so the
+gateway, `FreeWindow` and the pure `free_window` function are dropped; there is no pure function left to "start now". The notify picker's busy/free signal
+reads the `calendar_events` table directly (seeded by S11), not S5. **Defer S5**; build it only after M4 is demo-solid. If cut, also drop the two routes
+from ARCHITECTURE.md 14.2, `lib/calendar.ts` and the Calendar onboarding opt-in.
 
 **Files.** `backend/app/services/calendar.py`, `backend/app/api/routes/calendar.py`, `backend/tests/surfaces/test_calendar.py`.
 
-**Build.** `GET /calendar`; `PUT /calendar/busy` (start/end only). Pure `free_window(events, now, min_minutes=20)` (**can start now**); implement
-`CalendarGateway.free_window(user_id, now)`.
-
-**`free_window` semantics (fixed):**
-- Returns the **current** gap: the interval from `now` to the start of the next event. If `now` falls **inside** an event, return `None` (it does not
-  look ahead to the next gap).
-- If no later event exists, the window ends at `now + HORIZON` (constant `HORIZON = 4h`), never beyond.
-- Returns `None` when the gap is shorter than `min_minutes` (default 20).
-- All math in UTC instants; the result is `(start, end)` in UTC. Crossing midnight needs no special case; local rendering happens at the edge. DST
-  cannot affect UTC arithmetic.
+**Build (only if built).** `GET /calendar` (reports `source: device|mock`); `PUT /calendar/busy` (start/end only).
 
 **Acceptance.**
-1. The seeded gap (now = 2:10, class at 3:00) returns exactly 2:10 to 3:00 (50 min).
-2. Back-to-back events, inside-an-event, and gap < 20 min return `None`; no later event returns a window capped at 4 h.
-3. Overlapping and midnight-spanning events are handled.
-4. `PUT /calendar/busy` replaces the user's previous device blocks (no unbounded append), rejects `end <= start` with 422, and **never persists a `title`
+1. `PUT /calendar/busy` replaces the user's previous device blocks (no unbounded append), rejects `end <= start` with 422, and **never persists a `title`
    or any extra field** (assert on the stored row).
-5. A user with no device blocks falls back to mock events; `GET /calendar` says which source was used (`source: device|mock`).
-6. A test with a shifted fake Clock returns the shifted window.
+2. A user with no device blocks falls back to mock events and `GET /calendar` says so.
 
 **Edge cases.** All-day events. Unknown user. Timezone: store UTC.
 
-**Test.** Pure unit tests for every case above; service test for title-dropping and replacement; one HTTP round trip.
+**Test.** Service test for title-dropping and replacement; one HTTP round trip.
 
 ---
 
@@ -425,31 +414,50 @@ do not edit `api/main.py`).
 
 ---
 
-## S9. Glasses: command and confirm (#32) · P2 · M5
+## S9. Glasses: shared compose/confirm service, `/mcp` connector, fallback routes (#32) · P2 · M5
 
-**Goal.** "Hey Meta, start a Move": an utterance becomes a draft with a spoken confirmation; nothing posts until confirm.
+**Goal.** "Hey Meta" works through a **Meta AI connector**: a remote MCP server mounted at `/mcp`. An utterance becomes a draft with a spoken
+confirmation; nothing posts until an explicit confirm. The `/glasses/*` routes are now the **fallback** for the in-app voice screen. A parallel agent
+builds the MCP server; this task owns the shared service and the contract it must meet (ARCHITECTURE.md 11.4).
 
-**Files.** `backend/app/services/glasses.py`, `backend/app/api/routes/glasses.py`, `backend/tests/surfaces/test_glasses.py`.
+**Files.** `backend/app/services/glasses.py`, `backend/app/api/routes/glasses.py`, `backend/app/mcp/**`, `backend/tests/surfaces/test_glasses.py`,
+`backend/tests/surfaces/test_mcp.py`.
 
 **Build.**
-- `POST /glasses/command {utterance, lat?, lng?}`: `MuseGateway.parse_intent` -> `MarkGateway.nearest` -> `compose_move` + `MuseGateway.notify_preview` ->
-  draft with a spoken line. `POST /glasses/confirm` posts via `MoveGateway.create(origin=glasses)`. Non-start intents are a friendly no-op.
-- **Muse-down fallback (required):** a minimal local parser matches `start a move` (case-insensitive) and takes the rest as the Move text; used when
-  `parse_intent` is unavailable or returns no intent. Without it the shared done-rule "works with Muse unavailable" fails.
-- **Pending draft storage:** one draft per user held in an in-memory store with a 5-minute TTL measured by `Clock`. It is lost on process restart; `confirm`
-  after restart or expiry returns 409 "say it again", never posts. Document this limit; no table is added.
+- **Shared service** (`services/glasses.py`): `draft(user_id, text, to, place, lat, lng)` -> `MuseGateway.parse_intent` -> `MarkGateway.nearest` (or the named
+  `place`) -> `compose_move` + `MuseGateway.notify_preview` -> draft with a spoken line. `confirm(user_id, draft_id, request_id)` posts via
+  `MoveGateway.create(origin=glasses)`. Non-start intents are a friendly no-op.
+- **Fallback routes**: `POST /glasses/command {utterance, lat?, lng?}` and `POST /glasses/confirm`, both thin calls into the service, `X-User-Id` auth.
+- **`/mcp`**: MCP Streamable HTTP, **stateless**, mounted in FastAPI at `/mcp`. `Authorization: Bearer <MCP_TOKEN>` (constant-time compare; 401 otherwise).
+  Every authorized call acts as the user `MCP_USER_ID`; `X-User-Id` is ignored. If `MCP_TOKEN` is unset `/mcp` is disabled, never open.
+- **Tools**: `draft_move(text, to?, place?, lat?, lng?)` (no write); `confirm_move(draft_id, request_id)` (idempotent, only after explicit user confirm);
+  `share_move`; `pull_up`; `friends_nearby` (opted-in users only, places not people, no coordinates); `get_my_active_move` (safe retries). Argument
+  shapes beyond those listed come from the MCP build; update ARCHITECTURE.md 11.4 if they differ.
+- **Muse-down fallback (required):** a minimal local parser matches `start a move` / `send ... a move` (case-insensitive) and takes the rest as the Move
+  text; used when `parse_intent` is unavailable or returns no intent. Without it the shared done-rule "works with Muse unavailable" fails.
+- **Pending draft storage:** drafts keyed by `draft_id` (owned by one user) in an in-memory store with a 5-minute TTL measured by `Clock`, shared by `/mcp`
+  and `/glasses/*`. Lost on process restart; `confirm` after restart or expiry returns 409 "say it again" (an error result over MCP), never posts.
+  Document this limit; no table is added. Completed confirms are remembered by `request_id` for the same TTL so a retry returns the same Move.
+
+**Open wiring (raise with T0 and core before M5).** Mounting `/mcp` needs the app object in T0's `api/main.py` (a lane may only wire itself in
+`lanes/surfaces.py`); `MCP_TOKEN` / `MCP_USER_ID` belong in core-owned `core/config.py` and `.env.example`; the `mcp` dependency is in T0's
+`pyproject.toml`; `share_move` (invite service, core) and `friends_nearby` (`user_settings` opt-ins, core) have no port today.
 
 **Acceptance.**
-1. Nothing posts before confirm; `command` creates no Move.
-2. Confirm creates exactly one Move with `origin=glasses`; a second confirm returns the same Move, no duplicate.
+1. Nothing posts before confirm; `draft_move` / `command` create no Move and notify nobody.
+2. Confirm creates exactly one Move with `origin=glasses`; a second confirm (same `request_id` or same `draft_id`) returns the same Move, no duplicate.
 3. Confirm without a draft or after expiry returns 409; another user cannot confirm someone else's draft.
-4. Coordinates are used only for the nearest-Mark lookup, never stored or echoed; without them the draft has no place (never fall back to stored GPS).
+4. Coordinates are used only for the nearest-Mark lookup, never stored or echoed in any result; without them the draft has no place (never fall back to
+   stored GPS).
 5. Muse unavailable: the fallback parser produces the draft; an unrelated utterance is the no-op.
 6. Utterance text is untrusted and is escaped/truncated before it goes into the spoken line.
-7. For the demo, the canned-command trigger is a typed `POST /glasses/command` (the real "Hey Meta" wake word is Meta AI's and cannot be hooked). A real-glasses
-   audio-path check is a frontend task outside this lane.
+7. `/mcp` without or with a wrong bearer token is 401; stateless (two independent calls work with no session); `pull_up` on a Move the caller cannot see
+   is refused; `friends_nearby` returns no coordinates and nobody who has not opted in.
+8. Demo triggers: the connector (Meta AI on the glasses) is primary; a laptop MCP client or `curl` with the bearer token drives the same tools; the typed
+   `POST /glasses/command` and the voice screen are the backups. The real "Hey Meta" wake word is Meta AI's and cannot be hooked in our app. Checking
+   the glasses-as-Bluetooth-headset audio path is a frontend task outside this lane.
 
-**Test.** Fakes for `MuseGateway`, `MarkGateway`, `MoveGateway`, fake Clock: criteria 1 to 6.
+**Test.** Fakes for `MuseGateway`, `MarkGateway`, `MoveGateway`, fake Clock: criteria 1 to 7.
 
 ---
 
@@ -460,7 +468,7 @@ do not edit `api/main.py`).
 | T0 (#1) | Merge `origin/docs/backend-task-fixes` before freeze; list `app/main.py` as T0-owned; expose an injected `reset` slot in `container`; add participant arrive/leave times to the snapshots; add `reels.resolved_mark_id` and `saved_reels` columns; add a Mark text lookup (`MarkGateway.search`); add a surfaces-owned "rating prompt sent" marker; register an `open_moves` route stub (or confirm S3 uses `proximity.py`) | 2, 3, 5, 6, 8, 10 |
 | T0 (#1) | Add to the T0 tests: null-port boot, every route stub appears in OpenAPI, lane-isolation. Run them on the merge commit before assigning surfaces work | 1, 3 |
 | Core (#11 C10) | Already lists the `saved_marks` row; nothing to add. Keep `kumo_reel` id shared via `seed/ids.py` | 4 (stale) |
-| Z1 (#35) | Add gates: (a) real S1+S2+M4: co-present friend gets prompt and no nudge, far friend gets nudge; (b) both seeds run: Anish's `saved_reels` and `saved_marks` agree and the window is 2:10 to 3:00; (c) two-client replay of the demo script incl. `reset` and socket refetch; (d) end -> rating prompt -> rate -> leaderboard | 5, 6, 7, 12 |
+| Z1 (#35) | Add gates: (a) real S1+S2+M4: co-present friend gets prompt and no nudge, far friend gets nudge; (b) both seeds run: Anish's `saved_reels` and `saved_marks` agree; (e) `/mcp`: `draft_move` creates nothing, `confirm_move` twice with one `request_id` makes one Move, a wrong bearer token is 401; (c) two-client replay of the demo script incl. `reset` and socket refetch; (d) end -> rating prompt -> rate -> leaderboard | 5, 6, 7, 12 |
 | Frontend | Demo steps need device checks; the surfaces lane cannot satisfy them | 12 |
 
 ## REVIEW.md disposition
@@ -475,9 +483,9 @@ do not edit `api/main.py`).
 | 6 | S6/S8/S7 acceptance too narrow; S8 outbox | **Fixed.** Criteria promoted to acceptance; S8 decisions fixed; per-user failure isolation; the "sent marker" need is an ask. S7 flow test added. |
 | 7 | S1 opt-in rule; S2/M4 exclusion gate | **Fixed.** Opt-in rule fixed with revocation/replay/boundary tests; exclusion is a Z1 gate and S2 documents it does not depend on hook order. |
 | 8 | S4 save/delete and caption fallback | **Fixed with an open ask.** Follows #27 (DELETE removes only `saved_reels`), builds for the consequence, both states asserted; the Mark text lookup port is an ask and the unresolved fallback is explicit until then. |
-| 9 | S5 contract unbounded | **Fixed.** Current-gap semantics, 4 h horizon, UTC math, `None` rules, source field, replacement and shifted-Clock tests. |
+| 9 | S5 contract unbounded | **Superseded.** The free-window contract is gone with the flare cut; S5 is deferred (no consumer). Replacement and title-dropping tests remain if it is built. |
 | 10 | S3 public contract and demo trigger | **Fixed.** Routes, beacon exchange and a demo trigger defined; route-module placement is an ask. |
-| 11 | S9 Muse-down fallback optional; draft storage | **Fixed.** Fallback parser required; in-memory 5 min TTL store with restart limit documented; canned typed trigger; audio check noted as frontend. |
+| 11 | S9 Muse-down fallback optional; draft storage | **Fixed, then extended.** Fallback parser required; in-memory 5 min TTL store with restart limit documented; primary path is now the `/mcp` connector, typed `/glasses/command` and the voice screen are backups. |
 | 12 | Milestone claims vs frontend | **Fixed.** M0/M2 are backend handoffs; Z1 plus device checks required before a demo step is called done. |
 
 Also noted: `REVIEW.md` says GitHub issue access returned 403. Issues were read successfully with an authenticated `gh` on 2026-11-12, and where the local

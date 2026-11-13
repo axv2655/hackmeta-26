@@ -30,13 +30,15 @@ Task IDs: `T0` shared, `C*` core, `M*` muse, `S*` surfaces, `Z1` integration.
 | --- | --- |
 | core | `core/*`, `domain/{moves,privacy,errors}.py`, `repositories/{moves,marks,audience}.py`, `services/{moves,marks,audience,users,circles,moments}.py`, `realtime/*`, `seed/core.py`, `models/core.py`, routes `{auth,users,circles,audience,marks,moves,moments,ws}.py`, `lanes/core.py` |
 | muse | `muse/*`, `domain/{affinity,pseudo_groups}.py`, `services/{notify,suggestions,taste}.py`, `seed/muse.py`, `models/muse.py`, routes `{muse,muse_compose,muse_spots,notifications,suggestions,pseudo_groups}.py`, `lanes/muse.py` |
-| surfaces | `domain/ranking.py`, `services/{proximity,proximity_sweep,open_moves,reels,calendar,ratings,leaderboards,hangouts,glasses,demo}.py`, `seed/{surfaces,history}.py`, `models/surfaces.py`, routes `{proximity,proximity_prompt,reels,calendar,ratings,leaderboards,glasses,demo}.py`, `lanes/surfaces.py` |
+| surfaces | `domain/ranking.py`, `services/{proximity,proximity_sweep,open_moves,reels,calendar,ratings,leaderboards,hangouts,glasses,demo}.py`, `mcp/**` (the `/mcp` connector), `seed/{surfaces,history}.py`, `models/surfaces.py`, routes `{proximity,proximity_prompt,reels,calendar,ratings,leaderboards,glasses,demo}.py`, `lanes/surfaces.py` |
 
 `tests/contract/test_lane_isolation.py` fails if one lane imports another's files. Importing `app.ports`, `app.tables`, `app.hooks`, `app.core`, `app.container`, `app.models.shared`, `app.api.deps`, `app.seed.ids` is always allowed.
 
 ## 3. The contract (created by T0)
 
-The frozen executable contract is `backend/app/ports.py`. The outline below is illustrative; consumers must use its exact annotations and await all MoveGateway mutations. TimeControl, UserGateway and MarkGateway.unsave/mark_flared are also part of that contract.
+The frozen executable contract is `backend/app/ports.py`. The outline below is illustrative; consumers must use its exact annotations and await all MoveGateway mutations. TimeControl, UserGateway and MarkGateway.unsave are also part of that contract.
+
+**Flare removal needs a contract amendment (rule 4.8, all three owners approve, one PR, every lane's fakes updated).** Already-merged `ports.py` still carries `MuseGateway.run_flare_scan`, `run_free_time_scan`, `MarkGateway.mark_flared`, `FreeWindow` and `CalendarGateway`, plus the `moves.kind` / `moves.fill_deadline` / `saved_marks.flared_at` columns and the `flare` / `free_time` suggestion types. The outline below shows the target state. Until the amendment lands, nothing may call the removed members.
 
 ```python
 # app/ports.py
@@ -69,8 +71,6 @@ class MuseGateway(Protocol):      # impl: muse. One class in M1 (muse/gateway.py
     async def rank_moves(self, viewer_id: str, moves: list[MoveSnapshot]) -> list[RankedMove]: ...
     async def resolve_place(self, user_id: str, geotag_mark_id: str | None, caption: str | None, coarse: tuple[float, float] | None) -> PlaceResolution: ...
     async def parse_intent(self, utterance: str) -> Intent: ...
-    async def run_flare_scan(self, user_id: str) -> SuggestionSnapshot | None: ...
-    async def run_free_time_scan(self, user_id: str) -> SuggestionSnapshot | None: ...
     async def run_revive_scan(self, user_id: str) -> SuggestionSnapshot | None: ...
     async def run_nobody_bit(self, move_id: str) -> SuggestionSnapshot | None: ...
     async def run_route(self, move_id: str, user_ids: list[str]) -> SuggestionSnapshot | None: ...
@@ -80,8 +80,7 @@ class ProximityGateway(Protocol): # impl: surfaces S1
     def copresent_cluster(self, user_id: str) -> frozenset[str]: ...
     def open_moves_near(self, user_id: str) -> list[str]: ...
 
-class CalendarGateway(Protocol):  # impl: surfaces S5
-    def free_window(self, user_id: str, now: datetime) -> FreeWindow | None: ...
+# CalendarGateway / FreeWindow: removed with the flare agent. M7 was the only consumer.
 ```
 
 ```python
@@ -103,7 +102,7 @@ Who implements which port, who consumes it:
 | `MoveGateway`, `MarkGateway` | core | muse (M4, M5, M6, M7, M8, M10), surfaces (S2, S3, S4, S8, S9, S10) |
 | `MuseGateway` | muse | core (C5), surfaces (S4, S9, S10) |
 | `ProximityGateway` | surfaces | muse (M4, M10) |
-| `CalendarGateway` | surfaces | muse (M7) |
+| `CalendarGateway` | none (removed) | none |
 
 ## 4. Test independence rules
 
@@ -194,7 +193,7 @@ Every issue ends with the same ground rules:
 | M4 | Notify pipeline, Notifier implementation, notifications routes | P0 | M2 | T0, M3 | [#16](https://github.com/axv2655/hackmeta-26/issues/16) |
 | M5 | Move writer, place resolver, compose-move | P0 | M2 | T0, M1 | [#17](https://github.com/axv2655/hackmeta-26/issues/17) |
 | M6 | Move ranker agent and MuseGateway.rank_moves | P0 | M2 | T0, M2 | [#18](https://github.com/axv2655/hackmeta-26/issues/18) |
-| M7 | Suggestions + flare agent + scheduler job | P1 | M2 | T0, M2, M4 | [#19](https://github.com/axv2655/hackmeta-26/issues/19) |
+| M7 | Suggestions service, accept/dismiss routes, expiry job (flare agent removed) | P1 | M2 | T0, M2, M4 | [#19](https://github.com/axv2655/hackmeta-26/issues/19) |
 | M8 | Taste agent, taste profiles, suggest-spots | P1 | M3 | T0, M1, M2 | [#20](https://github.com/axv2655/hackmeta-26/issues/20) |
 | M9 | Pseudo-group detection and revive agent | P1 | M3 | T0, M2, M7 | [#21](https://github.com/axv2655/hackmeta-26/issues/21) |
 | M10 | Nobody-bit agent and trigger job | P1 | M3 | T0, M2, M4, M7 | [#22](https://github.com/axv2655/hackmeta-26/issues/22) |
@@ -208,11 +207,11 @@ Every issue ends with the same ground rules:
 | S2 | Proximity sweep: join prompt, auto-join, exclusion | P1 | M4 | T0, S1 | [#25](https://github.com/axv2655/hackmeta-26/issues/25) |
 | S3 | Open Moves discovery over BLE | P2 | M5 | T0, S1 | [#26](https://github.com/axv2655/hackmeta-26/issues/26) |
 | S4 | Reels: list, place chip, save to Saved Mark | P1 | M4 | T0 | [#27](https://github.com/axv2655/hackmeta-26/issues/27) |
-| S5 | Calendar: mock events, busy blocks, free window, CalendarGateway | P1 | M4 | T0 | [#28](https://github.com/axv2655/hackmeta-26/issues/28) |
+| S5 | Calendar: mock events and busy blocks (no consumer after the flare cut; deferred, see S5) | P2 | M5 | T0 | [#28](https://github.com/axv2655/hackmeta-26/issues/28) |
 | S6 | Pairwise ranking domain and rating service | P1 | M3 | T0 | [#29](https://github.com/axv2655/hackmeta-26/issues/29) |
 | S7 | Leaderboards: top spots and my list | P1 | M3 | T0, S6 | [#30](https://github.com/axv2655/hackmeta-26/issues/30) |
 | S8 | Move-ended handler: hangouts and rating prompt | P1 | M3 | T0 | [#31](https://github.com/axv2655/hackmeta-26/issues/31) |
-| S9 | Glasses: command and confirm | P2 | M5 | T0 | [#32](https://github.com/axv2655/hackmeta-26/issues/32) |
+| S9 | Glasses: shared compose/confirm service, `/mcp` connector wiring, fallback `/glasses/*` routes | P2 | M5 | T0 | [#32](https://github.com/axv2655/hackmeta-26/issues/32) |
 | S10 | Demo Control routes (/demo/*), DEMO_MODE only | P0 | M2 | T0 | [#33](https://github.com/axv2655/hackmeta-26/issues/33) |
 | S11 | Seed surfaces: hangouts, ratings, rankings, reels, calendar, saved | P0 | M0 | T0 | [#34](https://github.com/axv2655/hackmeta-26/issues/34) |
 
@@ -248,7 +247,7 @@ Every issue ends with the same ground rules:
 - Rule: a lane WRITES only its own tables. Reading any table is fine. Cross-lane behavior goes through ports only. Seed-only exception: `seed/history.py` (S11) inserts ended `moves` and `move_participants` rows for history.
 - `app/models/shared.py`: the section 14.1 types (UserLite, Category, Mark, Participant, Move, AudienceSummary, NotifyPick, Suggestion, MoveDraft, Notification) as Pydantic models, frozen with the contract. Also create empty `app/models/{core,muse,surfaces}.py`; each lane puts its endpoint-specific request/response models in its own file. This replaces the template's `app/models.py`.
 - `app/api/deps.py`: `get_session` passthrough and `current_user_id` (reads `X-User-Id`; 401 when missing, 404 for an unknown user). Every lane's routes import it; nobody defines another.
-- `app/ports.py`: frozen dataclasses `MoveCreate` (the `POST /moves` fields plus `notify_user_ids: frozenset[str] | None`), `MoveSnapshot`, `ParticipantSnapshot`, `MarkSnapshot`, `FreeWindow`, `NotifyPickOut`, `MoveDraftOut`, `RankedMove`, `PlaceResolution`, `Intent`, `SuggestionSnapshot`, plus Protocols `Clock`, `EventPublisher`, `Notifier`, `MoveGateway`, `MarkGateway`, `MuseGateway`, `ProximityGateway`, `CalendarGateway` (signatures in docs/BACKEND_TASKS.md section 3).
+- `app/ports.py`: frozen dataclasses `MoveCreate` (the `POST /moves` fields plus `notify_user_ids: frozenset[str] | None`), `MoveSnapshot`, `ParticipantSnapshot`, `MarkSnapshot`, `NotifyPickOut`, `MoveDraftOut`, `RankedMove`, `PlaceResolution`, `Intent`, `SuggestionSnapshot`, plus Protocols `Clock`, `EventPublisher`, `Notifier`, `MoveGateway`, `MarkGateway`, `MuseGateway`, `ProximityGateway` (signatures in docs/BACKEND_TASKS.md section 3).
 - `app/ports_null.py`: a safe no-op implementation of every port so the app boots and every lane runs with the other two lanes absent.
 - `app/hooks.py`: registry with `on_move_created(move_id, notify_user_ids)`, `on_move_joined(move_id, user_id)`, `on_move_ended(move_id)`, `on_rating_submitted(move_id, user_id)`. Handlers run in registration order; an exception in one is logged and swallowed so one lane never breaks another.
 - `app/container.py` (holds one slot per port, defaults from `ports_null`) and `app/lanes/{core,muse,surfaces}.py`, each exposing `register(container, hooks, scheduler)`. `main.py` lifespan calls all three. Each lane edits ONLY its own `lanes/<lane>.py` to wire itself in.
@@ -531,7 +530,7 @@ Every issue ends with the same ground rules:
 - Write rows directly to the core-owned tables (plain inserts; no repository or service needed) using IDs from `seed/ids.py`.
 - 12 to 15 users with the demo cast, friendships, Anish's four Circles (Climbing tagged as a Facebook Group), 30 to 40 Marks around the demo center (constant at top of file), Mom blocked from Anish's Moves, settings.
 - Live state: Tony's live Move at Kumo Matcha with 2 others; Jordan's open pickleball Move; ghosts and seeded Moments at another Mark from last night.
-- Anish's `saved_marks` row for Kumo Matcha (`source=reel`, `source_ref` = the Kumo Reel id from `seed/ids.py`, saved 3 days ago, `flared_at` null). The flare demo ("You saved Kumo Matcha") depends on it.
+- Anish's `saved_marks` row for Kumo Matcha (`source=reel`, `source_ref` = the Kumo Reel id from `seed/ids.py`, saved 3 days ago). It is a plain Saved Mark; no agent acts on it (flares are removed).
 - Does NOT write hangouts, ratings, rankings, reels, calendar (those belong to surfaces seed).
 
 ### Acceptance
@@ -718,39 +717,35 @@ Every issue ends with the same ground rules:
 
 
 
-## M7: Suggestions + flare agent + scheduler job ([#19](https://github.com/axv2655/hackmeta-26/issues/19))
+## M7: Suggestions service, accept/dismiss routes, expiry job ([#19](https://github.com/axv2655/hackmeta-26/issues/19))
 
 **Lane:** `muse`  |  **Priority:** P1  |  **Milestone:** M2  |  **Depends on (same lane or T0 only):** #1 (T0), #14 (M2), #16 (M4)
-**Spec:** ARCHITECTURE.md 10.6, 11.2
+**Spec:** ARCHITECTURE.md 9.3, 10.6 (removal note)
+
+The flare agent, its prompt, the 60 s scan and `free_time` are **removed**. M7 is now only the shared suggestions plumbing that M9, M10 and M11 use.
 
 ### You own
-- `backend/app/muse/agents/flare.py`
-- `backend/app/muse/prompts/flare.md`
 - `backend/app/services/suggestions.py`
 - `backend/app/api/routes/suggestions.py`
-- `backend/tests/muse/test_flare.py`
+- `backend/tests/muse/test_suggestions.py`
 
 ### Build
-- Job every 60s: users with `muse_proactive`, free window from `CalendarGateway`, saved Marks not proposed in the last 3 days, pseudo-group members who are free. Derive "not proposed" from muse-owned `suggestions` rows (type `flare`, `payload.mark_id`, `created_at`); never write `saved_marks.flared_at`, which is core-owned. `max_tokens=350`.
-- Agent output `type` is `flare | free_time`: `free_time` when no saved Mark fits but a friend or pseudo-group member is also free ("You've got 40 min and Tony's free too"). `run_free_time_scan(user_id)` runs that path on demand for Demo Control.
 - `services/suggestions.py` exposes `create_suggestion(user_id, type, payload, expires_at)`: it stores the row, sends the matching `muse_<type>` notification through the muse `Notifier` (`data.route=/suggestion/{id}`) and publishes `suggestion.created` via `EventPublisher`. Every muse agent that proposes something (M9, M10, M11) uses it. A scheduler job marks `pending` rows past `expires_at` as `expired`.
-- Rules: window < 60 min means 5 to 10 min fill; max 2 per user per day; no quiet hours; dismissed Mark suppressed a week.
-- `GET /suggestions` (pending and unexpired only), `POST /suggestions/{id}/accept`, `/dismiss`. Accept dispatches on type: `flare` / `free_time` create the Move via `MoveGateway.create` (kind and origin from the type, `fill_deadline` for a flare, Muse's invite list as `notify_user_ids`); `nobody_bit` calls `MoveGateway.add_participant(target, user, 'going', 'tap')` then `MoveGateway.end(own_move, 'nobody_bit')`; `revive` / `route` return the stored draft and mark it accepted.
-- Bind `MuseGateway.run_flare_scan` and `run_free_time_scan` in `lanes/muse.py`.
+- Rules: max 2 proactive suggestions per user per day; no quiet hours; a dismissed suggestion suppresses the same target for a week.
+- `GET /suggestions` (pending and unexpired only), `POST /suggestions/{id}/accept`, `/dismiss`. Accept dispatches on type: `nobody_bit` calls `MoveGateway.add_participant(target, user, 'going', 'tap')` then `MoveGateway.end(own_move, 'nobody_bit')`; `revive` / `route` return the stored draft and mark it accepted.
 
 ### Ports you consume (fake them in your tests)
-- CalendarGateway (fake)
 - MoveGateway (fake)
 - EventPublisher (fake)
 - Clock
 
 ### Acceptance
-- [ ] Accept creates a flare with fill_deadline; Muse never posts without the tap.
+- [ ] Accepting `nobody_bit` joins the other Move and ends the empty one; `revive` / `route` return the stored draft. Muse never posts a Move without the tap.
 
 ### Tests
-- Daily cap, suppression, window math with fake clock and fake CalendarGateway.
-- A free friend and no saved Mark produces a `free_time` suggestion; a stored suggestion sends its notification and `suggestion.created`; expiry job.
-- Valid canned output parses; garbage output returns the fallback.
+- Daily cap and suppression with a fake clock.
+- A stored suggestion sends its notification and `suggestion.created`; expiry job.
+- Accept dispatch per remaining type (`nobody_bit`, `revive`, `route`, `reel_move`).
 
 
 
@@ -822,7 +817,7 @@ Every issue ends with the same ground rules:
 - `backend/tests/muse/test_nobody_bit.py`
 
 ### Build
-- Job: flare past `fill_deadline` with no joiners, or a Move with no joiners 15 min after posting.
+- Job: a Move with no joiners 15 min after posting. This is the only trigger (flares and `fill_deadline` are removed).
 - Candidates: `MoveGateway.list_live_visible` plus `ProximityGateway.open_moves_near`; nothing else is ever suggested. No candidates means send nothing.
 - Store the proposal with `services.suggestions.create_suggestion` (type `nobody_bit`), which sends `muse_nobody_bit`. Accepting it is handled by M7's accept route (joins the other Move and ends the empty one). Bind `MuseGateway.run_nobody_bit` in `lanes/muse.py`.
 
@@ -973,19 +968,23 @@ Every issue ends with the same ground rules:
 
 
 
-## S5: Calendar: mock events, busy blocks, free window, CalendarGateway ([#28](https://github.com/axv2655/hackmeta-26/issues/28))
+## S5: Calendar: mock events and busy blocks, no free-window consumer ([#28](https://github.com/axv2655/hackmeta-26/issues/28))
 
-**Lane:** `surfaces`  |  **Priority:** P1  |  **Milestone:** M4  |  **Depends on (same lane or T0 only):** #1 (T0)
-**Spec:** ARCHITECTURE.md 10.6, 12.1
+**Lane:** `surfaces`  |  **Priority:** P2 (was P1)  |  **Milestone:** M5 (was M4)  |  **Depends on (same lane or T0 only):** #1 (T0)
+**Spec:** ARCHITECTURE.md 10.6 (removal note), 12.1
+
+**Does S5 still have a consumer? No.** Its only consumer was M7's flare agent through `CalendarGateway.free_window`. With flares and `free_time` removed, nothing calls the gateway, so `CalendarGateway`, `FreeWindow` and the pure `free_window` function are dropped. The one remaining reader of calendar data is the notify picker's busy/free signal (10.1 `currently`, M2), which reads the surfaces-owned `calendar_events` table directly (read-only table access is allowed), not S5's routes. The `calendar_events` rows come from S11's seed, not from S5.
+
+Recommendation: **defer S5** and build it only if time is left after M4. If built, it is just the two routes below. If cut, also drop `GET /calendar` and `PUT /calendar/busy` from ARCHITECTURE.md 14.2, `lib/calendar.ts` and the Calendar onboarding opt-in. `user_settings.calendar_opt_in` still gates whether the notify picker sees busy/free.
 
 ### You own
 - `backend/app/services/calendar.py`
 - `backend/app/api/routes/calendar.py`
 - `backend/tests/surfaces/test_calendar.py`
 
-### Build
-- `GET /calendar`, `PUT /calendar/busy` (start/end only, never titles).
-- Pure `free_window(events, now, min_minutes=20)`; implement `CalendarGateway.free_window`.
+### Build (only if built)
+- `GET /calendar`, `PUT /calendar/busy` (start/end only, never titles; replaces the user's previous device blocks; `end <= start` is 422; `GET` reports `source: device|mock`).
+- No `free_window`, no port.
 
 ### Ports you consume (fake them in your tests)
 - Clock
@@ -994,7 +993,7 @@ Every issue ends with the same ground rules:
 - [ ] The server never stores titles from a device calendar.
 
 ### Tests
-- Gap before a 3:00 class, back-to-back events, no window.
+- Busy blocks replace rather than append; titles never persisted; invalid range rejected.
 
 
 
@@ -1067,19 +1066,36 @@ Every issue ends with the same ground rules:
 
 
 
-## S9: Glasses: command and confirm ([#32](https://github.com/axv2655/hackmeta-26/issues/32))
+## S9: Glasses: shared compose/confirm service, `/mcp` connector, fallback routes ([#32](https://github.com/axv2655/hackmeta-26/issues/32))
 
 **Lane:** `surfaces`  |  **Priority:** P2  |  **Milestone:** M5  |  **Depends on (same lane or T0 only):** #1 (T0)
-**Spec:** ARCHITECTURE.md 11.4
+**Spec:** ARCHITECTURE.md 11.4, 14.2
+
+Scope change: the primary glasses path is now a **Meta AI connector**, a remote MCP server at `/mcp`. The `/glasses/*` routes shrink to the fallback for the in-app voice screen. A parallel agent builds the MCP server itself; this task is the shared service underneath both entry points and the contract the MCP build must meet.
 
 ### You own
-- `backend/app/services/glasses.py`
-- `backend/app/api/routes/glasses.py`
-- `backend/tests/surfaces/test_glasses.py`
+- `backend/app/services/glasses.py` (shared compose and confirm logic, draft store)
+- `backend/app/api/routes/glasses.py` (fallback routes)
+- `backend/app/mcp/**` (the `/mcp` server: transport, bearer auth, tool handlers)
+- `backend/tests/surfaces/test_glasses.py`, `backend/tests/surfaces/test_mcp.py`
 
 ### Build
-- `POST /glasses/command`: `MuseGateway.parse_intent` -> nearest Mark (`MarkGateway.nearest`) -> `compose_move` + `MuseGateway.notify_preview` -> draft with a spoken confirmation line.
-- `POST /glasses/confirm` posts via `MoveGateway.create(origin=glasses)`. Non-start intents return a friendly no-op.
+- **Shared service** `services/glasses.py`: `draft(user_id, text, to, place, lat, lng)` -> `MuseGateway.parse_intent` -> place from `place` or `MarkGateway.nearest` (coarse coordinates, never stored) -> `compose_move` + `MuseGateway.notify_preview` -> draft plus a spoken confirmation line. `confirm(user_id, draft_id, request_id)` posts via `MoveGateway.create(origin=glasses)`. Drafts sit in an in-memory 5-minute TTL store shared by every entry point (a restart drops them; the user asks again). **Idempotent**: the same `request_id`, or an already-confirmed `draft_id`, returns the same Move and creates no second one. Unknown or expired `draft_id` is a domain error, never a silent new Move. Non-start intents are a friendly no-op.
+- **Fallback routes**: `POST /glasses/command` (-> `draft`) and `POST /glasses/confirm` (-> `confirm`), `X-User-Id` auth as everywhere else. Used by `glasses.tsx`.
+- **`/mcp`**: MCP Streamable HTTP, **stateless**, mounted in FastAPI at `/mcp` (not under `/api/v1`). Bearer auth: `Authorization: Bearer <MCP_TOKEN>`, 401 if missing or wrong, compare in constant time. Every authorized call acts as the user `MCP_USER_ID`; `X-User-Id` is ignored. Both are env vars (add to `.env.example`), startup fails fast with `/mcp` disabled and a clear log if `MCP_TOKEN` is unset, never an open endpoint.
+- **Tools**, each a thin call into existing services through ports:
+  - `draft_move(text, to?, place?, lat?, lng?)`: **no write**, no notification. Returns `{draft_id, spoken}`.
+  - `confirm_move(draft_id, request_id)`: idempotent; the tool description tells the caller to invoke it only after explicit user confirmation.
+  - `share_move`: share link and line for a live Move (ARCHITECTURE.md 9.4).
+  - `pull_up`: `MoveGateway.add_participant(move_id, user, 'going', 'tap')`, only for a Move the caller can see.
+  - `friends_nearby`: live Moves from friends near here, opted-in users only, **places and activities, not people**; no coordinates in the result.
+  - `get_my_active_move`: the caller's live Move or none, so a retry after a timeout can check before drafting again.
+- Argument shapes beyond the ones above (for `share_move`, `pull_up`, `friends_nearby`) are fixed by the MCP build; update ARCHITECTURE.md 11.4 in the same change if they differ.
+
+### Open wiring (T0 or core owners, raise before M5)
+- Mounting `/mcp` needs access to the FastAPI app, which lives in T0's `api/main.py`; a lane may only wire itself in `lanes/surfaces.py`. Either the lane hook can return an ASGI mount, or T0 adds a one-line mount (contract change, rule 8).
+- `MCP_TOKEN` / `MCP_USER_ID` belong in `core/config.py` (core-owned) and the `mcp` package is a new dependency in `pyproject.toml` (T0). Both need a small cross-lane change.
+- `share_move` uses the invite service from ARCHITECTURE.md 9.4 (core), and `friends_nearby` needs the opt-in flags from `user_settings` (core). Neither is a port today; add one, or have the MCP build read the tables read-only and call the invite service through a port.
 
 ### Ports you consume (fake them in your tests)
 - MuseGateway (fake)
@@ -1087,10 +1103,17 @@ Every issue ends with the same ground rules:
 - MoveGateway (fake)
 
 ### Acceptance
-- [ ] Nothing posts before confirm.
+- [ ] Nothing posts before confirm, through `/mcp` or `/glasses/*`.
+- [ ] `confirm_move` twice with the same `request_id` returns one Move.
+- [ ] `/mcp` without or with a wrong bearer token is 401; with `MCP_TOKEN` unset it is disabled, not open.
+- [ ] `friends_nearby` returns no coordinates and nobody who has not opted in.
+- [ ] Works with Muse down (heuristic parser and writer).
 
 ### Tests
-- Start-a-Move utterance, unrelated utterance, confirm.
+- Start-a-Move utterance, unrelated utterance, confirm, double confirm, expired draft.
+- Bearer auth: missing, wrong, right. Stateless: two calls with no shared session both work.
+- `pull_up` on a Move the caller cannot see is refused.
+- No user coordinates in any tool result.
 
 
 
@@ -1105,8 +1128,8 @@ Every issue ends with the same ground rules:
 - `backend/tests/surfaces/test_demo.py`
 
 ### Build
-- Routes: reset, time, flare-scan, free-time, revive-scan, friend-move, friend-join, end-move, nobody-bit, route, muse-stats. (`/demo/copresence` is built by S1, next to the ingest code it drives.)
-- Every trigger calls the same gateway code path as production, through ports only. No duplicate logic. Mapping: `time` -> `Clock.set_time` / `Clock.shift`; `reset` -> seed runner, then `Clock.set_time(None)`; `flare-scan` / `free-time` / `revive-scan` / `nobody-bit` / `route` -> `MuseGateway.run_flare_scan` / `run_free_time_scan` / `run_revive_scan` / `run_nobody_bit` / `run_route`; `friend-move` -> `MoveGateway.create`; `friend-join` -> `MoveGateway.add_participant(move_id, user_id, 'going', 'tap')` (same path as `POST /moves/{id}/join`, so the second-order nudge fires); `end-move` -> `MoveGateway.end`; `muse-stats` -> `MuseGateway.muse_stats`.
+- Routes: reset, time, revive-scan, friend-move, friend-join, end-move, nobody-bit, route, muse-stats. (`/demo/copresence` is built by S1, next to the ingest code it drives.)
+- Every trigger calls the same gateway code path as production, through ports only. No duplicate logic. Mapping: `time` -> `Clock.set_time` / `Clock.shift`; `reset` -> seed runner, then `Clock.set_time(None)`; `revive-scan` / `nobody-bit` / `route` -> `MuseGateway.run_revive_scan` / `run_nobody_bit` / `run_route`; `friend-move` -> `MoveGateway.create`; `friend-join` -> `MoveGateway.add_participant(move_id, user_id, 'going', 'tap')` (same path as `POST /moves/{id}/join`, so the second-order nudge fires); `end-move` -> `MoveGateway.end`; `muse-stats` -> `MuseGateway.muse_stats`.
 - All routes return 404 unless `DEMO_MODE` is set.
 
 ### Ports you consume (fake them in your tests)
@@ -1134,7 +1157,7 @@ Every issue ends with the same ground rules:
 ### Build
 - Write directly to surfaces-owned tables using IDs from `seed/ids.py`. Seed-only exception to table ownership: `seed/history.py` may INSERT ended `moves` (past `starts_at` / `ends_at`, relative to the Clock) and their `move_participants` rows directly, without firing hooks, as the history behind `hangouts`. No other surfaces code writes core tables.
 - 8 weeks of history with the deliberate patterns: Anish+Priya(+Tony) matcha weekday afternoons; Anish+Tony+Maya lunch; Anish+Maya+Dev climbing Thursdays that stopped 4 weeks ago; HS friends one hangout 6 weeks ago.
-- Ratings and rankings so boards and taste have signal; 4 Reels (Kumo geotag, nobody-there Mark, caption-only); Anish's calendar with the 2:10 to 3:00 gap; his saved Kumo Reel from 3 days ago (the `saved_reels` row; C10 seeds the matching `saved_marks` row).
+- Ratings and rankings so boards and taste have signal; 4 Reels (Kumo geotag, nobody-there Mark, caption-only); Anish's mock calendar (a few classes, only the notify picker's busy/free signal reads it); his saved Kumo Reel from 3 days ago (the `saved_reels` row; C10 seeds the matching `saved_marks` row).
 
 ### Acceptance
 - [ ] Seed history is generated relative to the Clock so patterns stay 'recent' on demo day.
@@ -1153,8 +1176,8 @@ Every issue ends with the same ground rules:
 - `backend/tests/integration/**`
 
 ### Build
-- Wire the real implementations and run the demo script end to end through HTTP and WebSocket: post Move -> audience/notify -> join -> second-order nudge -> end -> rating -> leaderboard; flare scan -> accept; nobody-bit.
-- Drive the script through `/demo/*`, as section 15.2 does, and also cover: (a) Reel path: `GET /reels/{kumo}/place` returns the "Tony + 2 friends are here rn" summary, Anish joins, Priya gets the second-order nudge; (b) `/demo/copresence` puts Anish and Maya together, Anish posts, Maya gets `proximity.prompt` (or is auto-added) and no FOMO notification while a far friend gets one; (c) `/demo/revive-scan` produces the climbing-crew suggestion; (d) nobody-bit on an empty flare offers Jordan's open pickleball Move and accepting joins it; (e) privacy across lanes: Mom (on Anish's hidden-from list) gets no notification and no proximity prompt for Anish's Move, never sees it in a Reel's active-Move summary, and is never offered it by nobody-bit.
+- Wire the real implementations and run the demo script end to end through HTTP and WebSocket: post Move -> audience/notify -> join -> second-order nudge -> end -> rating -> leaderboard; revive scan -> accept; nobody-bit; and (new) `/mcp`: `draft_move` -> `confirm_move` twice with one `request_id` -> one Move, then the other tools.
+- Drive the script through `/demo/*`, as section 15.2 does, and also cover: (a) Reel path: `GET /reels/{kumo}/place` returns the "Tony + 2 friends are here rn" summary, Anish joins, Priya gets the second-order nudge; (b) `/demo/copresence` puts Anish and Maya together, Anish posts, Maya gets `proximity.prompt` (or is auto-added) and no FOMO notification while a far friend gets one; (c) `/demo/revive-scan` produces the climbing-crew suggestion; (d) nobody-bit on a Move with no joiners after 15 minutes (or `/demo/nobody-bit`) offers Jordan's open pickleball Move and accepting joins it; (e) privacy across lanes: Mom (on Anish's hidden-from list) gets no notification and no proximity prompt for Anish's Move, never sees it in a Reel's active-Move summary, and is never offered it by nobody-bit.
 - Also: notify pipeline excludes the co-present cluster with real S1/S2; ranking fallback with real C5 and M6; the Muse-offline mode (`DEMO_MODE=offline`) completes the same script.
 
 ### Acceptance

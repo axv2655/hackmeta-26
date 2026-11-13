@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.api.deps import ContainerDep
 from app.core.db import SessionDep
 from app.ports import Category
-from app.services import glasses
+from app.services import glasses, phone_location
 from app.services.glasses import DraftExpired, PlaceFailed, PlaceSource
 from app.tables import User
 
@@ -66,6 +66,19 @@ class GlassesDraft(BaseModel):
     expires_at: datetime | None = None
 
 
+class LocationPing(BaseModel):
+    """The phone's own coarse point (the app rounds it to ~100 m)."""
+
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class LocationStored(BaseModel):
+    """Never echoes the point."""
+
+    stored: bool
+
+
 class GlassesConfirm(BaseModel):
     draft_id: str | None = None
 
@@ -74,6 +87,16 @@ class GlassesPosted(BaseModel):
     move_id: str
     text: str
     spoken: str
+
+
+@router.post("/glasses/location", response_model=LocationStored)
+def glasses_location(
+    body: LocationPing, user_id: UserIdDep, container: ContainerDep
+) -> LocationStored:
+    """Phone location for the MCP place lookup. Held in memory for 30 minutes,
+    only while location sharing is on; `stored: false` when it is off."""
+    kept = phone_location.get(container).record(user_id, body.lat, body.lng)
+    return LocationStored(stored=kept)
 
 
 @router.post("/glasses/command", response_model=GlassesDraft)

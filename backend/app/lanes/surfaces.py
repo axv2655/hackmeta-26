@@ -19,9 +19,10 @@ from app.repositories.glasses_places import (
     DEFAULT_DEMO_MARK_ID,
     SqlPlaceCreator,
     SqlPlaceFinder,
+    location_sharing_on,
 )
 from app.scheduler.loop import Scheduler
-from app.services import glasses
+from app.services import glasses, phone_location
 from app.services.calendar_gateway import SqlCalendarGateway
 from app.services.hangouts import HangoutRecorder
 from app.services.proximity_sweep import ProximitySweep, SqlProximityGateway, purge
@@ -58,9 +59,15 @@ def register(
     # are swept whenever a new draft is stored) and the place fallbacks (named
     # spot, usual spot, the demo Mark in DEMO_MODE).
     places = SqlPlaceFinder(eng, os.environ.get(DEMO_MARK_ENV) or DEFAULT_DEMO_MARK_ID)
+    phone = phone_location.install(
+        phone_location.PhoneLocation(
+            lambda: container.clock.now(), location_sharing_on(eng)
+        )
+    )
     glasses.install(
         glasses.DraftStore(lambda: container.clock.now()),
         places,
         demo_mode=lambda: settings.DEMO_MODE is not None,
         creator=SqlPlaceCreator(eng, lambda: container.clock),
+        phone_point=phone.fresh,
     )

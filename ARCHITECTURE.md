@@ -1122,9 +1122,14 @@ FastAPI app at `/mcp`. Meta AI (the assistant on the Ray-Ban Meta glasses) calls
   responses; Bearer or `X-API-Key`, constant-time compare, 401 otherwise), tools in
   `services/mcp_tools.py`, glasses logic in `services/glasses.py`. `to` is resolved to friends only
   (an ambiguous name returns candidates, a non-friend is rejected, nothing is drafted). Every tool is
-  bounded to 8 s and the writes are idempotent on `request_id`. With no coordinates and no place from
-  Muse, the place falls back to a place named in the text, the user's usual Mark, and in DEMO_MODE the
-  demo Mark (`GLASSES_DEMO_MARK_ID`); otherwise the draft asks "Where at?" and nothing is held.
+  bounded to 8 s and the writes are idempotent on `request_id`. Muse runs in Meta's cloud, so on `/mcp`
+  any coordinates or city it sends are ignored. The place is, in order: a venue the user named
+  (fuzzy-matched to a seeded Mark), the Mark nearest the phone's last fresh location (within 2 km),
+  the user's most-visited Mark, and in DEMO_MODE the demo Mark (`GLASSES_DEMO_MARK_ID`); otherwise
+  the draft asks "Where at?" and nothing is held. The phone's point comes from the open app
+  (`POST /glasses/location`, rounded to ~100 m): held in memory for 30 minutes, per user, only while
+  location sharing is on, never written to the DB or echoed. A closed app means a stale point and the
+  fallbacks above.
 ---
 
 ## 12. Privacy and trust

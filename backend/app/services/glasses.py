@@ -25,6 +25,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from typing import Literal, Protocol
 
 from app.container import Container
@@ -59,6 +60,9 @@ WHERE_AT = "Where at? Say it again with a place."
 MIN_TOKEN = 4
 NEAR_M = 200.0  # a Mark farther than this from the caller is not "here"
 MAX_NEW_NAME = 60
+PHONE_RADIUS_M = 2000.0  # the phone's nearest Mark must be within 2 km
+FUZZY_CUTOFF = 0.8
+FUZZY_MARGIN = 0.05
 COARSE_DECIMALS = 3  # ~100 m, the same rounding the app sends
 
 
@@ -100,7 +104,7 @@ def fallback_intent(utterance: str) -> Intent:
     return Intent(intent="start_move", text=text)
 
 
-PlaceSource = Literal["nearby", "muse", "named", "usual", "demo", "new"]
+PlaceSource = Literal["nearby", "muse", "named", "usual", "demo", "new", "phone"]
 
 
 class PlaceFinder(Protocol):
@@ -159,9 +163,9 @@ def _words(text: str) -> str:
     return " " + " ".join(re.findall(r"[a-z0-9]+", text.lower())) + " "
 
 
-def match_named(text: str, marks: Iterable[tuple[str, str]]) -> str | None:
-    """Id of the Mark the text names. A full name wins (longest first); else a
-    distinctive first word. Anything ambiguous returns None so we ask instead."""
+def _match_exact(text: str, marks: list[tuple[str, str]]) -> tuple[str | None, bool]:
+    """(id, ambiguous): a full name wins (longest first), else a distinctive
+    first word. Several equal candidates are ambiguous, not a match."""
     spoken = _words(text)
     full: list[tuple[int, str]] = []
     heads: set[str] = set()
@@ -178,8 +182,47 @@ def match_named(text: str, marks: Iterable[tuple[str, str]]) -> str | None:
     if full:
         top = max(length for length, _ in full)
         best = {mark_id for length, mark_id in full if length == top}
-        return next(iter(best)) if len(best) == 1 else None
-    return next(iter(heads)) if len(heads) == 1 else None
+        return (next(iter(best)), False) if len(best) == 1 else (None, True)
+    if heads:
+        return (next(iter(heads)), False) if len(heads) == 1 else (None, True)
+    return None, False
+
+
+def _match_fuzzy(text: str, marks: list[tuple[str, str]]) -> str | None:
+    """A venue the user named, tolerating a typo ("kumoo" for "Kumo Matcha"):
+    the closest Mark name or first word, only if clearly the best."""
+    query = _words(text).strip()
+    if len(query) < MIN_TOKEN:
+        return None
+    scored: list[tuple[float, str]] = []
+    for mark_id, name in marks:
+        full = _words(name).strip()
+        if not full:
+            continue
+        head = full.split(" ")[0]
+        ratio = SequenceMatcher(None, query, full).ratio()
+        if len(head) >= MIN_TOKEN:
+            ratio = max(ratio, SequenceMatcher(None, query, head).ratio())
+        scored.append((ratio, mark_id))
+    scored.sort(reverse=True)
+    if not scored or scored[0][0] < FUZZY_CUTOFF:
+        return None
+    if len(scored) > 1 and scored[0][0] - scored[1][0] < FUZZY_MARGIN:
+        return None
+    return scored[0][1]
+
+
+def match_named(
+    text: str, marks: Iterable[tuple[str, str]], *, fuzzy: bool = False
+) -> str | None:
+    """Id of the Mark the text names, or None. Anything ambiguous returns None
+    so we ask instead of guessing. `fuzzy` also forgives a typo, for a venue the
+    user named on purpose (the MCP `place` argument), never for free text."""
+    rows = list(marks)
+    found, ambiguous = _match_exact(text, rows)
+    if found is not None or ambiguous or not fuzzy:
+        return found
+    return _match_fuzzy(text, rows)
 
 
 def usual_mark_id(
@@ -299,6 +342,7 @@ class GlassesService:
         places: PlaceFinder | None = None,
         demo_mode: Callable[[], bool] = lambda: False,
         creator: PlaceCreator | None = None,
+        phone_point: Callable[[str], tuple[float, float] | None] | None = None,
     ) -> None:
         self._clock = clock
         self._muse = muse
@@ -309,6 +353,7 @@ class GlassesService:
         self._places = places or NoPlaces()
         self._demo_mode = demo_mode
         self._creator = creator
+        self._phone_point = phone_point
 
     async def command(
         self,
@@ -518,6 +563,18 @@ class GlassesService:
             return replace(draft, mark_id=found[0].id), found[0], found[1]
         return replace(draft, mark_id=None), None, None
 
+    def _phone_mark(self, user_id: str) -> MarkSnapshot | None:
+        """The seeded Mark nearest the phone's last fresh coarse point, within
+        PHONE_RADIUS_M. The point never leaves this method."""
+        point = self._phone_point(user_id) if self._phone_point else None
+        if point is None:
+            return None
+        found = self._marks.nearest(point[0], point[1], 1)
+        if not found:
+            return None
+        near = distance_m(point[0], point[1], found[0].lat, found[0].lng)
+        return found[0] if near <= PHONE_RADIUS_M else None
+
     def _fallback(
         self, user_id: str, text: str
     ) -> tuple[MarkSnapshot, PlaceSource] | None:
@@ -525,6 +582,7 @@ class GlassesService:
         usual one, and in DEMO_MODE the demo Mark. Never a city-level place."""
         tries: list[tuple[PlaceSource, Callable[[], MarkSnapshot | None]]] = [
             ("named", lambda: self._places.named_in(text)),
+            ("phone", lambda: self._phone_mark(user_id)),
             ("usual", lambda: self._places.usual_for(user_id)),
         ]
         if self._demo_mode():
@@ -581,6 +639,7 @@ _lock: asyncio.Lock | None = None
 _places: PlaceFinder | None = None
 _demo_mode: Callable[[], bool] | None = None
 _creator: PlaceCreator | None = None
+_phone_point: Callable[[str], tuple[float, float] | None] | None = None
 
 
 def install(
@@ -588,11 +647,13 @@ def install(
     places: PlaceFinder | None = None,
     demo_mode: Callable[[], bool] | None = None,
     creator: PlaceCreator | None = None,
+    phone_point: Callable[[str], tuple[float, float] | None] | None = None,
 ) -> DraftStore:
     """Called by `app/lanes/surfaces.py` at startup; replaces any earlier store."""
-    global _drafts, _lock, _places, _demo_mode, _creator
+    global _drafts, _lock, _places, _demo_mode, _creator, _phone_point
     _drafts, _lock, _places, _demo_mode = drafts, asyncio.Lock(), places, demo_mode
     _creator = creator
+    _phone_point = phone_point
     return drafts
 
 
@@ -615,4 +676,5 @@ def service_for(container: Container) -> GlassesService:
         places=_places,
         demo_mode=_demo_mode or (lambda: False),
         creator=_creator,
+        phone_point=_phone_point,
     )

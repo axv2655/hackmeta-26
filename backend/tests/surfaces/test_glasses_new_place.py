@@ -154,9 +154,7 @@ def test_mcp_never_creates_a_spot_even_with_coordinates() -> None:
         creator=creator,
     )
     out = run(rig.tools.draft_move("party", None, HOUSE, *FAR))
-    assert out["status"] == "needs_clarification"
-    assert out["problems"][0]["problem"] == "place_not_found"
-    assert "Where at?" in out["spoken"]
+    assert out["status"] == "needs_place" and "Where at?" in out["spoken"]
     far = run(rig.tools.draft_move("street fair", None, None, *FAR))
     assert far["status"] == "needs_place"
     assert creator.created == [] and rig.moves.created == [] and len(rig.drafts) == 0

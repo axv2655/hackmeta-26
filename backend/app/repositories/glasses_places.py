@@ -18,7 +18,7 @@ from app.ports import Clock, MarkSnapshot
 from app.seed import ids
 from app.services.glasses import NewPlace, match_named, usual_mark_id
 from app.services.marks import MarkInput
-from app.tables import Mark, Move, MoveParticipant, SavedMark
+from app.tables import Mark, Move, MoveParticipant, SavedMark, UserSettings
 
 DEFAULT_DEMO_MARK_ID = ids.KUMO_MATCHA
 
@@ -45,10 +45,10 @@ class SqlPlaceFinder:
         self._engine = engine
         self._demo_mark_id = demo_mark_id
 
-    def named_in(self, text: str) -> MarkSnapshot | None:
+    def named_in(self, text: str, *, fuzzy: bool = False) -> MarkSnapshot | None:
         with Session(self._engine) as session:
             rows = session.exec(select(Mark.id, Mark.name)).all()
-            found = match_named(text, ((r[0], r[1]) for r in rows))
+            found = match_named(text, ((r[0], r[1]) for r in rows), fuzzy=fuzzy)
             row = session.get(Mark, found) if found else None
             return _snapshot(row) if row else None
 
@@ -91,3 +91,14 @@ class SqlPlaceCreator:
         )
         with Session(self._engine) as session:
             return build_mark_service(session, self._clock()).create(user_id, data).mark
+
+
+def location_sharing_on(engine: Engine) -> Callable[[str], bool]:
+    """Reads the user's `location_opt_in` setting (core's table, read-only)."""
+
+    def check(user_id: str) -> bool:
+        with Session(engine) as session:
+            prefs = session.get(UserSettings, user_id)
+            return bool(prefs and prefs.location_opt_in)
+
+    return check

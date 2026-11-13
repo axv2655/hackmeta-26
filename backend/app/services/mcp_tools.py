@@ -190,22 +190,10 @@ class MovesTools:
         recipients, problems = self.resolve_friends(to or [])
         if problems:
             return {"status": "needs_clarification", "problems": problems}
-        mark = None
-        if place and place.strip():
-            mark = self.place_by_name(place)
-            if mark is None:
-                return {
-                    "status": "needs_clarification",
-                    "problems": [
-                        {
-                            "name": place,
-                            "problem": "place_not_found",
-                            "message": f"No place called {place} on the map. "
-                            "Ask the user where.",
-                        }
-                    ],
-                    "spoken": f"I couldn't find {place[:60]}. Where at?",
-                }
+        # Only a venue the user named counts. A city or neighborhood Muse made up
+        # matches no Mark and is ignored: the place then comes from the phone's
+        # location, the usual Mark or the demo Mark.
+        mark = self.place_by_name(place) if place and place.strip() else None
         result = await self.glasses.draft_from_text(
             self.me,
             said,

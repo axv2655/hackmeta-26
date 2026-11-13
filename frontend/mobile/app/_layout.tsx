@@ -12,6 +12,7 @@ import { ProximityPrompt } from '@/components/moves/ProximityPrompt';
 import '@/components/shell/logoutResets';
 import { RouteError } from '@/components/shell/RouteError';
 import { useShellSession } from '@/components/shell/useShellSession';
+import { useLocationPing } from '@/lib/locationPing';
 import { usePush } from '@/lib/push';
 import { useRealtime } from '@/lib/realtime';
 import { useSession } from '@/lib/session';
@@ -73,6 +74,7 @@ function Shell() {
   useRealtime();
   usePush();
   useShellSession();
+  useLocationPing(); // coarse phone point for the glasses/MCP place lookup
   const hydrated = useSession((s) => s.hydrated);
   const signedIn = useSession((s) => s.userId !== '');
 

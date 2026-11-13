@@ -146,10 +146,9 @@ def test_draft_without_any_place_asks_where(rig: Rig) -> None:
     assert len(rig.drafts) == 0
 
 
-def test_unknown_place_is_a_question_not_a_guess(rig: Rig) -> None:
+def test_a_place_no_mark_matches_is_ignored_not_guessed(rig: Rig) -> None:
     out = run(rig.tools.draft_move("boba", None, "Narnia Cafe"))
-    assert out["status"] == "needs_clarification"
-    assert out["problems"][0]["problem"] == "place_not_found"
+    assert out["status"] == "needs_place" and "Where at?" in out["spoken"]
     assert len(rig.drafts) == 0
 
 

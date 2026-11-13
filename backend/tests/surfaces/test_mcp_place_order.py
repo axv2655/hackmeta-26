@@ -51,11 +51,13 @@ def test_1_place_named_in_the_text() -> None:
     assert out["place"] == "Kumo Matcha" and out["status"] == "draft"
 
 
-def test_1_unknown_place_argument_asks_instead_of_guessing() -> None:
-    rig, _ = rig_with(FakePlaces(usual=HS, demo=KUMO), demo=True)
+def test_1_unknown_place_argument_is_ignored_and_the_order_continues() -> None:
+    rig, _ = rig_with(FakePlaces(usual=HS))
     out = run(rig.tools.draft_move("boba", None, "Narnia Cafe"))
-    assert out["status"] == "needs_clarification"
-    assert "Where at?" in out["spoken"] and len(rig.drafts) == 0
+    assert out["status"] == "draft" and out["place"] == "HS Coffee"
+    nothing, _ = rig_with(FakePlaces())
+    asked = run(nothing.tools.draft_move("boba", None, "Narnia Cafe"))
+    assert asked["status"] == "needs_place" and "Where at?" in asked["spoken"]
 
 
 def test_2_usual_mark_when_nothing_is_named() -> None:
@@ -122,5 +124,5 @@ def test_muses_pick_loses_to_the_users_usual_mark() -> None:
 def test_never_resolves_to_a_city_level_place() -> None:
     rig, creator = rig_with(FakePlaces())
     out = run(rig.tools.draft_move("boba", None, "Menlo Park", *MENLO))
-    assert out["status"] == "needs_clarification"
+    assert out["status"] == "needs_place"
     assert creator.created == [] and rig.moves.created == []

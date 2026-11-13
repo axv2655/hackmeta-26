@@ -102,7 +102,7 @@ def tools_for(container: Container, user_id: str, engine: Engine) -> MovesTools:
         user_id=user_id,
         people=SqlPeopleDirectory(engine, container.clock, container.notifier),
         glasses_service=glasses.service_for(container),
-        place_by_name=places.named_in,
+        place_by_name=lambda name: places.named_in(name, fuzzy=True),
         idempotency=_idempotency,
     )
 
@@ -149,11 +149,12 @@ def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
             "and the nudges Muse would send. `to` is friends' names or @usernames; "
             "if a name matches several friends or isn't a friend you get a "
             "clarifying question back instead of a draft: ask the user, then call "
-            "again. Pass the place name the user said in `place`. Don't send "
-            "coordinates: they are ignored. If no place is given the Move goes to a "
-            "place named in `text`, else the user's usual spot; if none matches you "
-            "get status 'needs_place' with a question to ask. Read `spoken` to the "
-            "user and wait for their answer."
+            "again. Only set `place` if the user named a venue. Never pass a city "
+            "or location; Moves uses the user's phone location. Coordinates you "
+            "send are ignored. With no named venue the Move goes to the seeded "
+            "place nearest the user's phone, else their usual spot; if none "
+            "matches you get status 'needs_place' with a question to ask. Read "
+            "`spoken` to the user and wait for their answer."
         )
     )
     async def draft_move(

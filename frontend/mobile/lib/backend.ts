@@ -15,7 +15,7 @@ export type GlassesDraft = {
   /** Name of the Mark the Move will go to, or null when `needs_place`. */
   place: string | null;
   /** How the place was chosen. 'usual' = their most-visited spot, 'demo' = the demo Mark. */
-  place_source: 'nearby' | 'muse' | 'named' | 'usual' | 'demo' | 'new' | null;
+  place_source: 'nearby' | 'muse' | 'named' | 'usual' | 'demo' | 'new' | 'phone' | null;
   /** True when no place could be found: no draft is held, ask "where at?" and say it again. */
   needs_place: boolean;
   expires_at: string | null;
@@ -137,6 +137,16 @@ export const api = {
     backendFetch<GlassesDraft>('/glasses/command', {
       method: 'POST',
       body: JSON.stringify(body),
+      headers: { 'X-User-Id': userId },
+    }),
+  /**
+   * Tell the server where this phone is (coarse, ~100 m) so the glasses/MCP flow can
+   * pick the nearest place. Kept in memory for 30 minutes, only with location sharing on.
+   */
+  glassesLocation: (userId: string, point: { lat: number; lng: number }) =>
+    backendFetch<{ stored: boolean }>('/glasses/location', {
+      method: 'POST',
+      body: JSON.stringify(point),
       headers: { 'X-User-Id': userId },
     }),
   /** Post the pending draft. Repeating it returns the same Move; 409 means "say it again". */

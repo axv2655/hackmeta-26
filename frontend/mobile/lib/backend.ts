@@ -31,6 +31,14 @@ export type GlassesPosted = {
 export type BackendFetchOptions = NonNullable<Parameters<typeof fetch>[1]>;
 type FetchResponse = Awaited<ReturnType<typeof fetch>>;
 
+/**
+ * FormData bodies (photo uploads) go through React Native's own fetch. `expo/fetch` throws on React Native's `{ uri, name, type }` file
+ * parts ("`uri` is not supported"), so photo uploads failed on the phone
+ * before a request was ever sent.
+ */
+const multipartFetch = (url: string, init: BackendFetchOptions): Promise<FetchResponse> =>
+  (globalThis.fetch as unknown as typeof fetch)(url, init);
+
 // With no EXPO_PUBLIC_BACKEND_URL, aim at the machine serving the Expo bundle.
 // On a phone that is the laptop's LAN IP (taken from the dev server's
 // hostUri), so the backend has to listen on 0.0.0.0 rather than 127.0.0.1.
@@ -100,7 +108,8 @@ export async function backendFetch<T = unknown>(path: string, options: BackendFe
   for (const [name, value] of zoneHeaders()) headers.set(name, value);
   let res: FetchResponse;
   try {
-    res = await fetch(`${BACKEND_URL}/api/v1${path}`, { ...options, headers });
+    const send = options.body instanceof FormData ? multipartFetch : fetch;
+    res = await send(`${BACKEND_URL}/api/v1${path}`, { ...options, headers });
   } catch (e) {
     throw new ApiError(0, e instanceof Error && e.message ? e.message : 'Network request failed');
   }

@@ -119,3 +119,38 @@ def decide(
     if best and (force or person_score(best[0]) >= FREE_TIME_MIN):
         return Decision("free_time", None, invite or (best[0],))
     return None
+
+
+# --- places for a group (Muse search: "take me and Divy to get coffee") -------
+
+GROUP_MEAN_WEIGHT = 0.7  # how much the group's average rating counts
+GROUP_MIN_WEIGHT = 0.3  # least misery: the least happy person still counts
+RATED_BONUS = 0.3  # per person who has actually been and rated it
+SAVED_BONUS = 0.5  # the user saved it
+
+
+@dataclass(frozen=True, slots=True)
+class GroupPlace:
+    mark_id: str
+    scores: tuple[float | None, ...]
+    """Each person's own 0-10 score for the Mark (the user first); None if
+    they never rated it (counts as a neutral 5)."""
+    saved: bool = False
+
+
+def group_place_score(p: GroupPlace) -> float:
+    vals = [s if s is not None else NEUTRAL_RATING for s in p.scores]
+    vals = vals or [NEUTRAL_RATING]
+    rated = sum(1 for s in p.scores if s is not None)
+    value = (
+        GROUP_MEAN_WEIGHT * (sum(vals) / len(vals))
+        + GROUP_MIN_WEIGHT * min(vals)
+        + RATED_BONUS * rated
+        + (SAVED_BONUS if p.saved else 0.0)
+    )
+    return round(value, 6)
+
+
+def rank_group_places(places: Iterable[GroupPlace]) -> list[GroupPlace]:
+    """Best for the whole group first; ties by id."""
+    return sorted(places, key=lambda p: (-group_place_score(p), p.mark_id))

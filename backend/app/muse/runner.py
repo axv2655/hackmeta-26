@@ -154,6 +154,7 @@ class MuseRunner:
         check: Callable[[T], T] | None = None,
         system: str | None = None,
         slow: bool = False,
+        live: bool = False,
     ) -> T:
         value, _ = await self.run_agent_meta(
             agent,
@@ -166,6 +167,7 @@ class MuseRunner:
             check=check,
             system=system,
             slow=slow,
+            live=live,
         )
         return value
 
@@ -182,14 +184,16 @@ class MuseRunner:
         check: Callable[[T], T] | None = None,
         system: str | None = None,
         slow: bool = False,
+        live: bool = False,
     ) -> tuple[T, bool]:
         """Like `run_agent`, plus whether the value came from `fallback()`.
 
-        A cache hit replays a Muse answer, so it reports `False`."""
+        A cache hit replays a Muse answer, so it reports `False`. `live=True`
+        asks the model even in deterministic mode (the user prompted Muse)."""
         stats = self._by_agent.setdefault(agent, AgentStats())
         for s in (stats, self._total):
             s.calls += 1
-        if self.deterministic:
+        if self.deterministic and not live:
             for s in (stats, self._total):
                 s.fallbacks += 1
             return fallback(), True

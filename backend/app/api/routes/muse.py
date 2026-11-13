@@ -2,23 +2,28 @@
 
 POST /muse/notify-preview (M4), POST /muse/compose-move (M5),
 POST /muse/suggest-spots (M8), POST /moves/{id}/notify (composer step 2),
-GET /muse/status (is Muse live, or is every agent on its heuristic?)
+GET /muse/status (is Muse live, or is every agent on its heuristic?),
+POST /muse/search, /muse/search/draft, /muse/search/confirm (map search box)
 
 (The issues name separate `muse_compose.py` / `muse_spots.py` modules; the
 frozen `api/main.py` on this branch includes only this one, so all three
 live here.)
 """
 
-from typing import Any, Literal
+from dataclasses import asdict
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 from app.core.db import SessionDep
+from app.mcp_server import tools_for
 from app.muse.client import client_kind, client_model
 from app.muse.compose import ComposeService
 from app.muse.http import CurrentUser, LaneDep
 from app.muse.schemas import MarkOut, MoveDraftRead, picks_out
+from app.muse.search import MuseSearch, SearchResult
+from app.services.glasses import DraftExpired
 from app.services.notify import NotifyService
 from app.services.taste import TasteService
 
@@ -180,3 +185,131 @@ async def suggest_spots(
         user.id, body.user_ids, category=body.category, coarse=coarse
     )
     return [SpotOut(mark=MarkOut.of(m), reason=reason) for m, reason in spots]
+
+
+# --- Muse search (docs/MUSE_SEARCH.md) -------------------------------------------
+
+
+class SearchBody(BaseModel):
+    text: str = Field(min_length=1, max_length=300)
+    picks: dict[str, str] = {}
+    mark_id: str | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+
+
+class SearchDraftBody(BaseModel):
+    text: str = Field(default="", max_length=300)
+    user_ids: list[str] = Field(default=[], max_length=8)
+    mark_id: str | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+
+
+class SearchConfirmBody(BaseModel):
+    draft_id: str
+
+
+class SearchDraftOut(BaseModel):
+    draft_id: str
+    text: str
+    place: str
+    recipients: list[str]
+    audience: str
+    expires_at: str | None
+
+
+class SearchPersonOut(BaseModel):
+    user_id: str
+    name: str
+    first_name: str
+    avatar_url: str
+    avatar_color: str
+    reason: str
+
+
+class SearchPlaceOut(BaseModel):
+    mark_id: str
+    name: str
+    category: str
+    score: float | None
+    reason: str
+
+
+class SearchOptionOut(BaseModel):
+    label: str
+    user_id: str | None = None
+    mark_id: str | None = None
+
+
+class SearchClarifyOut(BaseModel):
+    field: Literal["person", "place", "text"]
+    question: str
+    name: str | None = None
+    options: list[SearchOptionOut] = []
+
+
+class MuseSearchResult(BaseModel):
+    kind: Literal["draft", "people", "places", "clarify", "answer"]
+    message: str
+    source: Literal["muse", "heuristic"]
+    text: str
+    draft: SearchDraftOut | None = None
+    people: list[SearchPersonOut] = []
+    places: list[SearchPlaceOut] = []
+    clarify: SearchClarifyOut | None = None
+
+
+class SearchPosted(BaseModel):
+    move_id: str
+    text: str
+
+
+def _coarse(lat: float | None, lng: float | None) -> tuple[float, float] | None:
+    return (
+        (round(lat, 3), round(lng, 3)) if lat is not None and lng is not None else None
+    )
+
+
+def _searcher(session: SessionDep, user: CurrentUser, lane: LaneDep) -> MuseSearch:
+    return MuseSearch(session, lane, tools_for(lane.container, user.id, lane.engine))
+
+
+SearchDep = Annotated[MuseSearch, Depends(_searcher)]
+
+
+def _out(result: SearchResult) -> MuseSearchResult:
+    return MuseSearchResult.model_validate(asdict(result))
+
+
+@router.post("/muse/search", response_model=MuseSearchResult)
+async def muse_search(body: SearchBody, search: SearchDep) -> MuseSearchResult:
+    """The map's search box: Muse plans the request once, the server drafts or
+    suggests. Nothing is posted (see `/muse/search/confirm`)."""
+    result = await search.search(
+        body.text, body.picks, body.mark_id, _coarse(body.lat, body.lng)
+    )
+    return _out(result)
+
+
+@router.post("/muse/search/draft", response_model=MuseSearchResult)
+async def muse_search_draft(
+    body: SearchDraftBody, search: SearchDep
+) -> MuseSearchResult:
+    """Draft from a tap on a people or places card. No Muse call."""
+    result = await search.draft(
+        body.text, body.user_ids, body.mark_id, _coarse(body.lat, body.lng)
+    )
+    return _out(result)
+
+
+@router.post("/muse/search/confirm", response_model=SearchPosted)
+async def muse_search_confirm(
+    body: SearchConfirmBody, search: SearchDep
+) -> SearchPosted:
+    """Post the held draft exactly once (the user's tap). 409 if it expired."""
+    try:
+        result = await search.confirm(body.draft_id)
+    except DraftExpired as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That draft expired") from exc
+    return SearchPosted(move_id=result.move_id, text=result.text)

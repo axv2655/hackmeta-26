@@ -30,6 +30,10 @@ import type {
   Move,
   MoveCreateBody,
   MoveDraft,
+  MuseSearchConfirm,
+  MuseSearchDraftBody,
+  MuseSearchRequest,
+  MuseSearchResult,
   MuseStatus,
   MyListRow,
   NearbyMark,
@@ -130,6 +134,13 @@ const muse = {
   notifyPreview: (body: NotifyPreviewBody) => api<NotifyPick[]>('/muse/notify-preview', postJson(body)),
   suggestSpots: (body: SuggestSpotsBody) => api<SpotPick[]>('/muse/suggest-spots', postJson(withCoarse(body))),
   taste: () => api<Taste | null>('/me/taste'),
+  /** The map's prompt box: Muse plans, the server drafts. Nothing posts until `searchConfirm`. */
+  search: (body: MuseSearchRequest) => api<MuseSearchResult>('/muse/search', postJson(withCoarse(body))),
+  /** Deterministic draft from a tapped people set or place (no Muse call). */
+  searchDraft: (body: MuseSearchDraftBody) => api<MuseSearchResult>('/muse/search/draft', postJson(withCoarse(body))),
+  /** Posts a held draft exactly once; 409 when it expired. */
+  searchConfirm: (body: { draft_id: string }) =>
+    api<MuseSearchConfirm>('/muse/search/confirm', postJson(body)),
 };
 
 const suggestions = {

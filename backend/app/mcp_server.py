@@ -22,10 +22,12 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import Engine
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.container import Container
 from app.core import db
 from app.core.config import BACKEND_DIR
 from app.repositories.glasses_places import DEFAULT_DEMO_MARK_ID, SqlPlaceFinder
@@ -89,19 +91,24 @@ class BearerAuth:
         return any([hmac.compare_digest(c, expected) for c in offered])
 
 
-def default_tools(app: FastAPI) -> MovesTools:
-    container = app.state.container
+def tools_for(container: Container, user_id: str, engine: Engine) -> MovesTools:
+    """The Moves tools acting as `user_id` (MCP uses `MCP_USER_ID`; Muse
+    search in the app uses the signed-in user)."""
     places = SqlPlaceFinder(
-        db.engine, os.environ.get(DEMO_MARK_ENV) or DEFAULT_DEMO_MARK_ID
+        engine, os.environ.get(DEMO_MARK_ENV) or DEFAULT_DEMO_MARK_ID
     )
     return MovesTools(
         container=container,
-        user_id=mcp_settings.MCP_USER_ID,
-        people=SqlPeopleDirectory(db.engine, container.clock, container.notifier),
+        user_id=user_id,
+        people=SqlPeopleDirectory(engine, container.clock, container.notifier),
         glasses_service=glasses.service_for(container),
         place_by_name=places.named_in,
         idempotency=_idempotency,
     )
+
+
+def default_tools(app: FastAPI) -> MovesTools:
+    return tools_for(app.state.container, mcp_settings.MCP_USER_ID, db.engine)
 
 
 Lat = Annotated[float | None, Field(ge=-90, le=90)]

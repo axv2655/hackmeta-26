@@ -89,6 +89,16 @@ export default function MenuScreen() {
 
         <ShortcutGrid onPressShortcut={openShortcut} />
 
+        {/* "Hey Meta, start a Move": the voice screen for phone mic or paired glasses. */}
+        <Button
+          title="Start a Move with your voice"
+          icon="mic"
+          variant="tinted"
+          size="lg"
+          onPress={() => router.navigate('/glasses')}
+          accessibilityLabel="Start a Move with your voice or glasses"
+        />
+
         <View style={styles.sections}>
           {menuSections.map((row) => (
             <AccordionSection

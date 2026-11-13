@@ -41,6 +41,13 @@
           "profile": "HackMeta26 Development",
           "identity": "Apple Development"
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Moves listens for \"start a Move\" and \"confirm\" when you tap Talk, from your phone or your glasses. Audio is only used to understand that command.",
+          "speechRecognitionPermission": "Moves turns what you say into a draft Move. Nothing posts until you confirm."
+        }
       ]
     ],
     "userInterfaceStyle": "light",

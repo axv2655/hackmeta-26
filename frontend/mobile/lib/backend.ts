@@ -22,6 +22,30 @@ export type HealthResponse = {
   status: 'ok';
 };
 
+/** Mirrors `GlassesDraft` in backend/app/api/routes/glasses.py. No coordinates, ever. */
+export type GlassesDraft = {
+  understood: boolean;
+  /** What to say back, e.g. "getting boba at Kumo. Say confirm to post." */
+  spoken: string;
+  draft_id: string | null;
+  text: string | null;
+  category: string | null;
+  /** Name of the Mark the Move will go to, or null when `needs_place`. */
+  place: string | null;
+  /** How the place was chosen. 'usual' = their most-visited spot, 'demo' = the demo Mark. */
+  place_source: 'nearby' | 'muse' | 'named' | 'usual' | 'demo' | null;
+  /** True when no place could be found: no draft is held, ask "where at?" and say it again. */
+  needs_place: boolean;
+  expires_at: string | null;
+};
+
+/** Mirrors `GlassesPosted`. */
+export type GlassesPosted = {
+  move_id: string;
+  text: string;
+  spoken: string;
+};
+
 export type BackendFetchOptions = NonNullable<Parameters<typeof fetch>[1]>;
 
 // With no EXPO_PUBLIC_BACKEND_URL, aim at the machine serving the Expo bundle.
@@ -61,4 +85,23 @@ export const api = {
   listNotes: () => backendFetch<Note[]>('/notes'),
   createNote: (note: NoteCreate) => backendFetch<Note>('/notes', { method: 'POST', body: JSON.stringify(note) }),
   deleteNote: (id: string) => backendFetch<null>(`/notes/${id}`, { method: 'DELETE' }),
+  /**
+   * "Hey Meta, start a Move": turn an utterance into a draft. Posts nothing.
+   * Send `lat`/`lng` already rounded to ~100 m (`coarse()`); the server uses them for one
+   * nearest-Mark lookup and never stores them. Takes the user id because this module
+   * cannot import the session store (it imports us).
+   */
+  glassesCommand: (userId: string, body: { utterance: string; lat?: number; lng?: number }) =>
+    backendFetch<GlassesDraft>('/glasses/command', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'X-User-Id': userId },
+    }),
+  /** Post the pending draft. Repeating it returns the same Move; 409 means "say it again". */
+  glassesConfirm: (userId: string, draftId?: string | null) =>
+    backendFetch<GlassesPosted>('/glasses/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ draft_id: draftId ?? null }),
+      headers: { 'X-User-Id': userId },
+    }),
 };

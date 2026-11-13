@@ -879,6 +879,7 @@ PUBLIC = (
     ("GET", f"{API}/auth/users"),  # the login picker, before anyone is signed in
     ("POST", f"{API}/auth/signup"),  # making an account, signed out
     ("POST", f"{API}/auth/login"),
+    ("POST", f"{API}/mcp/tokens"),  # minting checks the password instead
     # Demo Mark photos: manifest-listed, shared by category, carry no user data.
     ("GET", "/media/seed/marks/{asset_name}"),
     # Global Muse runtime counters (client, model, token budget): no user data.

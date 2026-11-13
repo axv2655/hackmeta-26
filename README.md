@@ -176,17 +176,22 @@ The backend serves a remote [MCP](https://modelcontextprotocol.io) server at
 
 Tools: `draft_move` (writes nothing), `confirm_move`, `share_move`, `pull_up`
 (all idempotent on `request_id`), `friends_nearby`, `get_my_active_move`. Every
-call acts as `MCP_USER_ID` and `confirm_move` should only be called after the
-user says yes.
+call acts as the user who owns the token, and `confirm_move` should only be
+called after the user says yes.
 
-Set in `backend/.env` (never commit it):
+Each user has one token, minted with their username and password (seeded
+people: first name and `moves`). Minting again replaces it. It is shown once;
+only its hash is stored. No env var is needed:
 
 ```sh
-MCP_TOKEN=<long random string>      # e.g. python -c "import secrets; print(secrets.token_urlsafe(32))"
-MCP_USER_ID=u_anish                 # the user Muse acts as (default u_anish)
+curl -s http://localhost:8000/api/v1/mcp/tokens -H "Content-Type: application/json" \
+  -d '{"username":"anish","password":"moves","label":"Ray-Bans"}'
 ```
 
-With `MCP_TOKEN` unset every `/mcp` request is rejected with 401.
+`GET /api/v1/mcp/tokens` lists your tokens (hints only) and
+`DELETE /api/v1/mcp/tokens/{id}` revokes one, both with `X-User-Id`.
+
+Any other token, or none, is rejected with 401.
 
 Run it and expose it with a tunnel:
 
@@ -197,7 +202,7 @@ cloudflared tunnel --url http://localhost:8000     # prints https://<name>.trycl
 ```
 
 Register in Muse: URL `https://<name>.trycloudflare.com/mcp`, header
-`Authorization: Bearer <MCP_TOKEN>` (or `X-API-Key: <MCP_TOKEN>`).
+`Authorization: Bearer <your token>` (or `X-API-Key: <your token>`).
 
 Test it with the inspector (choose "Streamable HTTP", set the URL above and the
 Authorization header):
@@ -209,7 +214,7 @@ npx @modelcontextprotocol/inspector
 Or from a terminal:
 
 ```sh
-curl -s http://localhost:8000/mcp   -H "Authorization: Bearer $MCP_TOKEN"   -H "Content-Type: application/json"   -H "Accept: application/json, text/event-stream"   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+curl -s http://localhost:8000/mcp   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -H "Accept: application/json, text/event-stream"   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
 ## Checks

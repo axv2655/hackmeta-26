@@ -16,6 +16,7 @@ from app.api.routes import (
     invites,
     leaderboards,
     marks,
+    mcp_tokens,
     moments,
     moves,
     muse,
@@ -60,6 +61,7 @@ api_router.include_router(calendar.router)
 api_router.include_router(ratings.router)
 api_router.include_router(leaderboards.router)
 api_router.include_router(glasses.router)
+api_router.include_router(mcp_tokens.router)  # per-user tokens for /mcp
 api_router.include_router(demo.router)
 
 # messages (ARCHITECTURE.md 9.4, 9.5)

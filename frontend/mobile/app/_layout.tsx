@@ -47,6 +47,7 @@ const PUSHED = [
   'settings/hidden',
   'settings/autojoin',
   'settings/notifications',
+  'settings/muse',
   'circles/index',
   'circles/[id]',
   'groups',

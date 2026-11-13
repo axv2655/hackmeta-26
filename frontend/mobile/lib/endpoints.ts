@@ -21,10 +21,12 @@ import type {
   Friend,
   FriendRequests,
   Invite,
+  IssuedMcpToken,
   LeaderboardSpot,
   Mark,
   MarkCreateBody,
   MarkDetail,
+  McpToken,
   Me,
   Memory,
   Moment,
@@ -256,7 +258,19 @@ const demo = {
   users: () => api<UserLite[]>('/auth/users'),
 };
 
+/**
+ * The user's one token for the Muse connector at `/mcp`. Minting needs the
+ * password (X-User-Id alone is mock auth) and replaces any earlier token.
+ */
+const mcpTokens = {
+  mint: (username: string, password: string, label = 'Muse') =>
+    api<IssuedMcpToken>('/mcp/tokens', postJson({ username, password, label })),
+  list: () => api<McpToken[]>('/mcp/tokens'),
+  revoke: (id: string) => api<null>(`/mcp/tokens/${e(id)}`, del()),
+};
+
 export const endpoints = {
+  mcpTokens,
   memories: { list: (limit = 30, offset = 0) => api<Memory[]>(`/me/memories?limit=${limit}&offset=${offset}`) },
   moves,
   marks,

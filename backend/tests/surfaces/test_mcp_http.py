@@ -1,17 +1,16 @@
-"""The /mcp endpoint: bearer or X-API-Key auth, protocol negotiation, tool calls."""
+"""The /mcp endpoint: per-user token auth, protocol negotiation, tool calls."""
 
 import json
 from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
-from app import mcp_server
 from app.main import create_app
 from tests.surfaces.test_mcp_tools import Rig, person
 
-TOKEN = "s3cret-token-for-tests"
+TOKEN = "mvs_s3cret-token-for-tests"
+MINTED = {TOKEN: "u_demo"}
 HEADERS = {
     "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
@@ -48,10 +47,23 @@ def rig() -> Rig:
 
 
 @pytest.fixture
-def client(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    monkeypatch.setattr(mcp_server.mcp_settings, "MCP_TOKEN", SecretStr(TOKEN))
+def callers() -> list[str]:
+    """Every user id the tools were built for, in call order."""
+    return []
+
+
+@pytest.fixture
+def client(
+    rig: Rig, callers: list[str], monkeypatch: pytest.MonkeyPatch
+) -> Iterator[TestClient]:
     app = create_app(lanes=())
-    app.state.mcp_tools_factory = lambda _app: rig.tools
+
+    def factory(_app, user_id: str):
+        callers.append(user_id)
+        return rig.tools
+
+    app.state.mcp_tools_factory = factory
+    app.state.mcp_resolve_token = MINTED.get
     with TestClient(app) as http:
         yield http
 
@@ -64,11 +76,11 @@ def bearer(token: str = TOKEN) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def call(client: TestClient, name: str, args: dict) -> dict:
+def call(client: TestClient, name: str, args: dict, token: str = TOKEN) -> dict:
     res = post(
         client,
         rpc("tools/call", {"name": name, "arguments": args}),
-        **bearer(),
+        **bearer(token),
     )
     assert res.status_code == 200, res.text
     result = res.json()["result"]
@@ -110,14 +122,6 @@ def test_x_api_key_is_accepted(client: TestClient) -> None:
 def test_bearer_scheme_is_case_insensitive(client: TestClient) -> None:
     res = post(client, init("2025-11-25"), Authorization=f"bearer {TOKEN}")
     assert res.status_code == 200
-
-
-def test_unset_token_rejects_everything(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(mcp_server.mcp_settings, "MCP_TOKEN", None)
-    assert post(client, init("2025-11-25"), **bearer("")).status_code == 401
-    assert post(client, init("2025-11-25"), **bearer(TOKEN)).status_code == 401
 
 
 def test_get_without_credentials_is_401(client: TestClient) -> None:
@@ -195,8 +199,8 @@ def test_read_tools_over_http(client: TestClient) -> None:
 
 def test_app_can_start_more_than_once(monkeypatch: pytest.MonkeyPatch) -> None:
     """The SDK session manager runs once per instance; each startup gets its own."""
-    monkeypatch.setattr(mcp_server.mcp_settings, "MCP_TOKEN", SecretStr(TOKEN))
     app = create_app(lanes=())
+    app.state.mcp_resolve_token = MINTED.get
     for _ in range(2):
         with TestClient(app) as http:
             res = http.post(

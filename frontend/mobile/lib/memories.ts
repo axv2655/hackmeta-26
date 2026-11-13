@@ -37,8 +37,11 @@ export const useMemories = create<State>()((set, get) => ({
   },
 }));
 
-appEvents.on('moves.changed', () => {
-  const store = useMemories.getState();
-  if (store.status !== 'idle') void store.load();
-});
+// A visit becomes a Memory the moment you leave or the Move ends.
+for (const event of ['moves.changed', 'move.ended', 'participant.changed']) {
+  appEvents.on(event, () => {
+    const store = useMemories.getState();
+    if (store.status !== 'idle') void store.load();
+  });
+}
 onLogout(() => { generation++; useMemories.setState(empty); });

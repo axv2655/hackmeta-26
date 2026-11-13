@@ -77,7 +77,16 @@ export type MuseMark = {
 };
 
 export type Ghost = { user: UserLite; move_id: string; at: string; text: string };
-export type Memory = { move_id: string; mark_id: string; mark_name: string; category: Category; at: string; text: string };
+/** A visit you arrived at, from the moment you left (or the Move ended). `people`: the others who were there. */
+export type Memory = {
+  move_id: string;
+  mark_id: string;
+  mark_name: string;
+  category: Category;
+  at: string;
+  text: string;
+  people: UserLite[];
+};
 export type NearbyMark = Mark & { distance_km: number; ghosts: Ghost[] };
 
 export type MediaType = 'photo' | 'clip';

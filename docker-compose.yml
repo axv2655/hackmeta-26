@@ -6,12 +6,35 @@
 #
 #   docker compose up -d --build
 #   docker compose exec backend python -m app.seed.seed   # wipes and reseeds!
+#
+# Local Postgres (`db`): same box as the backend, so a query costs ~1 ms instead of a
+# cross-country round trip. Only reachable on the compose network (no host port). To use it,
+# set in backend/.env:
+#   DATABASE_URL=postgresql://hackmeta:<POSTGRES_PASSWORD>@db:5432/hackmeta
 services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hackmeta
+      POSTGRES_DB: hackmeta
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hackmeta -d hackmeta"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     env_file: ./backend/.env
     environment:
       FASTAPI_ENV: production
@@ -28,3 +51,4 @@ services:
 
 volumes:
   backend-data:
+  db-data:

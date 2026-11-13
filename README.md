@@ -1,5 +1,10 @@
 # Meta Moves
 
+[![React Native](https://img.shields.io/badge/React_Native-0.86-61DAFB?logo=react&logoColor=white)](frontend/mobile/package.json)
+[![Expo](https://img.shields.io/badge/Expo-57-000020?logo=expo&logoColor=white)](frontend/mobile/package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](frontend/mobile/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](backend/pyproject.toml)
+
 **Meta Moves turns “I'm already going” into “come join me,” letting friends share what they're doing on Facebook and Pull up without the pressure of a direct invitation.**
 
 Built for the Meta Career Programs AI Hackathon 2026. **Meta Moves** is our

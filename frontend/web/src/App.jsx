@@ -557,11 +557,11 @@ const ALL_MOVES = [
 // on-the-way Moves are hidden: that friend is not at the Mark yet
 const MOVES = ALL_MOVES.filter((m) => m.status !== 'omw')
 const statusText = (m) => (m.status === 'ghost' ? `Left ${m.time} ago` : `There · ${m.time}`)
-const pinDetail = (m) => (m.status === 'ghost' ? `${m.time} ago` : m.place)
+const pinDetail = (m) => (m.status === 'ghost' ? `Left ${m.time} ago` : m.place)
 // Snap-Map-style pin: full-body Bitmoji on a ground shadow with a name label. Static demo data only, so an HTML string is safe here.
 const pinIcon = ({ img, name, detail, cat, status, extra = 0, delay = 0 }) => Leaflet.divIcon({
   className: 'pin-wrap', iconSize: [0, 0],
-  html: `<div class="mv-pin ${status}" style="animation-delay:${delay}ms"><div class="mv-body"><img src="${img}" alt="">${cat ? `<span class="mv-badge" style="--c:${status === 'ghost' ? '#8a8d91' : CATS[cat][2]}">${CATS[cat][1]}</span>` : ''}</div><div class="mv-label"><b>${name}${extra ? ` <i>+${extra}</i>` : ''}</b><span>${detail}</span></div></div>`,
+  html: `<div class="mv-pin ${status}" style="animation-delay:${delay}ms"><div class="mv-body"><img src="${img}" alt="">${cat ? `<span class="mv-badge" style="--c:${status === 'ghost' ? '#8a8d91' : CATS[cat][2]}">${status === 'ghost' ? '👻' : CATS[cat][1]}</span>` : ''}</div><div class="mv-label"><b>${name}${extra ? ` <i>+${extra}</i>` : ''}</b><span>${detail}</span></div></div>`,
 })
 // center a point in the map area left open by the floating panel
 const focus = (map, at, zoom, animate = true) => map?.fitBounds([at, at], { paddingTopLeft: [window.innerWidth > 900 ? PANEL_W : 0, 0], maxZoom: zoom, animate, duration: 0.65 })

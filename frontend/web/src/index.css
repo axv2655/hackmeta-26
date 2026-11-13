@@ -318,8 +318,13 @@ button.mv-glass:active, .mv-act:active, .mv-out-item:active, .mv-pull:active, .m
 .mv-label i { font-style: normal; font-weight: 600; color: #65676b; }
 .mv-label span { font-size: 11px; line-height: 13px; font-weight: 600; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .mv-pin.there .mv-label span, .mv-pin.me .mv-label span { color: #31a24c; }
-.mv-pin.ghost .mv-body img { opacity: .45; }
-.mv-pin.ghost .mv-label { background: rgba(255,255,255,.5); }
+/* ghost = left earlier: smaller, black-and-white, standing on a dashed outline instead of a shadow, with a dashed label */
+.mv-pin.ghost .mv-body { transform: scale(.82); }
+.mv-pin.ghost .mv-body img { filter: grayscale(1) contrast(.9); opacity: .6; }
+.mv-pin.ghost .mv-body::before { height: 10px; background: none; border: 1.5px dashed rgba(60,60,67,.55); }
+.sel .mv-pin.ghost .mv-body { transform: scale(1.05); }
+.mv-pin.ghost .mv-label { background: rgba(255,255,255,.6); border: 1.5px dashed rgba(60,60,67,.45); box-shadow: none; }
+.mv-pin.ghost .mv-label b { color: #65676b; }
 .sel .mv-body { transform: scale(1.2); }
 .sel .mv-label { background: rgba(8,102,255,.9); border-color: rgba(255,255,255,.5); }
 .sel .mv-label b, .sel .mv-label i, .sel .mv-pin .mv-label span { color: #fff; }

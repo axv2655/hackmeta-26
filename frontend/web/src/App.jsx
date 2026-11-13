@@ -703,6 +703,7 @@ function Moves() {
     <main className="moves-main">
       <MovesMap selectedId={sel} onSelect={select} onClear={clear} mapRef={mapRef} mine={mine} />
       <aside className="mv-glass mv-panel" aria-label="Moves">
+        <div className="mv-scroll">
         {selected ? <MoveCard m={selected} pulled={!!pulled[selected.id]} onPull={() => togglePull(selected.id)} onClose={clear} /> : (
           <>
             <div className="row mv-head">
@@ -726,6 +727,7 @@ function Moves() {
             {visible.length === 0 && <p className="muted center">No Moves match “{query}”.</p>}
           </>
         )}
+      </div>
       </aside>
       <div className="mv-top">
         <div className="mv-glass mv-title-pill">

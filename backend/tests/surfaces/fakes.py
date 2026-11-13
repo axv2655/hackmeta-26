@@ -147,6 +147,7 @@ class FakeMuse:
         self.notified: list[str] = []
         self.notify_calls: list[tuple[str, set[str], set[str]]] = []
         self.picks: tuple[NotifyPickOut, ...] = ()  # compose_move's draft notify
+        self.choose: str | None = None  # a place Muse picks on its own
 
     async def parse_intent(self, utterance: str) -> Intent:
         if self.down:
@@ -167,7 +168,7 @@ class FakeMuse:
             {"mark_id": mark_id, "seed_text": seed_text, "coarse": coarse}
         )
         return MoveDraftOut(
-            mark_id=mark_id,
+            mark_id=mark_id or self.choose,
             text=seed_text or "",
             category="coffee",
             notify=self.picks,

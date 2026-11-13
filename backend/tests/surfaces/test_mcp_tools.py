@@ -131,12 +131,13 @@ def test_draft_recipients_flow_into_the_posted_move(rig: Rig) -> None:
     assert set(create.user_ids) == {"bo", "cy"} and create.origin == "glasses"
 
 
-def test_draft_uses_coordinates_without_echoing_them(rig: Rig) -> None:
+def test_coordinates_from_the_caller_are_ignored(rig: Rig) -> None:
     out = run(rig.tools.draft_move("boba", None, None, *LOC))
-    assert out["status"] == "draft" and out["place"] == "Kumo"
-    assert rig.marks.nearest_calls == [(*LOC, 1)]
-    blob = repr(out) + repr(rig.drafts._items)
-    assert "30.2812" not in blob and "97.7421" not in blob
+    assert out["status"] == "needs_place"  # the nearest Mark is NOT used
+    assert rig.marks.nearest_calls == [] and len(rig.drafts) == 0
+    named = run(rig.tools.draft_move("boba", None, "Kumo", 1.0, 2.0))
+    assert named["place"] == "Kumo" and rig.marks.nearest_calls == []
+    assert "lat" not in named and "lng" not in named
 
 
 def test_draft_without_any_place_asks_where(rig: Rig) -> None:
@@ -189,7 +190,6 @@ def test_one_bad_name_blocks_the_whole_draft(rig: Rig) -> None:
 
 def test_blank_text_and_lone_coordinate_are_invalid(rig: Rig) -> None:
     assert run(rig.tools.draft_move("   "))["status"] == "invalid"
-    assert run(rig.tools.draft_move("boba", None, None, 1.0))["status"] == "invalid"
 
 
 # -- confirm_move ---------------------------------------------------------------

@@ -142,11 +142,11 @@ def build_server(tools: Callable[[], MovesTools]) -> FastMCP:
             "and the nudges Muse would send. `to` is friends' names or @usernames; "
             "if a name matches several friends or isn't a friend you get a "
             "clarifying question back instead of a draft: ask the user, then call "
-            "again. `place` is a place name; omit it to use the coordinates, "
-            "the user's usual spot, or ask where. With lat/lng and no known place "
-            "within about 200 m (a house party, a street event) the Move goes to a "
-            "NEW spot at that location (new_spot=true), created only when confirmed. "
-            "Read `spoken` to the user and wait for their answer."
+            "again. Pass the place name the user said in `place`. Don't send "
+            "coordinates: they are ignored. If no place is given the Move goes to a "
+            "place named in `text`, else the user's usual spot; if none matches you "
+            "get status 'needs_place' with a question to ask. Read `spoken` to the "
+            "user and wait for their answer."
         )
     )
     async def draft_move(

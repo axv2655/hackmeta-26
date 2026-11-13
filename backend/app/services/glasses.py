@@ -335,19 +335,33 @@ class GlassesService:
         place: MarkSnapshot | None = None,
         new_place_name: str | None = None,
         user_ids: tuple[str, ...] = (),
+        trust_muse: bool = True,
     ) -> CommandResult:
         """Hold a pending draft for already-understood Move text (no intent
         parsing). `place` is an explicit Mark and wins over coordinates;
         `user_ids` replaces Muse's audience picks. With coordinates and no Mark
         within NEAR_M (or a `new_place_name` no Mark has), the draft is for a new
-        spot that is only created when confirmed. Creates no Move and no Mark."""
+        spot that is only created when confirmed. Creates no Move and no Mark.
+
+        `trust_muse=False` is for callers that run in someone else's cloud (the
+        MCP connector): their coordinates and Muse's own place pick are ignored,
+        and the place comes only from `place`, a Mark named in the text, the
+        user's usual Mark, or the demo Mark in DEMO_MODE."""
         text = clean(text, MAX_TEXT)
+        fixed: tuple[MarkSnapshot, PlaceSource] | None = None
+        if not trust_muse:
+            lat = lng = None
+            new_place_name = None
+            if place is None:
+                fixed = self._fallback(user_id, text)
         nearest = None if place else self._nearest(lat, lng)
         here = self._new_spot_here(place, nearest, lat, lng, new_place_name)
         if here:
             nearest = None
-        pinned = place or nearest
+        pinned = place or (fixed[0] if fixed else nearest)
         draft = await self._compose(user_id, text, pinned.id if pinned else None)
+        if not trust_muse and place is None:
+            draft = replace(draft, mark_id=fixed[0].id if fixed else None)
         if user_ids:
             draft = replace(draft, user_ids=user_ids, circle_ids=())
         if here and lat is not None and lng is not None:
@@ -355,6 +369,8 @@ class GlassesService:
         draft, mark, source = self._place(user_id, draft, pinned)
         if place is not None and mark is not None and source == "nearby":
             source = "named"
+        if fixed is not None and mark is not None:
+            source = fixed[1]
         if mark is None:
             # Nowhere to post: hold no draft, ask. Confirm then answers 409.
             return CommandResult(
@@ -497,8 +513,18 @@ class GlassesService:
         chosen = self._marks.get(draft.mark_id) if draft.mark_id else None
         if chosen is not None:
             return draft, chosen, "muse"
+        found = self._fallback(user_id, draft.text)
+        if found is not None:
+            return replace(draft, mark_id=found[0].id), found[0], found[1]
+        return replace(draft, mark_id=None), None, None
+
+    def _fallback(
+        self, user_id: str, text: str
+    ) -> tuple[MarkSnapshot, PlaceSource] | None:
+        """A real Mark when nothing was pinned: one named in the text, the user's
+        usual one, and in DEMO_MODE the demo Mark. Never a city-level place."""
         tries: list[tuple[PlaceSource, Callable[[], MarkSnapshot | None]]] = [
-            ("named", lambda: self._places.named_in(draft.text)),
+            ("named", lambda: self._places.named_in(text)),
             ("usual", lambda: self._places.usual_for(user_id)),
         ]
         if self._demo_mode():
@@ -506,8 +532,8 @@ class GlassesService:
         for source, find in tries:
             found = find()
             if found is not None:
-                return replace(draft, mark_id=found.id), found, source
-        return replace(draft, mark_id=None), None, None
+                return found, source
+        return None
 
     @staticmethod
     def _spoken(text: str, mark: MarkSnapshot, source: PlaceSource | None) -> str:

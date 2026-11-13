@@ -138,10 +138,10 @@ def test_without_a_creator_the_nearest_mark_is_used_as_before() -> None:
     assert out.place_source == "nearby" and not out.new_place
 
 
-# -- over MCP -------------------------------------------------------------------
+# -- over MCP: Muse is not the user's phone, so it never makes spots --------------
 
 
-def _rig() -> tuple[Rig, FakeCreator]:
+def test_mcp_never_creates_a_spot_even_with_coordinates() -> None:
     rig = Rig(person("bo", "Bo Lee"))
     creator = FakeCreator()
     rig.tools.glasses = GlassesService(
@@ -153,36 +153,13 @@ def _rig() -> tuple[Rig, FakeCreator]:
         lock=asyncio.Lock(),
         creator=creator,
     )
-    return rig, creator
-
-
-def test_mcp_unknown_place_with_coordinates_is_a_new_spot() -> None:
-    rig, creator = _rig()
     out = run(rig.tools.draft_move("party", None, HOUSE, *FAR))
-    assert out["status"] == "draft" and out["new_spot"] is True
-    assert out["place"] == HOUSE
-    assert creator.created == [] and rig.moves.created == []
-    posted = run(rig.tools.confirm_move(out["draft_id"], "r1"))
-    assert posted["status"] == "posted" and len(creator.created) == 1
-
-
-def test_mcp_far_from_everything_without_a_name_uses_the_text() -> None:
-    rig, _ = _rig()
-    out = run(rig.tools.draft_move("street fair", None, None, *FAR))
-    assert out["new_spot"] is True and out["place"] == "street fair"
-
-
-def test_mcp_unknown_place_without_coordinates_still_asks() -> None:
-    rig, _ = _rig()
-    out = run(rig.tools.draft_move("party", None, "Narnia"))
     assert out["status"] == "needs_clarification"
-
-
-def test_mcp_known_place_is_not_a_new_spot() -> None:
-    rig, creator = _rig()
-    out = run(rig.tools.draft_move("boba", None, "Kumo", *FAR))
-    assert out["new_spot"] is False and out["place"] == "Kumo"
-    assert creator.created == []
+    assert out["problems"][0]["problem"] == "place_not_found"
+    assert "Where at?" in out["spoken"]
+    far = run(rig.tools.draft_move("street fair", None, None, *FAR))
+    assert far["status"] == "needs_place"
+    assert creator.created == [] and rig.moves.created == [] and len(rig.drafts) == 0
 
 
 # -- the real adapter -------------------------------------------------------------

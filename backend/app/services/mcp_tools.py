@@ -184,18 +184,16 @@ class MovesTools:
         said = " ".join(text.split())
         if not said:
             return {"status": "invalid", "message": "Say what the Move is."}
-        if (lat is None) != (lng is None):
-            return {"status": "invalid", "message": "Send lat and lng together."}
+        # Muse runs in Meta's cloud, so any coordinates it sends are not the
+        # user's. The place comes from names, history or the demo Mark only.
+        del lat, lng
         recipients, problems = self.resolve_friends(to or [])
         if problems:
             return {"status": "needs_clarification", "problems": problems}
         mark = None
-        new_name = None
         if place and place.strip():
             mark = self.place_by_name(place)
-            if mark is None and lat is not None:
-                new_name = place  # an event with no Mark: a new spot here
-            elif mark is None:
+            if mark is None:
                 return {
                     "status": "needs_clarification",
                     "problems": [
@@ -206,15 +204,14 @@ class MovesTools:
                             "Ask the user where.",
                         }
                     ],
+                    "spoken": f"I couldn't find {place[:60]}. Where at?",
                 }
         result = await self.glasses.draft_from_text(
             self.me,
             said,
-            lat,
-            lng,
             place=mark,
-            new_place_name=new_name,
             user_ids=tuple(p.id for p in recipients),
+            trust_muse=False,
         )
         if result.needs_place or result.draft_id is None:
             return {
@@ -226,7 +223,6 @@ class MovesTools:
             "status": "draft",
             "draft_id": result.draft_id,
             "place": result.place,
-            "new_spot": result.new_place,
             "text": result.text,
             "recipients": self._recipient_names(result, recipients),
             "nudges": self._nudges(result, recipients),

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str = "http://localhost:8081"
     FASTAPI_ENV: Literal["development", "staging", "production"] = "development"
     SENTRY_DSN: HttpUrl | None = None
+    # Held as a secret so the password never shows up in a repr or a log line.
+    # Read it with `settings.DATABASE_URL.get_secret_value()`.
+    DATABASE_URL: SecretStr | None = None
 
     # SQLite file, or ":memory:" for a throwaway in-process database.
     DB_PATH: str = str(BACKEND_DIR / "data" / "app.db")

@@ -14,7 +14,7 @@ from app.container import Container
 from app.core.config import settings
 from app.core.logging import redact_nearby_queries
 from app.hooks import Hooks
-from app.lanes import Registrar, core, muse, push, surfaces
+from app.lanes import Registrar, core, examples, muse, push, surfaces
 from app.scheduler.loop import Scheduler
 
 LANES: tuple[Registrar, ...] = (
@@ -22,6 +22,7 @@ LANES: tuple[Registrar, ...] = (
     surfaces.register,
     muse.register,
     push.register,
+    examples.register,
 )
 
 

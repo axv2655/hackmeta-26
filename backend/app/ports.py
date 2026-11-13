@@ -83,6 +83,8 @@ NotificationType = Literal[
     "moment_approval",
     "muse_nobody_bit",
     "muse_route",
+    "friend_request",
+    "friend_accepted",
 ]
 EventType = Literal[
     "notification",

@@ -27,6 +27,7 @@ from app.tables.core import (
     User,
     UserSettings,
 )
+from app.tables.friends import FriendRequest
 from app.tables.messages import MoveInvite
 from app.tables.muse import MuseRun, Notification, PseudoGroup, Suggestion, TasteProfile
 from app.tables.push import PushToken
@@ -50,6 +51,7 @@ __all__ = [
     "Block",
     "CalendarEvent",
     "Credential",
+    "FriendRequest",
     "Circle",
     "CircleMember",
     "Copresence",

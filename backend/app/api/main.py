@@ -10,6 +10,7 @@ from app.api.routes import (
     calendar,
     circles,
     demo,
+    friends,
     glasses,
     home,
     invites,
@@ -37,6 +38,7 @@ api_router.include_router(notes.router)
 # core
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
+api_router.include_router(friends.router)
 api_router.include_router(circles.router)
 api_router.include_router(audience.router)
 api_router.include_router(marks.router)

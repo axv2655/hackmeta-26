@@ -468,5 +468,6 @@ def test_creation_refreshes_hook_changes_before_publication(
 def test_default_lane_order():
     from app.main import LANES
     assert [register.__module__ for register in LANES] == [
-        'app.lanes.core', 'app.lanes.surfaces', 'app.lanes.muse', 'app.lanes.push'
+        'app.lanes.core', 'app.lanes.surfaces', 'app.lanes.muse', 'app.lanes.push',
+        'app.lanes.examples',
     ]

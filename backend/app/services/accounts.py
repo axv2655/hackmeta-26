@@ -1,8 +1,9 @@
 """Sign up and log in (real accounts next to the seeded demo world).
 
     signup  makes a `users` row, its settings and a credential, and friends
-            the new person with everyone already here so they can make and
-            poke Moves straight away.
+            the new person with everyone already here, and adds them to the
+            example Moves, so the app is alive the moment they log in.
+            Friend requests (`services/friends.py`) cover anyone added later.
     login   checks a username and password and returns the user.
 
 The client then sends the user's id as `X-User-Id`, like the mock login.
@@ -22,6 +23,7 @@ from app.domain.accounts import (
     password_matches,
 )
 from app.ports import Clock
+from app.services.examples import join_examples
 from app.tables import Credential, Friendship, User, UserSettings, new_id
 
 COLORS = ("#1877F2", "#E4405F", "#42B72A", "#F7B928", "#A033FF", "#FF6F3C", "#00A3A3")
@@ -64,6 +66,7 @@ class AccountService:
         for other in others:
             low, high = sorted((uid, other))
             self.session.add(Friendship(user_a=low, user_b=high, since=now))
+        join_examples(self.session, uid)
         self.session.commit()
         self.session.refresh(user)
         return user, username

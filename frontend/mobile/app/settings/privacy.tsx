@@ -8,6 +8,7 @@ import { LocationToggle } from '@/components/settings/LocationToggle';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { LinkRow, SettingsGroup, ToggleRow } from '@/components/settings/SettingsRow';
 import { Icon } from '@/components/ui/Icon';
+import { bleStatusLine, useBleStatus } from '@/lib/ble';
 import { useSettings } from '@/lib/settings';
 import { colors, radius, spacing, type as typeScale } from '@/lib/theme';
 import type { Me } from '@/lib/types';
@@ -26,13 +27,14 @@ function MarkExplainer() {
 function BleToggle({ value }: { value: boolean }) {
   const patch = useSettings((s) => s.patch);
   const [explaining, setExplaining] = useState(false);
+  const status = bleStatusLine(useBleStatus(), value);
   return (
     <>
       <ToggleRow
         divider
         icon="users"
         title="Bluetooth proximity"
-        subtitle="Notice when friends are with you, to offer them your Move."
+        subtitle={`Notice when friends are with you, to offer them your Move. ${status}`}
         value={value}
         onValueChange={(next) => (next ? setExplaining(true) : void patch({ ble_opt_in: false }))}
       />
@@ -40,7 +42,7 @@ function BleToggle({ value }: { value: boolean }) {
         visible={explaining}
         icon="users"
         title="Bluetooth proximity"
-        body="Simulated in this build. When on, friends you're with can be offered your Move. You always get a one-tap prompt unless they're on your Auto-join list."
+        body="While Moves is open, your phone broadcasts a rotating code (never your name or location) so friends nearby can be marked there or offered your Move. You always get a one-tap prompt unless they're on your Auto-join list."
         confirmLabel="Turn on"
         onConfirm={() => {
           setExplaining(false);

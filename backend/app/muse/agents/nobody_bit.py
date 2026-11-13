@@ -21,6 +21,7 @@ from datetime import timedelta
 from pydantic import BaseModel, Field
 from sqlmodel import Session, col, select
 
+from app.muse.agents.move_ranker import rank_snapshots
 from app.muse.context import MAX_MOVES, AliasBook, load_candidates
 from app.muse.lane import MuseLane
 from app.ports import MoveDraftOut, MoveSnapshot, SuggestionSnapshot
@@ -138,19 +139,14 @@ class NobodyBitService:
                 raise ValueError("empty message")
             return out
 
+        # The same pairwise ranking as the feed, with the poster's own category
+        # counting as taste: the top Move is where to go instead.
+        ranked = rank_snapshots(
+            self.session, user, candidates, now, extra_likes=likes | {own.category}
+        )
+        best = by_id[ranked[0].move_id]
+
         def fallback() -> NobodyOut:
-            best = max(
-                candidates,
-                key=lambda m: (
-                    max(
-                        (scores.get(u, -99.0) for u in _people(m) if u != user),
-                        default=-99.0,
-                    )
-                    + (2 if m.category in likes or m.category == own.category else 0)
-                    + 0.1 * len(_people(m)),
-                    m.id,
-                ),
-            )
             return self._template(best, moves, people, scores, user)
 
         out, used_fallback = await self.lane.runner.run_agent_meta(

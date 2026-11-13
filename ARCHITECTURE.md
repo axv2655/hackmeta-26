@@ -795,6 +795,15 @@ Muse is the reason the right people show up. The design principle: **Python comp
 facts, Muse makes judgments and writes words.** We never ask Muse to do arithmetic over
 raw history, and we never hardcode who gets notified.
 
+**Deterministic mode (`MUSE_DETERMINISTIC=true`, the default).** Muse never calls the
+model. Every agent answers at once with its scored, rule-based path: Moves are ranked
+by binary pairwise comparison (10.5), recommended Moves come from scores (flares 10.6,
+nobody-bit 10.9, revive 10.8, spots 10.7), and who to nudge or invite is the affinity
+score from 10.1 (how often you hang out, how recently, at the same kind of place, how
+often you pull up). Copy comes from templates and `source` reads `heuristic`.
+`GET /muse/status` reports `live: false`. Set `MUSE_DETERMINISTIC=false` to let agents
+ask the model again, with the same scores as their fallback.
+
 ### 10.1 Signals computed in Python (`domain/affinity.py`, `muse/context.py`)
 
 For a user U and candidate C:
@@ -863,16 +872,24 @@ make Muse's work visible to judges and make the app honest with users.
   Used by Reels and saved Reels. If `confidence < 0.6`, the UI asks
   "Is this Kumo Matcha?".
 
-### 10.5 Move ranker (P0) — `agents/move_ranker.py`
+### 10.5 Move ranker (P0) — `agents/move_ranker.py`, `domain/move_ranking.py`
 
-- **When**: `GET /moves/nearby` (cached per user for 45 s) and the Home feed insert.
-- **Input**: up to 15 visible active Moves, each with participants and the user's
-  affinity to each participant, category match with the user's taste profile, distance
-  bucket, and fill deadline.
-- **Output**: `{ "ranked": [{ "move": "m2", "reason": "Tony + Priya · your usual lunch crew" }] }`
-- **Rules**: favor the people the user clicks with most, then taste fit, then closeness
-  and urgency. The reason line is shown on the "For you" strip.
-- **Fallback**: sort by max participant affinity.
+- **When**: `GET /moves/feed`, `GET /moves/nearby` and the Home feed insert. No model
+  call, no cache, no background task: the order is computed on the request.
+- **Facts per Move** (from the viewer's side): the best affinity of anyone on it and
+  how many people with positive affinity are there (10.1); the viewer's own 0 to 10
+  score for the Mark from `mark_rankings` (unrated counts as 5); taste fit (category or
+  vibe tags in the taste profile); minutes left on the fill timer; how many are going;
+  age.
+- **Comparison**: `prefer(a, b)` is one binary question, "should a sit above b?". It
+  compares weighted factor totals (people 4, place 2, crowd 1.5, taste 1.5, urgency 1,
+  momentum 1, freshness 0.5; each factor scaled to about -1..1), then newest first,
+  then id, so it is a strict total order.
+- **Ranking**: binary insertion with `prefer`, inserting in id order (the same halving
+  search the rating flow uses), so the result never depends on input order.
+- **Reason line**: the factor that added the most: "Tony + Priya", "you loved Kumo",
+  "your kind of coffee", "3 min to join", "4 going", "just posted", or nothing.
+- The nobody-bit path (10.9) uses the same ranking to pick where to go instead.
 
 ### 10.6 Calendar flare and free-time agents (P1) — `agents/flare.py`
 
@@ -885,7 +902,14 @@ Demo Control) for users with `muse_proactive` on:
 2. Gather options: Saved Marks (and saved Reels with a resolved Mark) reachable in the
    window, with `flared_at` older than 3 days; active Moves nearby; pseudo-group
    members who are also free.
-3. Ask Muse: is this a good moment, and for what? Output:
+3. Decide by score (`domain/recommend.py`; in live mode Muse is asked first and these
+   scores are its fallback). Each saved place scores the user's own rating (2), taste
+   fit (1.5), hangouts there with the friends who are free (1.5) and how recently it
+   was saved (1); the best place flares when it reaches 1.5, so a plain old save never
+   does. Invites are the free friends with positive affinity plus 2 for crew members,
+   best first, at most 3. With no place worth it, a free-time nudge fires only for a
+   free friend scoring at least 1. Demo Control's `force` skips the thresholds. In live
+   mode Muse's output looks like:
 
 ```json
 {

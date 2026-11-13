@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Input + output tokens one backend process may spend on Muse. Once used,
     # every agent answers with its heuristic fallback (no network call).
     MUSE_TOKEN_BUDGET: int = 400000
+    # True: Muse never calls the model. Ranking, recommended Moves (flares,
+    # nobody-bit, revive, spots) and who to nudge all come from deterministic
+    # scores; copy comes from templates. False: agents ask the model and fall
+    # back to the same scores on failure.
+    MUSE_DETERMINISTIC: bool = True
 
     # Shared invite links (ARCHITECTURE.md 9.4): public origin of the /m/{token}
     # page, e.g. a tunnel. Unset: the URL the request came in on (LAN only).

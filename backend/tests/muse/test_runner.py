@@ -278,3 +278,13 @@ def test_lane_registers_the_gateway(engine) -> None:
         "none",
         "start_move",
     )
+
+
+async def test_deterministic_mode_never_calls_the_model(engine, clock) -> None:
+    client = FakeMuseClient({"t": {"word": "matcha"}})
+    runner = make_runner(engine, clock, client, deterministic=True)
+    out, used_fallback = await runner.run_agent_meta("t", "u1", "p", Out, fallback)
+    assert out == Out(word="fallback") and used_fallback
+    assert client.calls == [] and runs(engine) == []  # no network, no log row
+    stats = runner.get_stats()
+    assert stats["calls"] == 1 and stats["fallbacks"] == 1 and stats["muse_calls"] == 0

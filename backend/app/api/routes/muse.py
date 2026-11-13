@@ -48,7 +48,9 @@ def muse_status(lane: LaneDep) -> MuseStatus:
     kind = client_kind(runner.client)
     return MuseStatus(
         client=kind,
-        live=kind == "http" and not runner.budget_exhausted,
+        live=kind == "http"
+        and not runner.budget_exhausted
+        and not runner.deterministic,
         model=client_model(runner.client),
         vision=runner.supports_vision,
         calls=stats["calls"],

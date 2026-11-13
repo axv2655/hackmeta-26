@@ -127,6 +127,9 @@ class MuseRunner:
     token_budget: int | None = None
     """Input + output tokens this process may spend; None means no cap. Once
     spent, every agent goes straight to its fallback without a network call."""
+    deterministic: bool = False
+    """True (`MUSE_DETERMINISTIC`): never call the model; every agent answers
+    with its scored, rule-based fallback at once and nothing is logged."""
     _cache: dict[str, tuple[float, BaseModel]] = field(default_factory=dict)
     _total: AgentStats = field(default_factory=AgentStats)
     _by_agent: dict[str, AgentStats] = field(default_factory=dict)
@@ -183,12 +186,17 @@ class MuseRunner:
         """Like `run_agent`, plus whether the value came from `fallback()`.
 
         A cache hit replays a Muse answer, so it reports `False`."""
-        system = system or load_prompt(agent)
-        images = list(images or ()) if self.client.supports_vision else []
-        key = prompt_hash(agent, system, prompt, images)
         stats = self._by_agent.setdefault(agent, AgentStats())
         for s in (stats, self._total):
             s.calls += 1
+        if self.deterministic:
+            for s in (stats, self._total):
+                s.fallbacks += 1
+            return fallback(), True
+
+        system = system or load_prompt(agent)
+        images = list(images or ()) if self.client.supports_vision else []
+        key = prompt_hash(agent, system, prompt, images)
 
         cached = self._cache.get(key)
         if cached and cached[0] > time.monotonic():

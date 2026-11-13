@@ -34,6 +34,7 @@ draft's `source` is "muse" only when Muse answered (no fallback).
 from __future__ import annotations
 
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal
@@ -42,8 +43,10 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, col, or_, select
 
 from app.core import timezones
+from app.domain import recommend
 from app.domain.affinity import clock_label
 from app.muse.agents import move_writer
+from app.muse.agents.move_ranker import taste_words
 from app.muse.agents.move_writer import WriterInput
 from app.muse.compose import ComposeService
 from app.muse.context import AliasBook, Candidate, load_candidates
@@ -55,6 +58,7 @@ from app.services.suggestions import SuggestionService, clamp_fill, draft_to_dic
 from app.tables import (
     Friendship,
     Hangout,
+    MarkRanking,
     PseudoGroup,
     SavedMark,
     TasteProfile,
@@ -284,8 +288,10 @@ class FlareScanner:
                 raise ValueError("empty message")
             return out
 
+        decision = self.decide(session, user_id, opts, now, force=force)
+
         def fallback() -> FlareOut:
-            return self._fallback(opts, marks, people, window_label, now)
+            return self._fallback(decision, opts, marks, people, window_label, now)
 
         out, used_fallback = await self.lane.runner.run_agent_meta(
             AGENT,
@@ -297,7 +303,7 @@ class FlareScanner:
             slow=True,
             check=check,
         )
-        if not out.act and force:  # Demo Control asked for a card: use the heuristic
+        if not out.act and force:  # Demo Control asked for a card: use the scores
             out, used_fallback = fallback(), True
         if not out.act:
             return None
@@ -306,23 +312,57 @@ class FlareScanner:
             session, user_id, out, opts, (marks, people), now, source
         )
 
+    def decide(
+        self,
+        session: Session,
+        user_id: str,
+        opts: Options,
+        now: datetime,
+        *,
+        force: bool = False,
+    ) -> recommend.Decision | None:
+        """Score the saved places and free friends (`domain/recommend.py`)."""
+        free_ids = [c.user_id for c in opts.free]
+        likes = taste_words(session, user_id)
+        rated = _ratings(session, user_id, [m.id for m, _ in opts.saved])
+        together = _visits_with(session, user_id, free_ids)
+        places = [
+            recommend.PlaceOption(
+                mark_id=m.id,
+                rating=rated.get(m.id),
+                taste_fit=m.category in likes or bool(set(m.vibe_tags) & likes),
+                together=together.get(m.id, 0),
+                saved_days=max(0, (now - at).days),
+            )
+            for m, at in opts.saved
+        ]
+        people = [
+            recommend.PersonOption(c.user_id, c.affinity, c.user_id in opts.crew)
+            for c in opts.free
+        ]
+        return recommend.decide(places, people, force=force)
+
     def _fallback(
         self,
+        decision: recommend.Decision | None,
         opts: Options,
         marks: AliasBook,
         people: AliasBook,
         window_label: str,
         now: datetime,
     ) -> FlareOut:
-        invite = [people.alias(c.user_id) for c in opts.free[:3]]
+        if decision is None:
+            return FlareOut(act=False)
+        invite = [people.alias(p.user_id) for p in decision.invite]
         until = clock_label(opts.window.end)
-        if opts.saved:
-            mark, at = opts.saved[0]
+        if decision.type == "flare" and decision.place is not None:
+            place = decision.place
+            mark, at = next((m, a) for m, a in opts.saved if m.id == place.mark_id)
             k = marks.alias(mark.id)
             who = " + ".join("{" + a + "}" for a in invite[:2])
             message = f"You saved {{{k}}}. You're free til {until}."
             message += f" Send a flare to {who}?" if who else " Send a flare?"
-            chips = [window_label, f"saved {(now - at).days}d ago"]
+            chips = [window_label, _place_chip(place, mark.name, now - at)]
             return FlareOut(
                 act=True,
                 type="flare",
@@ -331,20 +371,18 @@ class FlareScanner:
                 message=message,
                 chips=chips,
             )
-        if opts.free:
-            a = invite[0]
-            message = (
-                f"You've got {opts.window.minutes} min and {{{a}}}'s free too. "
-                "Want to start a Move?"
-            )
-            return FlareOut(
-                act=True,
-                type="free_time",
-                invite=invite[:2],
-                message=message,
-                chips=[window_label, f"{{{a}}} free too"],
-            )
-        return FlareOut(act=False)
+        a = invite[0]
+        message = (
+            f"You've got {opts.window.minutes} min and {{{a}}}'s free too. "
+            "Want to start a Move?"
+        )
+        return FlareOut(
+            act=True,
+            type="free_time",
+            invite=invite[:2],
+            message=message,
+            chips=[window_label, f"{{{a}}} free too"],
+        )
 
     async def _store(
         self,
@@ -412,3 +450,42 @@ class FlareScanner:
             counts[h.mark_id] = counts.get(h.mark_id, 0) + 1
         best = max(sorted(counts), key=lambda k: counts[k])
         return ComposeService(session, self.lane).mark(best)
+
+
+def _ratings(session: Session, user_id: str, mark_ids: list[str]) -> dict[str, float]:
+    """The user's own 0-10 score per Mark (Beli-style rankings)."""
+    if not mark_ids:
+        return {}
+    rows = session.exec(
+        select(MarkRanking).where(
+            MarkRanking.user_id == user_id, col(MarkRanking.mark_id).in_(mark_ids)
+        )
+    ).all()
+    return {r.mark_id: r.score for r in rows}
+
+
+def _visits_with(session: Session, user_id: str, friend_ids: list[str]) -> Counter[str]:
+    """Hangouts per Mark between the user and any of these friends."""
+    if not friend_ids:
+        return Counter()
+    rows = session.exec(
+        select(Hangout.mark_id).where(
+            or_(
+                (col(Hangout.user_a) == user_id) & col(Hangout.user_b).in_(friend_ids),
+                (col(Hangout.user_b) == user_id) & col(Hangout.user_a).in_(friend_ids),
+            )
+        )
+    ).all()
+    return Counter(rows)
+
+
+def _place_chip(place: recommend.PlaceOption, name: str, age: timedelta) -> str:
+    """Why this place, as a short chip."""
+    why = recommend.place_reason(place)
+    if why == "rating" and place.rating is not None and place.rating >= 7:
+        return f"you loved {name}"
+    if why == "together" and place.together:
+        return f"been {place.together}x with them"
+    if why == "taste":
+        return "your kind of place"
+    return f"saved {age.days}d ago"

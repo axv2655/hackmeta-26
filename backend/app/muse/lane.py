@@ -42,12 +42,14 @@ class MuseLane:
         client: MuseClient,
         *,
         token_budget: int | None = None,
+        deterministic: bool = False,
     ) -> MuseLane:
         runner = MuseRunner(
             client,
             clock=lambda: container.clock,
             engine=engine,
             token_budget=token_budget,
+            deterministic=deterministic,
         )
         return cls(engine, container, runner)
 

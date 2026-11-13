@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 
 import { api } from './backend';
 import { coarse, useLocation } from './location';
-import { useSession } from './session';
+import { authHeaders, useSession } from './session';
 
 /** How often the open app re-sends its point. The server keeps it for 30 minutes. */
 const PING_MS = 4 * 60 * 1000;
@@ -25,7 +25,7 @@ export function useLocationPing(): void {
       const { coords } = useLocation.getState();
       if (!coords || AppState.currentState !== 'active') return;
       const point = coarse(coords);
-      api.glassesLocation(userId, { lat: point.latitude, lng: point.longitude }).catch(() => {
+      api.glassesLocation(authHeaders(), { lat: point.latitude, lng: point.longitude }).catch(() => {
         // Offline or sharing is off: the glasses flow falls back to your usual place.
       });
     };

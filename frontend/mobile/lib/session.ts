@@ -10,18 +10,21 @@ export type { UserLite } from './types';
 
 /**
  * Who is signed in on this phone. Log in or sign up (`POST /auth/login`,
- * `/auth/signup`) and the account is saved on the device; its user id goes out
- * as `X-User-Id` on every request. Seeded demo people log in as their first
+ * `/auth/signup`) and the account is saved on the device. Every request sends
+ * the login's session token (`Authorization: Bearer`), which the server turns
+ * into the user, plus `X-User-Id` for older servers. Seeded demo people log in as their first
  * name ("tony") with the password "moves".
  */
 export type Account = { id: string; name: string; firstName: string; username: string };
 
-type AccountWire = { user: UserLite; username: string };
+type AccountWire = { user: UserLite; username: string; session_token?: string };
 
 type SessionState = {
   account: Account | null;
   /** The signed-in user's id, or '' when signed out. */
   userId: string;
+  /** Session token from login/signup, or '' (signed out, or an older server). */
+  token: string;
   /** True once the saved account has been read from the device. */
   hydrated: boolean;
   /** Everyone from `GET /auth/users`, for name lookups. */
@@ -70,27 +73,28 @@ export const useSession = create<SessionState>()(
     (set, get) => ({
       account: null,
       userId: '',
+      token: '',
       hydrated: false,
       users: [],
       me: null,
       justSignedUp: false,
       logIn: async (username, password) => {
-        const account = toAccount(await backendFetch<AccountWire>('/auth/login', postJson({ username, password })));
-        set({ account, userId: account.id, me: null, justSignedUp: false });
+        const wire = await backendFetch<AccountWire>('/auth/login', postJson({ username, password }));
+        const account = toAccount(wire);
+        set({ account, userId: account.id, token: wire.session_token ?? '', me: null, justSignedUp: false });
         void get().loadUsers();
         void get().refreshMe();
       },
       signUp: async (name, username, password) => {
-        const account = toAccount(
-          await backendFetch<AccountWire>('/auth/signup', postJson({ name, username, password })),
-        );
-        set({ account, userId: account.id, me: null, justSignedUp: true });
+        const wire = await backendFetch<AccountWire>('/auth/signup', postJson({ name, username, password }));
+        const account = toAccount(wire);
+        set({ account, userId: account.id, token: wire.session_token ?? '', me: null, justSignedUp: true });
         void get().loadUsers();
         void get().refreshMe();
       },
       logOut: () => {
         runLogoutHandlers();
-        set({ account: null, userId: '', me: null, justSignedUp: false });
+        set({ account: null, userId: '', token: '', me: null, justSignedUp: false });
       },
       loadUsers: async () => {
         try {
@@ -112,7 +116,7 @@ export const useSession = create<SessionState>()(
     {
       name: 'moves-session',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ account: s.account, userId: s.userId }),
+      partialize: (s) => ({ account: s.account, userId: s.userId, token: s.token }),
       onRehydrateStorage: () => () => useSession.setState({ hydrated: true }),
     },
   ),
@@ -130,13 +134,25 @@ export function useMe(): UserLite | null {
 }
 
 /**
+ * Who this request is from: the session token (the server trusts only this
+ * when it has one) and the user id for servers without session auth.
+ */
+export function authHeaders(): Record<string, string> {
+  const { userId, token } = useSession.getState();
+  const headers: Record<string, string> = {};
+  if (userId) headers['X-User-Id'] = userId;
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+/**
  * `backendFetch` as the current user. Marks connectivity on every call, and a
  * 401 while signed in (the account no longer exists) logs out.
  */
 export async function api<T = unknown>(path: string, init: BackendFetchOptions = {}): Promise<T> {
   const headers = new Headers(init.headers);
   const { userId } = useSession.getState();
-  headers.set('X-User-Id', userId);
+  for (const [name, value] of Object.entries(authHeaders())) headers.set(name, value);
   try {
     const result = await backendFetch<T>(path, { ...init, headers });
     useConnectivity.getState().markOk();

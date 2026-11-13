@@ -33,6 +33,7 @@ function handle(event: Envelope) {
 
 export function useRealtime() {
   const userId = useSession((s) => s.userId);
+  const token = useSession((s) => s.token);
 
   useEffect(() => {
     if (!userId) return; // signed out: no socket
@@ -43,7 +44,8 @@ export function useRealtime() {
 
     const connect = () => {
       clearTimeout(retry);
-      const url = `${BACKEND_URL.replace(/^http/, 'ws')}/api/v1/ws?user_id=${encodeURIComponent(userId)}`;
+      const auth = token ? `&token=${encodeURIComponent(token)}` : '';
+      const url = `${BACKEND_URL.replace(/^http/, 'ws')}/api/v1/ws?user_id=${encodeURIComponent(userId)}${auth}`;
       const ws = new WebSocket(url);
       socket = ws;
       ws.onopen = () => {
@@ -77,5 +79,5 @@ export function useRealtime() {
       sub.remove();
       socket?.close();
     };
-  }, [userId]);
+  }, [userId, token]);
 }

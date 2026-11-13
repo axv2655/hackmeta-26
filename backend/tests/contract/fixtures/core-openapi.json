@@ -321,6 +321,9 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "session_token": {
+                    "type": "string"
+                  },
                   "user": {
                     "properties": {
                       "avatar_color": {
@@ -358,7 +361,8 @@
                 },
                 "required": [
                   "user",
-                  "username"
+                  "username",
+                  "session_token"
                 ],
                 "type": "object"
               }
@@ -449,6 +453,9 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "session_token": {
+                    "type": "string"
+                  },
                   "user": {
                     "properties": {
                       "avatar_color": {
@@ -486,7 +493,8 @@
                 },
                 "required": [
                   "user",
-                  "username"
+                  "username",
+                  "session_token"
                 ],
                 "type": "object"
               }

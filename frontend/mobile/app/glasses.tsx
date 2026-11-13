@@ -12,7 +12,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { api as backend, type GlassesDraft } from '@/lib/backend';
 import { success, warning } from '@/lib/haptics';
 import { coarse, useLocation } from '@/lib/location';
-import { useSession } from '@/lib/session';
+import { authHeaders, useSession } from '@/lib/session';
 import { colors, layout, radius, spacing, type as typeScale } from '@/lib/theme';
 
 /**
@@ -66,7 +66,7 @@ export default function GlassesScreen() {
     busy.current = true;
     setPhase('posting');
     try {
-      const posted = await backend.glassesConfirm(userId, pending.draft_id);
+      const posted = await backend.glassesConfirm(authHeaders(), pending.draft_id);
       success();
       setPhase('posted');
       setMessage(posted.spoken);
@@ -109,7 +109,7 @@ export default function GlassesScreen() {
         // Location is opt-in: with it denied the draft simply has no place. Coarse only.
         const { coords, permission } = useLocation.getState();
         const near = permission === 'granted' && coords ? coarse(coords) : null;
-        const result = await backend.glassesCommand(userId, {
+        const result = await backend.glassesCommand(authHeaders(), {
           utterance: said,
           ...(near ? { lat: near.latitude, lng: near.longitude } : {}),
         });

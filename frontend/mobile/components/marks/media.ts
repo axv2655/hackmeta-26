@@ -1,6 +1,6 @@
 import { BACKEND_URL } from '@/lib/backend';
 import { parseIso, serverNow, ago } from '@/lib/format';
-import { useSession } from '@/lib/session';
+import { authHeaders } from '@/lib/session';
 import type { Ghost } from '@/lib/types';
 
 /** A backend media path ("/media/...") or absolute URL as an image source. */
@@ -9,7 +9,7 @@ export function mediaSource(url: string | null | undefined): { uri: string; head
   if (/^https?:\/\//.test(url)) return { uri: url };
   const path = url.startsWith('/') ? url : `/${url}`;
   // Moment media is private: the backend checks the viewer on every request.
-  return { uri: `${BACKEND_URL}${path}`, headers: { 'X-User-Id': useSession.getState().userId } };
+  return { uri: `${BACKEND_URL}${path}`, headers: authHeaders() };
 }
 
 const HOUR = 3600_000;

@@ -39,6 +39,7 @@ from app.tables.muse import (
     TasteProfile,
 )
 from app.tables.push import PushToken
+from app.tables.sessions import AuthSession
 from app.tables.surfaces import (
     CalendarEvent,
     Copresence,
@@ -55,6 +56,7 @@ from app.tables.types import UTCDateTime, new_id
 metadata = SQLModel.metadata
 
 __all__ = [
+    "AuthSession",
     "AutojoinPref",
     "Block",
     "CalendarEvent",

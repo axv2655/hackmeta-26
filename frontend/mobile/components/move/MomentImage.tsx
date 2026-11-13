@@ -3,7 +3,7 @@ import { Image, type ImageContentFit } from 'expo-image';
 
 import { Icon } from '@/components/ui/Icon';
 import { BACKEND_URL } from '@/lib/backend';
-import { useSession } from '@/lib/session';
+import { authHeaders, useSession } from '@/lib/session';
 import { colors } from '@/lib/theme';
 import type { Moment } from '@/lib/types';
 
@@ -13,14 +13,14 @@ type Props = {
   fit?: ImageContentFit;
 };
 
-/** A Moment's photo from `/media/...`, sent with `X-User-Id` (the server checks who may see it). */
+/** A Moment's photo from `/media/...`, sent with the session (the server checks who may see it). */
 export function MomentImage({ moment, style, fit = 'cover' }: Props) {
-  const userId = useSession((s) => s.userId);
+  useSession((s) => s.token); // re-render with the new session after a log in
   const uri = moment.media_url.startsWith('http') ? moment.media_url : `${BACKEND_URL}${moment.media_url}`;
   return (
     <View style={[styles.wrap, style]}>
       <Image
-        source={{ uri, headers: { 'X-User-Id': userId } }}
+        source={{ uri, headers: authHeaders() }}
         style={StyleSheet.absoluteFill}
         contentFit={fit}
         transition={120}

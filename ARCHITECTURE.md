@@ -21,7 +21,7 @@ flowchart LR
     subgraph Clients
         M["Mobile app<br/>Expo / React Native"]
         W["Desktop web<br/>Vite / React"]
-        G["Meta AI on Ray-Ban glasses"]
+        G["Muse in Meta AI"]
         X["Anyone with a shared link"]
     end
 
@@ -65,7 +65,7 @@ flowchart LR
 | Backend | `backend/app` | FastAPI. Layered (`domain` / `services` / `api`), split into lanes wired at startup. |
 | Muse | `backend/app/muse` | Every AI decision. Deterministic scores by default; the model is opt-in and always has a fallback. |
 | Realtime | `backend/app/realtime/hub.py` | One WebSocket per client, server push only. Every notification is also stored. |
-| Glasses | `backend/app/mcp_server.py` | Remote MCP server so Meta AI can draft, confirm and share Moves by voice. |
+| Muse in Meta AI | `backend/app/mcp_server.py` | Remote MCP connector so Muse in Meta AI can draft, confirm and share Moves by voice. |
 
 ---
 

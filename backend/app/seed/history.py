@@ -128,6 +128,5 @@ def _latest_weekday_before(now: datetime, weekday: int) -> datetime:
 
 
 def seed(session: Session, clock: Clock) -> None:
-    """Seed step (`app/seed/seed.py`). Writing `generate_history(clock.now())`
-    as ended Moves and hangouts lands with the rest of S11; until then this
-    leaves its tables empty."""
+    """Seed-runner hook. Writing `generate_history` rows lands with S11's DB part;
+    until then it leaves its tables empty."""

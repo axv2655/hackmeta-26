@@ -23,7 +23,7 @@ const SANDBOX = process.env.EXPO_PUBLIC_APNS_SANDBOX !== '0';
 const ASK_AFTER_MS = 30_000;
 
 // The socket already shows an in-app banner while the app is open.
-Notifications.setNotificationHandler({
+if (Platform.OS !== 'web') Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: false,
     shouldShowList: true,
@@ -115,6 +115,7 @@ export function usePush(): void {
   }, [userId]);
 
   useEffect(() => {
+    if (Platform.OS === 'web') return undefined; // no push on web; the in-app banner still works
     const open = (response: Notifications.NotificationResponse | null) => {
       if (!response || !useSession.getState().userId) return;
       const { data, type } = payloadOf(response);

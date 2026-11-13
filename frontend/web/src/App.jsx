@@ -274,7 +274,7 @@ function LeftRail({ setView }) {
       <a className="rail-item"><Avatar name={ME} size={36} /> {ME}</a>
       {SHORTCUTS.map(([s, sheet, y]) => <a key={s} className="rail-item" {...navProps(s, setView)}><i className="sprite" style={{ backgroundImage: `url(/fb/${sheet}.webp)`, backgroundPosition: `0 ${y}px` }} />{s}</a>)}
       <a className="rail-item"><span className="rail-icon see-more"><L.ChevronDown size={20} /></span>See more</a>
-      <footer className="rail-footer">Hackathon demo, not affiliated with Meta. Third-party icons © their respective owners, used with permission.</footer>
+      <footer className="rail-footer">Privacy · Consumer Health Privacy · Terms · Advertising · Ad Choices · Cookies · More</footer>
     </aside>
   )
 }

@@ -574,8 +574,9 @@ function MovesMap({ selectedId, onSelect, onClear, mapRef, mine }) {
   useEffect(() => {
     const map = Leaflet.map(el.current, { zoomControl: false })
     focus(map, MV_HOME, 15, false)
-    // CARTO Positron: keyless on any domain (Stadia only serves localhost without a key).
-    Leaflet.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 20, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO' }).addTo(map)
+    // Esri World Light Gray: keyless on any domain. Stadia and CARTO only serve
+    // localhost without an API key; OSM's own tile servers block apps.
+    Leaflet.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors' }).addTo(map)
     Leaflet.control.zoom({ position: 'bottomright' }).addTo(map)
     MOVES.forEach((m, i) => {
       markers.current[m.id] = Leaflet.marker(m.at, { icon: pinIcon({ img: bit(m.user, m.pose), name: first(m.user), detail: pinDetail(m), cat: m.cat, status: m.status, extra: m.joined.length, delay: i * 70 }), title: `${first(m.user)} at ${m.place}`, zIndexOffset: pinZ(m) }).addTo(map).on('click', () => onSelect(m.id))

@@ -98,9 +98,26 @@ export default function MovesScreen() {
       tap();
       setSelectedId(move.id);
       sheetRef.current?.snapToIndex(1);
-      mapRef.current?.focus(move.mark.coordinate);
+      // Center it above the half-height sheet the card opens in.
+      mapRef.current?.focus(move.mark.coordinate, true, height * 0.48 + sheetBottomInset);
     },
-    [moves],
+    [moves, height, sheetBottomInset],
+  );
+
+  // "Me": open my live Move if I have one, otherwise just center on me.
+  const pressMe = useCallback(
+    (here: Coordinate) => {
+      const myMove = moves.find((m) => m.mine && m.status !== 'ghost');
+      if (myMove) {
+        select(myMove.id);
+        return;
+      }
+      tap();
+      setSelectedId(null);
+      sheetRef.current?.snapToIndex(0);
+      mapRef.current?.focus(here, true, SHEET_COLLAPSED + sheetBottomInset);
+    },
+    [moves, select, sheetBottomInset],
   );
 
   // Coming back from the composer: open the Move that was just posted. Clear
@@ -156,6 +173,7 @@ export default function MovesScreen() {
         selectedId={selectedId}
         onSelect={select}
         onClear={clear}
+        onMePress={pressMe}
         onCenterChange={setCenter}
         topPadding={insets.top + 40}
         bottomPadding={visibleSheet + sheetBottomInset}

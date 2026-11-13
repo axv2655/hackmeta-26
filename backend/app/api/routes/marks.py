@@ -10,10 +10,12 @@ Coordinates in a response are always a Mark's, never a user's (12.1); the
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 
 from app.api.deps import ContainerDep
 from app.api.deps_core import CurrentUserDep, UserServiceDep
+from app.api.read_cache import cached, invalidate_on_write
 from app.core.areas import coarse
 from app.core.composition import build_mark_service
 from app.core.db import SessionDep
@@ -53,7 +55,7 @@ from app.services.marks import (
     MarkService,
 )
 
-router = APIRouter(tags=["marks"])
+router = APIRouter(tags=["marks"], dependencies=[Depends(invalidate_on_write)])
 
 
 def get_mark_service(session: SessionDep, container: ContainerDep) -> MarkService:
@@ -70,19 +72,31 @@ MarkServiceDep = Annotated[MarkService, Depends(get_mark_service)]
 
 
 @router.get("/marks/nearby")
-def nearby_marks(
+async def nearby_marks(
+    request: Request,
     user: CurrentUserDep,
     marks: MarkServiceDep,
     users: UserServiceDep,
+    c: ContainerDep,
     lat: Annotated[float, Query(ge=-90, le=90)],
     lng: Annotated[float, Query(ge=-180, le=180)],
     radius_km: Annotated[float, Query(gt=0, le=50)] = 5.0,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[NearbyMarkRead]:
-    """Saved Marks and Marks with ghosts, nearest first."""
-    users.record_near_area(user.id, coarse(lat), coarse(lng))  # label only
-    found = marks.nearby(user.id, lat, lng, radius_km, limit)
-    return [NearbyMarkRead.from_nearby(item) for item in found]
+    """Saved Marks and Marks with ghosts, nearest first. Blocking reads run in
+    the threadpool; cached for 5 seconds per viewer."""
+
+    # Label only, and outside the cache so a settings change applies at once.
+    await run_in_threadpool(users.record_near_area, user.id, coarse(lat), coarse(lng))
+
+    def load() -> list[NearbyMarkRead]:
+        found = marks.nearby(user.id, lat, lng, radius_km, limit)
+        return [NearbyMarkRead.from_nearby(item) for item in found]
+
+    async def compute() -> list[NearbyMarkRead]:
+        return await run_in_threadpool(load)
+
+    return await cached(request, user.id, c.clock.now, compute)
 
 
 @router.get("/marks/search")

@@ -41,8 +41,15 @@ def postgres_url(url: str) -> str:
 def make_engine(target: str) -> Engine:
     """Engine for MEMORY, a SQLite file path or URL, or a Postgres URL."""
     if target.startswith(POSTGRES_SCHEMES):
-        # pre_ping: hosted Postgres drops idle connections.
-        return create_engine(postgres_url(target), pool_pre_ping=True, pool_recycle=300)
+        # No pre_ping: it costs a round trip on every checkout. Recycling idle
+        # connections before the host drops them keeps the pool warm instead.
+        return create_engine(
+            postgres_url(target),
+            pool_pre_ping=False,
+            pool_recycle=240,
+            pool_size=10,
+            max_overflow=10,
+        )
     connect_args = {"check_same_thread": False}
     if target in (MEMORY, "sqlite://"):
         return create_engine(

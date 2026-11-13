@@ -22,10 +22,12 @@ import logging
 from collections.abc import Mapping, Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 
 from app.api.deps import ContainerDep, HooksDep
 from app.api.deps_core import CurrentUserDep, UserServiceDep
+from app.api.read_cache import cached, invalidate_on_write
 from app.api.routes.marks import MarkServiceDep
 from app.core.areas import coarse
 from app.core.composition import build_move_service
@@ -56,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 RANK_TIMEOUT_S = 2.0
 
-router = APIRouter(tags=["moves"])
+router = APIRouter(tags=["moves"], dependencies=[Depends(invalidate_on_write)])
 
 
 def get_move_service(
@@ -98,6 +100,9 @@ class MovePresenter:
             for view in self.marks.views(self.viewer_id, unique_marks)
         }
         moments = self.moves.moments_counts(self.viewer_id, [m.id for m in moves])
+        audiences = self.moves.audience_previews(
+            self.viewer_id, [m.id for m in moves if m.creator_id == self.viewer_id]
+        )
 
         def lite(user_id: str) -> UserLite:
             return UserLite.model_validate(people[user_id])
@@ -127,15 +132,14 @@ class MovePresenter:
                 ),
                 moments_count=moments.get(m.id, 0),
                 muse_reason=reasons.get(m.id) or None,
-                audience=self._audience(m),
+                audience=(
+                    AudienceSummary.from_domain(audiences[m.id])
+                    if m.id in audiences
+                    else None
+                ),
             )
             for m in moves
         ]
-
-    def _audience(self, move: MoveSnapshot) -> AudienceSummary | None:
-        if move.creator_id != self.viewer_id:
-            return None
-        return AudienceSummary.from_domain(self.moves.audience_preview(move.id))
 
 
 def get_presenter(
@@ -184,15 +188,26 @@ async def create_move(
 
 @router.get("/moves/feed")
 async def moves_feed(
-    me: CurrentUserDep, moves: MoveServiceDep, show: PresenterDep, c: ContainerDep
+    request: Request,
+    me: CurrentUserDep,
+    moves: MoveServiceDep,
+    show: PresenterDep,
+    c: ContainerDep,
 ) -> list[MoveRead]:
-    """Every live Move the viewer may see, Muse-ranked."""
-    ranked, reasons = await rank(c.muse, me.id, moves.list_live_visible(me.id))
-    return show.many(ranked, reasons)
+    """Every live Move the viewer may see, Muse-ranked. Blocking reads run in
+    the threadpool; the answer is cached for 5 seconds per viewer."""
+
+    async def compute() -> list[MoveRead]:
+        live = await run_in_threadpool(moves.list_live_visible, me.id)
+        ranked, reasons = await rank(c.muse, me.id, live)
+        return await run_in_threadpool(show.many, ranked, reasons)
+
+    return await cached(request, me.id, c.clock.now, compute)
 
 
 @router.get("/moves/nearby")
 async def moves_nearby(
+    request: Request,
     me: CurrentUserDep,
     moves: MoveServiceDep,
     show: PresenterDep,
@@ -204,14 +219,24 @@ async def moves_nearby(
 ) -> list[MoveRead]:
     """Live Moves the viewer may see at Marks within `radius_km`, Muse-ranked."""
     here = coarse(lat), coarse(lng)
-    users.record_near_area(me.id, *here)  # consent-gated label, never coordinates
-    near = [
-        m
-        for m in moves.list_live_visible(me.id)
-        if distance_km(*here, m.mark.lat, m.mark.lng) <= radius_km
-    ]
-    ranked, reasons = await rank(c.muse, me.id, near)
-    return show.many(ranked, reasons)
+
+    # Consent-gated label, never coordinates. Outside the cache so a settings
+    # change takes effect on the very next call.
+    await run_in_threadpool(users.record_near_area, me.id, *here)
+
+    def find_near() -> list[MoveSnapshot]:
+        return [
+            m
+            for m in moves.list_live_visible(me.id)
+            if distance_km(*here, m.mark.lat, m.mark.lng) <= radius_km
+        ]
+
+    async def compute() -> list[MoveRead]:
+        near = await run_in_threadpool(find_near)
+        ranked, reasons = await rank(c.muse, me.id, near)
+        return await run_in_threadpool(show.many, ranked, reasons)
+
+    return await cached(request, me.id, c.clock.now, compute)
 
 
 @router.get("/moves/{move_id}")

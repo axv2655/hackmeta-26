@@ -64,6 +64,14 @@ class MoveRepository(Protocol):
 
     def audience_circles(self, move_id: str) -> list[tuple[str, str]]: ...
 
+    def audience_ids_many(
+        self, move_ids: Collection[str]
+    ) -> dict[str, frozenset[str]]: ...
+
+    def audience_circles_many(
+        self, move_ids: Collection[str]
+    ) -> dict[str, list[tuple[str, str]]]: ...
+
     def moments_counts(
         self, viewer_id: str, move_ids: Collection[str]
     ) -> dict[str, int]: ...
@@ -187,6 +195,39 @@ class SqlMoveRepository:
             .order_by(col(Circle.name), col(Circle.id))
         ).all()
         return [(cid, name) for cid, name in rows]
+
+    def audience_ids_many(
+        self, move_ids: Collection[str]
+    ) -> dict[str, frozenset[str]]:
+        """`audience_ids` for many Moves in one query (every id gets a key)."""
+        found: dict[str, set[str]] = {move_id: set() for move_id in move_ids}
+        if not found:
+            return {}
+        rows = self.session.exec(
+            select(MoveAudience.move_id, MoveAudience.user_id).where(
+                col(MoveAudience.move_id).in_(found)
+            )
+        ).all()
+        for move_id, user_id in rows:
+            found[move_id].add(user_id)
+        return {move_id: frozenset(ids) for move_id, ids in found.items()}
+
+    def audience_circles_many(
+        self, move_ids: Collection[str]
+    ) -> dict[str, list[tuple[str, str]]]:
+        """`audience_circles` for many Moves in one query."""
+        found: dict[str, list[tuple[str, str]]] = {m: [] for m in move_ids}
+        if not found:
+            return {}
+        rows = self.session.exec(
+            select(MoveAudienceCircle.move_id, Circle.id, Circle.name)
+            .join(Circle, col(MoveAudienceCircle.circle_id) == Circle.id)
+            .where(col(MoveAudienceCircle.move_id).in_(found))
+            .order_by(col(Circle.name), col(Circle.id))
+        ).all()
+        for move_id, cid, name in rows:
+            found[move_id].append((cid, name))
+        return found
 
     def moments_counts(
         self, viewer_id: str, move_ids: Collection[str]

@@ -126,11 +126,19 @@ type World = { moves: MapMove[]; nearCampus: boolean };
 
 async function fetchAround(at: Coordinate): Promise<{ live: Move[]; marks: NearbyMark[] }> {
   const c = coarse(at);
+  // Staggered so the server never takes the calls in the same instant.
   const [live, marks] = await Promise.all([
     endpoints.moves.nearby(c.latitude, c.longitude, RADIUS_KM),
-    endpoints.marks.nearby(c.latitude, c.longitude, RADIUS_KM).catch(() => [] as NearbyMark[]),
+    after(STAGGER_MS, () => endpoints.marks.nearby(c.latitude, c.longitude, RADIUS_KM)).catch(() => [] as NearbyMark[]),
   ]);
   return { live, marks };
+}
+
+/** Gap between the calls of one refresh (nearby Moves, then Marks, then the feed). */
+const STAGGER_MS = 300;
+
+function after<T>(ms: number, run: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => setTimeout(() => run().then(resolve, reject), ms));
 }
 
 const hasAnything = (r: { live: Move[]; marks: NearbyMark[] }) =>
@@ -138,7 +146,7 @@ const hasAnything = (r: { live: Move[]; marks: NearbyMark[] }) =>
 
 /** Nearby around the phone; if nothing is within 25 km, around campus (where the seeded world is). */
 async function fetchWorld(me: string): Promise<World> {
-  const feed = endpoints.moves.feed().catch(() => [] as Move[]);
+  const feed = after(STAGGER_MS * 2, () => endpoints.moves.feed()).catch(() => [] as Move[]);
   let result = await fetchAround(here());
   let nearCampus = false;
   if (!hasAnything(result) && kmBetween(here(), CAMPUS_CENTER) > RADIUS_KM) {

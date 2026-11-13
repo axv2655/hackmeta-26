@@ -131,6 +131,38 @@ class MoveService:
             people=tuple(self._audience_repo.users(ids)),
         )
 
+    def audience_previews(
+        self, creator_id: str, move_ids: Collection[str]
+    ) -> dict[str, AudiencePreview]:
+        """`audience_preview` for several of one creator's Moves, with a fixed
+        number of queries (audience, circles, blocks, users) however many."""
+        ids = list(dict.fromkeys(move_ids))
+        if not ids:
+            return {}
+        hidden = self._audience_repo.hidden_from(creator_id)
+        audiences = {
+            move_id: members - hidden
+            for move_id, members in self.moves.audience_ids_many(ids).items()
+        }
+        circles = self.moves.audience_circles_many(ids)
+        people = {
+            user.id: user
+            for user in self._audience_repo.users(set().union(*audiences.values()))
+        }
+        return {
+            move_id: AudiencePreview(
+                count=len(audiences[move_id]),
+                circles=tuple(CircleLabel(id=c, name=n) for c, n in circles[move_id]),
+                people=tuple(
+                    sorted(
+                        (people[u] for u in audiences[move_id] if u in people),
+                        key=lambda user: (user.name, user.id),
+                    )
+                ),
+            )
+            for move_id in ids
+        }
+
     def moments_counts(
         self, viewer_id: str, move_ids: Collection[str]
     ) -> dict[str, int]:

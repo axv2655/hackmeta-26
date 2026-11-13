@@ -76,7 +76,7 @@ export default function MovesScreen() {
       void useLocation.getState().start(); // asks once, in context
       void useLive.getState().load();
       if (!useSaved.getState().loaded) void useSaved.getState().load();
-      const timer = setInterval(() => void useLive.getState().load(), 20000);
+      const timer = setInterval(() => void useLive.getState().load(), 15000);
       return () => clearInterval(timer);
     }, []),
   );
